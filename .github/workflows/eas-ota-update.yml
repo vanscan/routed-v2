@@ -1,0 +1,94 @@
+name: EAS OTA Update on Tag
+
+# Triggers an Expo OTA update (`eas update --branch production`) on any
+# version tag push. JS-only changes ship in ~30 seconds to all installed
+# Android apps without a Play Store re-review.
+#
+# Setup (one-time):
+#   1. In Expo dashboard → Access Tokens → create a new token
+#   2. In GitHub repo → Settings → Secrets → Actions → add:
+#        EXPO_TOKEN = <the token>
+#   3. Push a tag like `v2026.05.20` and the workflow auto-runs.
+#
+# For binary (AAB) releases use `eas build --platform android --profile production`
+# from your laptop — those should NOT be automated until you have a
+# release-signing keystore in EAS Secrets, otherwise Play Store will
+# reject the upload for mismatched signatures.
+#
+# To roll back a bad OTA: `eas update:rollback --branch production` (local).
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - 'ota-*'           # opt-in: tag `ota-fix-resume` to ship without bumping version
+  workflow_dispatch:       # also allow manual trigger from GH UI
+    inputs:
+      message:
+        description: 'Update message shown in Expo dashboard'
+        required: false
+        default: 'Manual OTA update'
+
+jobs:
+  ota-update:
+    name: Publish OTA bundle
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ota-${{ github.ref }}
+      cancel-in-progress: false   # never cancel an in-flight publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # eas needs full history for runtimeVersion
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Pre-deploy audit (lightweight)
+        run: |
+          # Same checks as scripts/predeploy.sh but inline for CI speed.
+          # Fails the workflow if eas.json has the rejected Proguard key
+          # or if EXPO_PUBLIC_BACKEND_URL is missing.
+          if grep -q "enableProguardInReleaseBuilds" frontend/eas.json; then
+            echo "::error::eas.json contains 'enableProguardInReleaseBuilds' — remove it"
+            exit 1
+          fi
+          if ! grep -qE "^EXPO_PUBLIC_BACKEND_URL=https://" frontend/.env; then
+            echo "::error::frontend/.env missing EXPO_PUBLIC_BACKEND_URL"
+            exit 1
+          fi
+          echo "✓ pre-flight clean"
+
+      - name: Publish OTA update
+        working-directory: frontend
+        env:
+          # Tag → message: `v2026.05.20` becomes message "v2026.05.20".
+          # Manual dispatch uses the input message.
+          MSG: ${{ github.event.inputs.message || github.ref_name }}
+        run: |
+          echo "Publishing OTA for tag/branch: $MSG"
+          eas update --branch production --message "$MSG" --non-interactive
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### OTA update ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "Branch: \`production\`" >> $GITHUB_STEP_SUMMARY
+          echo "Message: \`${{ github.event.inputs.message || github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Rollback: \`eas update:rollback --branch production\` (run locally)" >> $GITHUB_STEP_SUMMARY
