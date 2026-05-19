@@ -1,112 +1,196 @@
 {
-  "theme": "Archetype 4 (Swiss & High-Contrast)",
-  "mode": "Light",
-  "rationale": "For a driver app used in a van under direct Queensland sunlight, extreme legibility trumps all. We use a Swiss brutalist approach: stark white backgrounds, jet-black typography, and high-visibility Safety Orange for primary actions. Everything is built with huge tap targets (>=56px) for glove-wearing drivers.",
-  "colors": {
-    "background": "#FFFFFF",
-    "surface": "#F4F4F5",
-    "surface_active": "#E4E4E7",
-    "text_primary": "#09090B",
-    "text_secondary": "#52525B",
-    "primary": "#FF5A00",
-    "primary_foreground": "#FFFFFF",
-    "danger": "#DC2626",
-    "success": "#16A34A",
-    "border": "#D4D4D8",
-    "bin_label_bg": "#FF5A00",
-    "bin_label_text": "#FFFFFF"
-  },
+  "theme": "DARK",
+  "archetype": "Archetype 2 (Performance Pro)",
+  "instructions_to_main_agent": "Implement this blueprint across the React Native (Expo) app and web preview. Prioritize reducing visual fatigue, establishing strict 8pt grid discipline, and utilizing the provided color palette, typography scale, and tactical component styling.",
   "typography": {
-    "headings": {
-      "family": "Chivo, sans-serif",
-      "weights": ["700", "900"],
-      "usage": "Stop addresses, primary feature titles."
-    },
-    "body": {
-      "family": "IBM Plex Sans, sans-serif",
-      "weights": ["400", "500", "600"],
-      "usage": "Address details, UI text, buttons."
-    },
-    "mono": {
-      "family": "IBM Plex Mono, monospace",
-      "weights": ["700"],
-      "usage": "Bin Labels (A1, B2), parcel counts, step indicators. Monospace ensures uniform character width for rapid scanning while driving."
+    "font_family": {
+      "headings": "Manrope",
+      "body": "IBM Plex Sans"
     },
     "scale": {
-      "bin_giant": "text-[6rem] sm:text-[8rem] leading-none tracking-tighter font-black",
-      "h1": "text-4xl sm:text-5xl font-black tracking-tight",
-      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
-      "h3": "text-xl font-bold",
-      "body": "text-base sm:text-lg",
-      "small": "text-sm sm:text-base font-medium tracking-wide uppercase"
-    }
+      "h1": "text-4xl tracking-tight leading-tight",
+      "h2": "text-3xl tracking-tight leading-tight",
+      "h3": "text-2xl tracking-tight leading-snug",
+      "h4": "text-xl tracking-tight leading-snug",
+      "body": "text-base leading-relaxed tracking-normal",
+      "label": "text-sm uppercase tracking-[0.2em] font-bold",
+      "caption": "text-xs leading-normal tracking-wide"
+    },
+    "rules": [
+      "No mixed scales. Stick strictly to this hierarchy.",
+      "Headlines MUST use tracking-tight.",
+      "Use font weights strategically: Light (300) for elegance, ExtraBold (800) for active HUD metrics."
+    ]
+  },
+  "colors": {
+    "background": {
+      "base": "#0A0D14",
+      "surface": "#12161F",
+      "surface_elevated": "#1A1F2B"
+    },
+    "primary": {
+      "brand": "#F97316",
+      "muted": "#432412",
+      "text_on_brand": "#FFFFFF"
+    },
+    "secondary": {
+      "parabolic_green": "#10B981",
+      "parabolic_blue": "#3B82F6"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "destructive": "#EF4444",
+      "info": "#3B82F6"
+    },
+    "text": {
+      "primary": "#F8FAFC",
+      "secondary": "#94A3B8",
+      "disabled": "#475569"
+    },
+    "borders": {
+      "default": "rgba(255, 255, 255, 0.1)",
+      "focus": "#F97316"
+    },
+    "rules": [
+      "Reduce #F97316 saturation for large areas; use it strictly for primary actions, active route lines, or vital alerts.",
+      "Never use pure black or pure white for large surfaces. Base background is a deep slate (#0A0D14).",
+      "HUD must be monochrome primarily, using the primary brand color sparingly to highlight the very next action."
+    ]
   },
   "spacing_and_layout": {
-    "tap_targets": "MINIMUM 56px height (h-14) and width (w-14) for all interactive elements (buttons, checkboxes, grid cells).",
-    "container_padding": "p-4 sm:p-6",
-    "gap": "gap-4 to gap-6 for lists, gap-2 for tight groupings.",
-    "border_radius": "rounded-none or rounded-md (max 8px). No pill-shaped buttons to maximize hit area."
+    "grid_system": "8pt",
+    "scale": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "24px",
+      "xl": "32px",
+      "2xl": "48px"
+    },
+    "radius": {
+      "sm": "4px",
+      "md": "8px",
+      "lg": "12px",
+      "pill": "9999px"
+    },
+    "rules": [
+      "Enforce strict 8pt grid (8, 16, 24, 32) across all padding, margins, and heights.",
+      "Containers with borders must have internal padding (e.g., p-4 or p-6)."
+    ]
+  },
+  "depth_and_elevation": {
+    "glassmorphism": {
+      "use_case": "Floating Map Action Buttons, Sticky Headers, Modal Overlays",
+      "style": "bg-[#12161F]/70 backdrop-blur-xl border border-white/10 shadow-lg"
+    },
+    "flat_tactical": {
+      "use_case": "Sidebar Stop Cards, Settings Panels",
+      "style": "bg-[#12161F] border border-white/5 shadow-none"
+    },
+    "noise_texture": {
+      "use_case": "Login Page, Empty States",
+      "style": "Apply a subtle CSS/SVG grain overlay at 3-5% opacity over the base background to reduce flatness."
+    }
   },
   "components": {
-    "buttons": {
-      "primary": "h-14 bg-primary text-white font-bold text-lg rounded-md active:scale-95 transition-transform shadow-[4px_4px_0px_#09090B]",
-      "secondary": "h-14 bg-surface text-text_primary font-bold text-lg rounded-md border-2 border-text_primary active:bg-surface_active shadow-[4px_4px_0px_#09090B]",
-      "icon_only": "h-14 w-14 flex items-center justify-center bg-surface border-2 border-text_primary rounded-md active:bg-surface_active shadow-[4px_4px_0px_#09090B]"
+    "map_action_bar": {
+      "problem": "Buttons scattered across 4 corners.",
+      "solution": "Consolidate into a single 'Cockpit Control Pillar' on the right edge or bottom center using glassmorphism. Group related actions (Zoom, Layer, Optimize) and hide secondary actions behind a 'More' menu.",
+      "styling": "Glassmorphism, rounded-pill, icons only with tooltips."
     },
-    "cards": {
-      "default": "bg-white border-4 border-text_primary p-4 shadow-[6px_6px_0px_#09090B]",
-      "active": "bg-white border-4 border-primary p-4 shadow-[6px_6px_0px_#FF5A00]"
+    "sidebar_stop_cards": {
+      "problem": "Noisy (border + shadow + 3 badges + chevron).",
+      "solution": "Go flat. Tactical Minimalism. Remove shadows completely. Use 1px border. Consolidate badges into a single status indicator (dot or subtle left border color). Hide chevron until hovered or selected.",
+      "styling": "bg-surface border-white/5 p-4 rounded-md."
     },
-    "bin_grid": {
-      "container": "grid gap-3 p-3 bg-surface rounded-md border-2 border-text_primary",
-      "cell": "h-20 sm:h-24 flex flex-col items-center justify-center border-4 border-text_primary bg-white rounded-md text-3xl font-mono font-black active:bg-primary active:text-white active:border-primary transition-colors shadow-[4px_4px_0px_#09090B]",
-      "cell_selected": "bg-primary text-white border-primary shadow-[4px_4px_0px_#09090B]"
+    "driving_hud": {
+      "problem": "3+ colors compete for attention.",
+      "solution": "Monochrome mode. High contrast white text on Deep Slate background. Use #F97316 ONLY for the exact next turn direction/distance. Make metrics (ETA, Speed) text-secondary.",
+      "styling": "Extra bold mono numbers, high contrast, stripped of decorative colors."
     },
-    "photo_capture": {
-      "button": "h-24 w-full bg-text_primary text-white font-bold text-xl flex flex-col items-center justify-center rounded-md active:scale-[0.98] shadow-[4px_4px_0px_#09090B]",
-      "preview": "h-48 w-full object-cover rounded-md border-4 border-text_primary shadow-[4px_4px_0px_#09090B]"
+    "history_modal_cards": {
+      "problem": "Pill colors (red/amber/green) feel rainbow-y.",
+      "solution": "Use tinting. Instead of bright red/green backgrounds, use the surface background with a 1px colored left border or a colored dot. Keep the text text-primary.",
+      "styling": "Subtle borders, dot indicators."
     },
-    "multi_parcel_indicator": {
-      "container": "inline-flex items-center gap-2 bg-text_primary text-white px-3 py-2 rounded-md font-mono text-sm sm:text-base font-bold"
+    "algorithm_picker": {
+      "problem": "Emojis clash with serious tone.",
+      "solution": "Replace emojis with technical, minimalist SVG icons (Lucide/Phosphor). Align names and descriptions in a strict grid.",
+      "styling": "Lucide icons, text-secondary descriptions, 1px active border when selected."
+    },
+    "modals": {
+      "problem": "Default fade feels unmotivated.",
+      "solution": "Implement spring-based slide-up animations. Modals should feel like they have physical weight.",
+      "styling": "Framer Motion / Reanimated: type 'spring', damping 25, stiffness 200, slide from bottom."
     }
   },
-  "screens": {
-    "configure_van_grid": {
-      "purpose": "One-time setup for grid shape.",
-      "layout": "Vertical stack. Top: Title and description. Middle: 3 large toggle buttons (2x3, 3x3, 3x4). Below: Interactive visual preview of the grid using CSS Grid. Bottom: Sticky footer with 'Print/Export PDF' (secondary) and 'Save Configuration' (primary) buttons.",
-      "key_elements": [
-        "Grid shape toggles (min h-14)",
-        "Visual grid preview (occupies min 40vh)",
-        "Sticky bottom action bar"
-      ]
+  "motion": {
+    "durations": {
+      "fast": "150ms",
+      "medium": "300ms",
+      "slow": "500ms"
     },
-    "load_van": {
-      "purpose": "Loading stops in reverse optimized order with photo capture.",
-      "layout": "Header with Progress Bar ('7 of 23 loaded') and 'Reverse Optimised Order' banner. Scrollable list of Stop Cards. The 'Next' button is fixed at the bottom once all stops are loaded.",
-      "stop_card": {
-        "layout": "Thick bordered brutalist card. Top row: Stop number (e.g., #23) and Address (h3). Middle row: Huge 'Suggested Bin' block (A1) on left, huge 'Camera' button on right. If photo is taken, show thumbnail. Bottom row: 'Accept' full-width button (if not accepted), or 'Override Bin' secondary button."
-      }
+    "easings": {
+      "spring": "Spring physics for modal entry, stop completion",
+      "easeOut": "Cubic bezier for hover states (0.2, 0.8, 0.2, 1)"
     },
-    "stop_detail": {
-      "purpose": "Driver is driving/arrived. Needs instant bin info.",
-      "layout": "Bottom-drawer or full-screen card overlaying the map. Left side: Address and Multi-parcel indicator (e.g., '3 parcels: A1, A1, B2'). Right side: GIANT Bin Label (text-[6rem] sm:text-[8rem] font-mono font-black) in a bright orange box. Below: Massive photo thumbnail that expands on tap. Bottom: 'Moved it?' (Re-bin) small secondary button.",
-      "visual_hierarchy": "1. BIN LABEL (Giant, unmissable). 2. Package Photo. 3. Address. 4. Re-bin action."
-    },
-    "re_bin_modal": {
-      "purpose": "Quickly change bin location.",
-      "layout": "Full-screen modal or bottom sheet. Shows the Van Grid UI (same as setup). Driver taps a new cell (e.g., C3). Modal closes instantly on tap."
+    "micro_interactions": {
+      "stop_completion": "Strike-through text animation + checkmark scale pop + success haptic feedback.",
+      "route_optimize": "Sequential glow along the route polyline."
     }
   },
-  "accessibility_and_environment": {
-    "sun_glare": "Absolute black (#09090B) text on absolute white (#FFFFFF) backgrounds. High contrast borders (4px thick) to separate elements without relying on subtle drop shadows.",
-    "glove_operation": "No tap targets smaller than 56x56px. Minimum 16px gaps between interactive elements to prevent mis-taps in a moving van.",
-    "one_handed": "Critical actions (camera, confirm) placed in the lower 50% of the screen. Top-right is reserved for passive display (Bin Label).",
-    "cognitive_load": "Monospace fonts for alphanumeric codes (A1, B2) to prevent misreading '8' as 'B' or '1' as 'I'. No complex menus. Every action is exposed as a chunky button.",
-    "testing": "All interactive elements must include 'data-testid' attributes (e.g., data-testid='camera-button')."
+  "iconography": {
+    "library": "lucide-react-native",
+    "reasoning": "Ionicons feels dated and inconsistent for a 'pro' tool. Lucide offers precise, customizable stroke widths (set to 1.5px or 2px) that match the 'Tactical Dashboard' aesthetic perfectly.",
+    "rules": [
+      "Use 1.5px stroke weight globally.",
+      "Icon size standard: 20px for inline, 24px for primary actions."
+    ]
   },
   "image_urls": {
-    "package_sample": "https://images.unsplash.com/photo-1656543802898-41c8c46683a7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwxfHxjYXJkYm9hcmQlMjBib3glMjBwYWNrYWdlfGVufDB8fHx8MTc3NzAzNDgwOHww&ixlib=rb-4.1.0&q=85",
-    "van_interior": "https://images.pexels.com/photos/7843987/pexels-photo-7843987.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    "login_hero_motif": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/93794fd4-36b0-40bb-826b-74f05877c301/images/6f123eff7b465b702006a7462d1ecf9648b6e5619be20eec53b34df14270ed00.png",
+      "description": "Abstract parabolic curved lines glowing in neon green and cyan blue over a deep dark slate obsidian background, minimalist tech routing motif.",
+      "usage": "Use as the background or hero image for the login / waitlist screen, overlaying the form with glassmorphism."
+    }
   },
-  "instructions_to_main_agent": "1. Use React JS with Tailwind CSS to build these prototypes. 2. Implement the 'Swiss Brutalist' styling exactly: thick borders (border-4 border-text_primary), hard shadows (shadow-[4px_4px_0px_#09090B]), and strictly black/white/orange colors. 3. Ensure all buttons use 'h-14' minimum. 4. Use 'font-mono' for all Bin Labels (e.g., A1, B2). 5. Make the Bin Label on the Stop Detail screen obscenely large (e.g., text-[6rem] or 8rem). 6. Use the provided image URLs as placeholders for package photos. 7. Focus on extreme legibility for outdoor use. Do NOT use soft glassmorphism or subtle gradients."
+  "implementation_order": [
+    {
+      "step": 1,
+      "task": "Global Design Tokens: Inject color palette, typography scales, and 8pt grid constants into the Expo Router theme.",
+      "risk": "Low",
+      "effort": "Low"
+    },
+    {
+      "step": 2,
+      "task": "Icon Migration: Replace Ionicons with Lucide throughout the codebase.",
+      "risk": "Medium",
+      "effort": "Medium"
+    },
+    {
+      "step": 3,
+      "task": "Sidebar & Stop Cards Cleanup: Strip shadows, borders, and extra badges. Apply tactical flat styling.",
+      "risk": "Low",
+      "effort": "Medium"
+    },
+    {
+      "step": 4,
+      "task": "Map Action Bar Consolidation: Group the 4-corner floating buttons into a single glassmorphic pill or side dock.",
+      "risk": "High",
+      "effort": "Medium"
+    },
+    {
+      "step": 5,
+      "task": "Driving HUD Redesign: Convert to monochrome layout with single-accent orange for next action.",
+      "risk": "Medium",
+      "effort": "High"
+    },
+    {
+      "step": 6,
+      "task": "Modals & Overlays: Refactor Algorithm Picker, History, and Stop Details to use the new slide-up spring animations and remove rainbow pills.",
+      "risk": "Low",
+      "effort": "High"
+    }
+  ]
 }
