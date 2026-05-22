@@ -458,6 +458,13 @@ export default function RouteScreen() {
   // Alert types with icons
   // Section colors
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  // Compass subscription — provides device heading when GPS course-over-ground
+  // is invalid (stationary or below 1.4 m/s). Without this, the camera defaults
+  // to north (bearing=0) until the driver moves >5 km/h. Hands off to GPS once
+  // a real course arrives.
+  const headingSubscription = useRef<Location.LocationSubscription | null>(null);
+  const compassHeadingRef = useRef<number>(0);
+  const hasGpsCourseRef = useRef<boolean>(false);
   const lastSpokenInstruction = useRef<string>('');
   // Tracks which of the 3 announcement stages have fired for the current step
   const voiceAnnouncementRef = useRef<{
@@ -1742,7 +1749,30 @@ export default function RouteScreen() {
       setTraveledPath([]); // Reset traveled path when starting
       setUndoHistory([]); // Reset undo history
       setClusterOverlays([]); // Clear cluster overlays during driving
-      
+
+      // Compass subscription — gives us a heading immediately, even while
+      // stationary. Yields to GPS course-over-ground once the driver is
+      // confidently moving (hasGpsCourseRef set in the position watcher
+      // below). This is what makes the puck/map rotate at standstill the
+      // way Google Maps does.
+      hasGpsCourseRef.current = false;
+      try {
+        headingSubscription.current = await Location.watchHeadingAsync((h) => {
+          if (hasGpsCourseRef.current) return; // GPS is authoritative once moving
+          const compass = (h.trueHeading >= 0 ? h.trueHeading : h.magHeading) ?? 0;
+          compassHeadingRef.current = compass;
+          // Update currentLocation so the map prop reflects the new bearing
+          const prev = currentLocationRef.current;
+          if (prev) {
+            const next = { ...prev, heading: compass };
+            currentLocationRef.current = next;
+            setCurrentLocation(next);
+          }
+        });
+      } catch (e) {
+        console.log('[compass] watchHeadingAsync failed:', e);
+      }
+
       locationSubscription.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
@@ -1763,7 +1793,10 @@ export default function RouteScreen() {
             rawSpeed >= MOVING_SPEED_MPS &&
             typeof rawGpsHeading === 'number' &&
             rawGpsHeading >= 0;
-          const lastHeading = currentLocationRef.current?.heading ?? 0;
+          // Once GPS gives us a real course, stop accepting compass updates —
+          // GPS course-over-ground is more accurate for in-vehicle nav.
+          if (hasValidCourse) hasGpsCourseRef.current = true;
+          const lastHeading = currentLocationRef.current?.heading ?? compassHeadingRef.current;
           const newHeading = hasValidCourse ? (rawGpsHeading as number) : lastHeading;
 
           const newLocation = {
@@ -1839,6 +1872,15 @@ export default function RouteScreen() {
       }
       locationSubscription.current = null;
     }
+    if (headingSubscription.current) {
+      try {
+        headingSubscription.current.remove();
+      } catch (e) {
+        console.log('Cleanup heading:', e);
+      }
+      headingSubscription.current = null;
+    }
+    hasGpsCourseRef.current = false;
     Speech.stop();
     // Clear persisted breadcrumb so a fresh route starts blank instead
     // of resuming from yesterday's tail. Reset the debounce counter so
