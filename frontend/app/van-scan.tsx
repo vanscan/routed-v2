@@ -382,7 +382,9 @@ export default function VanScanScreen() {
                 minimumFontScale={0.35}
                 data-testid={`van-scan-match-siblings-${match.pinNumber}`}
               >
-                {match.siblings.join(', ')}
+                {match.siblings.length >= 2
+                  ? `${Math.min(...match.siblings)}-${Math.max(...match.siblings)}`
+                  : match.siblings.join(', ')}
               </Text>
             </>
           )}
