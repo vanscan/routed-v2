@@ -1700,7 +1700,8 @@ function processMessage(d) {
 
     // ── (1) Navigation Camera POV + (2) Dynamic Bearing ──────────────────
     if (d.type === 'drivingCamera') {
-      if (_userInteracting || _easeInFlight) return;
+      // TEMP: Removed _userInteracting check to debug camera follow
+      if (_easeInFlight) return;
       if (!map || !map.loaded()) return; // Safety: map must be ready
       
       // Support both formats: {center: [lng,lat]} or {lng, lat}
@@ -1724,7 +1725,6 @@ function processMessage(d) {
         }
       } catch (e) {
         // Fallback to raw center if projection fails
-        console.log('Look-ahead projection failed:', e);
       }
       
       // Speed-based auto-zoom with throttled smoothing
@@ -2279,6 +2279,9 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
       // Offset center in the direction of travel so driver sits in bottom third
       const lng = driverLocation.longitude + Math.sin(rad) * LOOK_AHEAD;
       const lat = driverLocation.latitude + Math.cos(rad) * LOOK_AHEAD;
+
+      // Debug: Log that we're sending the camera message
+      console.log('[LEGACY_CAM] Sending drivingCamera:', { lng: lng.toFixed(5), lat: lat.toFixed(5), hdg: hdg.toFixed(1) });
 
       sendMsg({
         type: 'drivingCamera',
