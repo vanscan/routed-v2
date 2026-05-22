@@ -250,18 +250,32 @@ export default function LoginScreen() {
     // Handle deep link / redirect with session_id (Android cold-start + warm)
     const handleUrl = async (url: string | null) => {
       if (!url) return;
+      console.log('[AUTH] Deep link received:', url.substring(0, 80) + '...');
       const sessionIdMatch = url.match(/[#?]session_id=([^&]+)/);
       if (sessionIdMatch) {
+        console.log('[AUTH] Deep link has session_id, attempting exchange...');
         await exchangeSessionOnce(sessionIdMatch[1]);
       }
     };
 
-    Linking.getInitialURL().then(handleUrl);
+    // Small delay to let WebBrowser.openAuthSessionAsync result handler go first
+    // This prevents a race where both handlers try to exchange the same session
+    const timeoutId = setTimeout(() => {
+      Linking.getInitialURL().then((url) => {
+        console.log('[AUTH] getInitialURL returned:', url?.substring(0, 50) || 'null');
+        handleUrl(url);
+      });
+    }, 500);
+    
     const subscription = Linking.addEventListener('url', (event) => {
+      console.log('[AUTH] URL event listener fired');
       handleUrl(event.url);
     });
 
-    return () => subscription.remove();
+    return () => {
+      clearTimeout(timeoutId);
+      subscription.remove();
+    };
   }, []);
 
   const handleGoogleLogin = async () => {

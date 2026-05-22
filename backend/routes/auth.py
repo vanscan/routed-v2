@@ -160,6 +160,11 @@ async def exchange_session(request: Request, response: Response):
         raise HTTPException(status_code=400, detail="Missing X-Session-ID header")
 
     async with httpx.AsyncClient(timeout=20.0) as client:
+        # Brief initial delay: the redirect sometimes arrives at the client
+        # before Emergent's session store has persisted the session_id.
+        # A 300ms pause before the first attempt helps avoid spurious 404s.
+        await _auth_asyncio.sleep(0.3)
+        
         # Retry up to 3 times with exponential backoff for transient errors.
         # 404 can occur if the session isn't propagated yet (race condition
         # between Google redirect and Emergent's session store). 5xx errors
