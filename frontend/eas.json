@@ -29,7 +29,7 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://floating-map-ui.emergent.host"
+        "EXPO_PUBLIC_BACKEND_URL": "https://routed.fly.dev"
       },
       "android": {
         "buildType": "app-bundle"
@@ -39,7 +39,7 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://floating-map-ui.emergent.host"
+        "EXPO_PUBLIC_BACKEND_URL": "https://routed.fly.dev"
       },
       "android": {
         "buildType": "apk"

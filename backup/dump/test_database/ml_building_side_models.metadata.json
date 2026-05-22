@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"aafe569cb9b54a9a82be836c4366b525","collectionName":"ml_building_side_models","type":"collection"}
