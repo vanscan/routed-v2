@@ -1700,25 +1700,16 @@ function processMessage(d) {
 
     // ── (1) Navigation Camera POV + (2) Dynamic Bearing ──────────────────
     if (d.type === 'drivingCamera') {
-      // DEBUG: Make border stay visible
-      document.body.style.border = '8px solid lime';
-      
-      if (_easeInFlight) {
-        document.body.style.borderColor = 'orange';
-        return;
-      }
-      if (!map || !map.loaded()) {
-        document.body.style.borderColor = 'red';
-        return;
-      }
-      
+      if (_easeInFlight) return;
+      // NOTE: do NOT gate on map.loaded() — it flickers false while any tile/
+      // source is loading (constant during driving), which would drop every
+      // camera tick. easeTo is safe to call before all sources finish loading.
+      if (!map) return;
+
       var rawLng = d.center ? d.center[0] : d.lng;
       var rawLat = d.center ? d.center[1] : d.lat;
-      if (rawLng == null || rawLat == null) {
-        document.body.style.borderColor = 'yellow';
-        return;
-      }
-      
+      if (rawLng == null || rawLat == null) return;
+
       var bearing = d.bearing || 0;
       var finalCenter = [rawLng, rawLat];
       var spd = d.speedMps || 0;
@@ -1727,9 +1718,8 @@ function processMessage(d) {
       if (typeof _smoothedZoom === 'undefined') _smoothedZoom = 16.5;
       _smoothedZoom = _smoothedZoom * 0.7 + targetZoom * 0.3;
 
-      document.body.style.borderColor = 'blue';
       _easeInFlight = true;
-      
+
       map.easeTo({
         center: finalCenter,
         bearing: bearing,
@@ -1737,8 +1727,7 @@ function processMessage(d) {
         zoom: _smoothedZoom,
         duration: 400
       });
-      
-      document.body.style.borderColor = 'cyan';
+
       setTimeout(function() { _easeInFlight = false; }, 420);
     }
 
@@ -1934,24 +1923,8 @@ function processMessage(d) {
 }
 
 window.handleMessage = function(msg) {
-  // DEBUG: Show ANY message received
-  document.body.style.outline = '3px solid red';
-  
   try {
     var d = JSON.parse(msg);
-    // DEBUG: Show message type in border color
-    if (d.type === 'drivingCamera') document.body.style.outlineColor = 'lime';
-    else if (d.type === 'updateDriver') document.body.style.outlineColor = 'blue';
-    else if (d.type === 'setDrivingMode') document.body.style.outlineColor = 'yellow';
-    else if (d.type === 'debugCameraSkip') {
-      // Show why camera is being skipped - pink border
-      document.body.style.outlineColor = 'magenta';
-      document.body.style.outlineWidth = '6px';
-      // Post back debug info
-      post({type:'debug', skip: d});
-    }
-    else document.body.style.outlineColor = 'orange';
-    
     if (!_layersReady) { _pendingMessages.push(d); return; }
     processMessage(d);
   } catch(e) {
@@ -2296,14 +2269,6 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
         center: [lng, lat],
         bearing: hdg,
         speedMps: (speed ?? 0) / 3.6, // convert km/h back to m/s for zoom calc
-      });
-    } else {
-      // DEBUG: Send a message showing why camera isn't following
-      sendMsg({
-        type: 'debugCameraSkip',
-        hasDriverLocation: !!driverLocation,
-        followDriver: !!followDriver,
-        highFreqCameraActive: !!highFreqCameraActive,
       });
     }
   }, [driverLocation, followDriver, speed, mapReady, sendMsg, highFreqCameraActive]);

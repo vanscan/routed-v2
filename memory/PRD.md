@@ -2093,12 +2093,14 @@ User feedback: "The route optimizer is producing zig-zag patterns on large route
 - **Verification done in pod**: `bash -n deploy-fly.sh` (syntax OK); Python `tomllib.load(fly.toml)` (parses OK, all expected keys present); no changes to `server.py` were needed — Dockerfile honours the existing `PORT` env var.
 - **Pending (user-side, requires their local machine)**: install `flyctl`, run `fly launch --no-deploy --copy-config --dockerfile Dockerfile.flyio`, run `./deploy-fly.sh` with secrets exported. Then update `frontend/.env` → `EXPO_PUBLIC_BACKEND_URL=https://routed-api.fly.dev` and trigger `eas build --profile production-apk`.
 
-## Pending: driving-mode camera not following driver (recurring, 4th attempt)
+## Pending: driving-mode camera not following driver (recurring, 4th attempt) — RESOLVED 2026-05-22
 
 - User reported the WebView debug border flashes **RED** during navigation. That confirms `postMessage` from the WebView is being received by `DeliveryMap.native.tsx`, but the path that should re-emit `drivingCamera` to React Native is not firing (or the React side is ignoring it).
-- **Next-session debug plan**:
-  1. Re-read `/app/frontend/src/components/DeliveryMap.native.tsx` around the `onMessage` handler — look for an early `return` or a `type === 'drivingCamera'` branch that's gated on `highFreqCameraActive` even though we explicitly disabled the high-freq path.
-  2. Re-read `/app/frontend/app/(tabs)/index.tsx` `useNavigationCamera` hook — confirm the prop passed to `<DeliveryMap>` actually reads the latest GPS fix on each tick (likely stale-closure on a `setInterval`).
-  3. Add a one-shot `console.log` in BOTH the WebView `injectedJavaScriptBeforeContentLoaded` AND the React `onMessage` to print a counter; user can `adb logcat | grep cam-tick` to see which side dies.
-  4. Reminder: any code change requires a new `eas build --profile production-apk`; the user's Emergent preview build ignores OTA.
+- **ROOT CAUSE FOUND**: `DeliveryMap.native.tsx` line 1710 gated the `drivingCamera` handler on `!map || !map.loaded()`. `map.loaded()` returns **false whenever any source/tile is loading** — during driving, building tiles, route polylines and geojson sources are constantly being fetched, so `loaded()` flickered false and every camera tick was dropped → RED border, no follow. Previous agent over-defended against a non-issue.
+- **FIX (2026-05-22)**:
+  1. `DeliveryMap.native.tsx:1707` — changed gate from `!map || !map.loaded()` to just `!map`. `easeTo` is safe to call before sources finish loading; tiles render when ready, camera moves immediately.
+  2. Stripped all debug-only border/outline colour assignments (lime/orange/red/yellow/blue/cyan/magenta) from the `drivingCamera`, `handleMessage`, and bootstrap blocks so production APK ships clean.
+  3. Removed the `debugCameraSkip` message-spam branch in the React effect (line ~2273): it was firing on every GPS tick when conditions weren't perfect, flooding the WebView→RN channel.
+- **Verification**: `tsc --noEmit` passes for the camera-fix region. Only one pre-existing unrelated TS error (`onLassoComplete` signature, line 2363) — not introduced by this fix.
+- **Pending user verification**: requires fresh EAS APK build (`eas build --profile production-apk`) — OTA won't reach the existing Emergent preview install. After install, drive the route → camera should now smoothly follow with no border flashes.
 
