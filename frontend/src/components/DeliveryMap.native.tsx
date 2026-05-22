@@ -1701,45 +1701,48 @@ function processMessage(d) {
     // ── (1) Navigation Camera POV + (2) Dynamic Bearing ──────────────────
     if (d.type === 'drivingCamera') {
       if (_userInteracting || _easeInFlight) return;
+      if (!map || !map.loaded()) return; // Safety: map must be ready
       
       // Support both formats: {center: [lng,lat]} or {lng, lat}
       var rawLng = d.center ? d.center[0] : d.lng;
       var rawLat = d.center ? d.center[1] : d.lat;
       if (rawLng == null || rawLat == null) return;
       
-      // Compute look-ahead offset in pixel space so it adapts to zoom/pitch
-      // This keeps the driver puck in the bottom-third of the screen while
-      // showing more road ahead. Offset = 150px up from center at pitch 60.
       var bearing = d.bearing || 0;
-      var centerPt = map.project([rawLng, rawLat]);
-      var lookAheadPx = 150; // pixels up from center
-      var bearingRad = (bearing * Math.PI) / 180;
-      // Move the center point UP in the direction of travel
-      centerPt.x += Math.sin(bearingRad) * lookAheadPx;
-      centerPt.y -= Math.cos(bearingRad) * lookAheadPx;
-      var offsetCenter = map.unproject(centerPt);
+      var finalCenter = [rawLng, rawLat];
+      
+      // Compute look-ahead offset in pixel space (only if map is ready)
+      try {
+        var centerPt = map.project([rawLng, rawLat]);
+        var lookAheadPx = 120; // pixels
+        var bearingRad = (bearing * Math.PI) / 180;
+        centerPt.x += Math.sin(bearingRad) * lookAheadPx;
+        centerPt.y -= Math.cos(bearingRad) * lookAheadPx;
+        var offsetCenter = map.unproject(centerPt);
+        if (offsetCenter && offsetCenter.lng && offsetCenter.lat) {
+          finalCenter = [offsetCenter.lng, offsetCenter.lat];
+        }
+      } catch (e) {
+        // Fallback to raw center if projection fails
+        console.log('Look-ahead projection failed:', e);
+      }
       
       // Speed-based auto-zoom with throttled smoothing
       var spd = d.speedMps || 0;
-      // Compute target zoom: clamp(lerp(18.5 → 14, speed 0→25 m/s))
-      // 0 m/s (stationary) → z18.5, 5 m/s (18 km/h residential) → z17.5
-      // 14 m/s (50 km/h suburban) → z16, 25 m/s (90 km/h highway) → z14
       var rawZoom = 18.5 - (spd / 25) * 4.5;
       var targetZoom = Math.max(14, Math.min(18.5, rawZoom));
-      // Smooth zoom transitions: lerp toward target (70% old, 30% new)
       if (typeof _smoothedZoom === 'undefined') _smoothedZoom = 16.5;
       _smoothedZoom = _smoothedZoom * 0.7 + targetZoom * 0.3;
-      // Snap if very close to avoid perpetual micro-easing
       if (Math.abs(_smoothedZoom - targetZoom) < 0.05) _smoothedZoom = targetZoom;
 
       _easeInFlight = true;
       map.easeTo({
-        center: [offsetCenter.lng, offsetCenter.lat],
+        center: finalCenter,
         bearing: bearing,
         pitch: 60,
         zoom: _smoothedZoom,
         duration: 400,
-        easing: function(t) { return t * (2 - t); }  // ease-out quadratic
+        easing: function(t) { return t * (2 - t); }
       });
       setTimeout(function() { _easeInFlight = false; }, 420);
     }
