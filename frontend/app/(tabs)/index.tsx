@@ -3541,7 +3541,8 @@ export default function RouteScreen() {
           // mode) we must tell the WebView NOT to also fire its own React-
           // driven `drivingCamera` writes — both writers racing produces the
           // visible "camera snapping" tug-of-war every ~250 ms.
-          highFreqCameraActive={isNavigating && viewMode === 'navigating'}
+          // TEMP: Disabled highFreqCameraActive to use legacy camera path
+          highFreqCameraActive={false}
           onStopClick={handleMapStopClick}
           onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones(nogoZones); }}
           onBlockRoadTap={handleBlockRoadTap}
