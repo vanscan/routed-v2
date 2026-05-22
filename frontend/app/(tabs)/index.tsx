@@ -3537,6 +3537,11 @@ export default function RouteScreen() {
           driverLocation={mapDriverLocation}
           traveledPath={mapTraveledPath}
           followDriver={mapFollowDriver}
+          // When the 250 ms `useNavigationCamera` hook is enabled (driving
+          // mode) we must tell the WebView NOT to also fire its own React-
+          // driven `drivingCamera` writes — both writers racing produces the
+          // visible "camera snapping" tug-of-war every ~250 ms.
+          highFreqCameraActive={isNavigating && viewMode === 'navigating'}
           onStopClick={handleMapStopClick}
           onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones(nogoZones); }}
           onBlockRoadTap={handleBlockRoadTap}

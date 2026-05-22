@@ -113,6 +113,16 @@ interface DeliveryMapProps {
       green when the driver is comfortably on-time, amber when tight, red
       when overrunning the stop's time-window. */
   nextStopColor?: string | null;
+  /** When `true`, the parent's `useNavigationCamera` hook owns the
+   *  driving camera at 4 Hz. This component MUST then suppress its own
+   *  React-driven `drivingCamera` writes — otherwise the two writers
+   *  race and the map visibly snaps between centers/bearings every
+   *  ~250 ms (the "camera tug-of-war" bug).
+   *
+   *  Default `false` keeps backwards-compat for any consumer that hasn't
+   *  yet wired `useNavigationCamera` and still relies on this component
+   *  to drive the driving camera from prop changes alone. */
+  highFreqCameraActive?: boolean;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1932,6 +1942,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     onNogoZoneClick,
     speed, etaMinutes, distanceRemaining, nextTurn, nextStopCoord, nextStopColor,
     routeIsPreview = false,
+    highFreqCameraActive = false,
   } = props;
 
   const webViewRef = useRef<WebView>(null);
@@ -2215,13 +2226,32 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
   }, [traveledPath, mapReady, sendMsg]);
 
   // ── Sync driver location + (1)(2) driving camera with look-ahead ─────────
+  //
+  // Camera write policy:
+  //   • `updateDriver` (the GeoJSON puck position) is ALWAYS sent — it's just
+  //     a marker move, not a camera command, so there is no contention.
+  //   • `drivingCamera` (centre + bearing + zoom) is ONLY sent here when no
+  //     other writer is active. The parent's `useNavigationCamera` hook
+  //     runs an independent 250 ms GPS watch and writes `drivingCamera`
+  //     directly to the WebView. If both writers fire, the map snaps
+  //     between two slightly different centres/bearings every render —
+  //     the original "camera tug-of-war" bug.
+  //
+  //   When `highFreqCameraActive === true`, this effect defers to the hook
+  //   (single writer, runs at 4 Hz, computes look-ahead in pixel-space
+  //   inside the WebView so it adapts to zoom/pitch).
+  //
+  //   When `highFreqCameraActive === false`, this effect retains the legacy
+  //   behaviour (lat/lng look-ahead) for callers that haven't wired the
+  //   hook yet.
   useEffect(() => {
     if (!mapReady) return;
     // Always update the driver GeoJSON marker position
     sendMsg({ type: 'updateDriver', location: driverLocation });
 
-    // In driving mode: use easeTo with look-ahead offset for Google-Maps-style POV
-    // Speed-based auto-zoom: faster = more zoomed out, slower = street-level detail
+    if (highFreqCameraActive) return; // hook owns the camera — bail out
+
+    // Legacy single-writer path (used in planning preview / non-nav modes)
     if (driverLocation && followDriver) {
       const hdg = driverLocation.heading ?? 0;
       const rad = hdg * Math.PI / 180;
@@ -2236,7 +2266,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
         speedMps: (speed ?? 0) / 3.6, // convert km/h back to m/s for zoom calc
       });
     }
-  }, [driverLocation, followDriver, speed, mapReady, sendMsg]);
+  }, [driverLocation, followDriver, speed, mapReady, sendMsg, highFreqCameraActive]);
 
   // ── Sync HUD ──────────────────────────────────────────────────────────────
   useEffect(() => {
