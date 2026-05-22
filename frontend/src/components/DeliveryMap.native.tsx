@@ -1703,9 +1703,21 @@ function processMessage(d) {
       if (_userInteracting || _easeInFlight) return;
       
       // Support both formats: {center: [lng,lat]} or {lng, lat}
-      var centerLng = d.center ? d.center[0] : d.lng;
-      var centerLat = d.center ? d.center[1] : d.lat;
-      if (centerLng == null || centerLat == null) return;
+      var rawLng = d.center ? d.center[0] : d.lng;
+      var rawLat = d.center ? d.center[1] : d.lat;
+      if (rawLng == null || rawLat == null) return;
+      
+      // Compute look-ahead offset in pixel space so it adapts to zoom/pitch
+      // This keeps the driver puck in the bottom-third of the screen while
+      // showing more road ahead. Offset = 150px up from center at pitch 60.
+      var bearing = d.bearing || 0;
+      var centerPt = map.project([rawLng, rawLat]);
+      var lookAheadPx = 150; // pixels up from center
+      var bearingRad = (bearing * Math.PI) / 180;
+      // Move the center point UP in the direction of travel
+      centerPt.x += Math.sin(bearingRad) * lookAheadPx;
+      centerPt.y -= Math.cos(bearingRad) * lookAheadPx;
+      var offsetCenter = map.unproject(centerPt);
       
       // Speed-based auto-zoom with throttled smoothing
       var spd = d.speedMps || 0;
@@ -1722,8 +1734,8 @@ function processMessage(d) {
 
       _easeInFlight = true;
       map.easeTo({
-        center: [centerLng, centerLat],
-        bearing: d.bearing || 0,
+        center: [offsetCenter.lng, offsetCenter.lat],
+        bearing: bearing,
         pitch: 60,
         zoom: _smoothedZoom,
         duration: 400,
