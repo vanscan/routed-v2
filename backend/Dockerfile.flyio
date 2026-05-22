@@ -1,34 +1,46 @@
 # Dockerfile for Fly.io deployment of RouTeD FastAPI backend
-# Build context = repo root (set by Fly when fly.toml is in /backend)
+# Build context = repo root (Fly sets this when fly.toml lives in /backend)
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    PIP_DEFAULT_TIMEOUT=180
 
 WORKDIR /app
 
 # System deps:
-#   build-essential / gcc — native wheels (ortools, numpy, pandas)
-#   libgomp1              — OpenMP runtime required by OR-Tools
-#   curl                  — healthchecks / debugging
-#   git                   — /api/healthz/version reads `git rev-parse`
+#   build-essential / gcc — native wheels (rare, but safer for fallbacks)
+#   libgomp1              — OpenMP runtime for OR-Tools (REQUIRED at runtime)
+#   curl                  — debugging
+#   git                   — /api/healthz/version uses `git rev-parse`
+#   default-jre-headless  — Timefold solver needs a JRE (no-op if ENABLE_TIMEFOLD=false)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
         git \
         libgomp1 \
+        default-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps. `emergentintegrations` ships on Emergent's CloudFront
-# index, not on public PyPI — hence --extra-index-url.
+# Install Python deps.
+#   1) lkh==2.0.0 declares a stale `Click<7.0` constraint that breaks pip's resolver
+#      with modern black/litellm/uvicorn (all need click>=8). The runtime
+#      function server.py calls (`lkh.solve`) doesn't use click — install with
+#      --no-deps so the bogus constraint is bypassed.
+#   2) Then install the full requirements.txt (with lkh filtered out so pip
+#      doesn't re-resolve and fail again). emergentintegrations ships on
+#      Emergent's CloudFront index, not on public PyPI.
 COPY backend/requirements.txt ./
 RUN pip install --upgrade pip \
+    && pip install --no-deps lkh==2.0.0 \
+    && grep -v '^lkh==' requirements.txt > /tmp/req-no-lkh.txt \
     && pip install \
         --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ \
-        -r requirements.txt
+        -r /tmp/req-no-lkh.txt
 
-# Copy the backend source
+# Copy backend source
 COPY backend/ ./
 
 # Fly routes HTTPS → internal port 8080 (see fly.toml)
