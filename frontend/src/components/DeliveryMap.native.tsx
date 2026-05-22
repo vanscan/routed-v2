@@ -1704,33 +1704,34 @@ function processMessage(d) {
       document.body.style.border = '5px solid lime';
       setTimeout(function() { document.body.style.border = 'none'; }, 200);
       
-      if (_easeInFlight) return;
-      if (!map || !map.loaded()) return; // Safety: map must be ready
+      // DEBUG: Check blocking conditions
+      if (_easeInFlight) {
+        document.body.style.border = '5px solid orange'; // Orange = blocked by easeInFlight
+        return;
+      }
+      if (!map) {
+        document.body.style.border = '5px solid red'; // Red = no map
+        return;
+      }
+      if (!map.loaded()) {
+        document.body.style.border = '5px solid purple'; // Purple = map not loaded
+        return;
+      }
       
       // Support both formats: {center: [lng,lat]} or {lng, lat}
       var rawLng = d.center ? d.center[0] : d.lng;
       var rawLat = d.center ? d.center[1] : d.lat;
-      if (rawLng == null || rawLat == null) return;
+      if (rawLng == null || rawLat == null) {
+        document.body.style.border = '5px solid yellow'; // Yellow = no coords
+        return;
+      }
       
       var bearing = d.bearing || 0;
       var finalCenter = [rawLng, rawLat];
       
-      // Compute look-ahead offset in pixel space (only if map is ready)
-      try {
-        var centerPt = map.project([rawLng, rawLat]);
-        var lookAheadPx = 120; // pixels
-        var bearingRad = (bearing * Math.PI) / 180;
-        centerPt.x += Math.sin(bearingRad) * lookAheadPx;
-        centerPt.y -= Math.cos(bearingRad) * lookAheadPx;
-        var offsetCenter = map.unproject(centerPt);
-        if (offsetCenter && offsetCenter.lng && offsetCenter.lat) {
-          finalCenter = [offsetCenter.lng, offsetCenter.lat];
-        }
-      } catch (e) {
-        // Fallback to raw center if projection fails
-      }
+      // Skip look-ahead for now - just use raw center
       
-      // Speed-based auto-zoom with throttled smoothing
+      // Speed-based auto-zoom
       var spd = d.speedMps || 0;
       var rawZoom = 18.5 - (spd / 25) * 4.5;
       var targetZoom = Math.max(14, Math.min(18.5, rawZoom));
@@ -1738,16 +1739,26 @@ function processMessage(d) {
       _smoothedZoom = _smoothedZoom * 0.7 + targetZoom * 0.3;
       if (Math.abs(_smoothedZoom - targetZoom) < 0.05) _smoothedZoom = targetZoom;
 
+      // DEBUG: Blue flash = about to call easeTo
+      document.body.style.border = '5px solid blue';
+      
       _easeInFlight = true;
-      map.easeTo({
-        center: finalCenter,
-        bearing: bearing,
-        pitch: 60,
-        zoom: _smoothedZoom,
-        duration: 400,
-        easing: function(t) { return t * (2 - t); }
-      });
-      setTimeout(function() { _easeInFlight = false; }, 420);
+      try {
+        map.easeTo({
+          center: finalCenter,
+          bearing: bearing,
+          pitch: 60,
+          zoom: _smoothedZoom,
+          duration: 400,
+          easing: function(t) { return t * (2 - t); }
+        });
+        // DEBUG: Cyan = easeTo succeeded
+        document.body.style.border = '5px solid cyan';
+      } catch(e) {
+        // DEBUG: Magenta = easeTo failed
+        document.body.style.border = '5px solid magenta';
+      }
+      setTimeout(function() { _easeInFlight = false; document.body.style.border = 'none'; }, 420);
     }
 
     // Enter/exit driving mode — toggles 3D buildings + route pulse
