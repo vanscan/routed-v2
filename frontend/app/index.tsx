@@ -338,7 +338,14 @@ export default function LoginScreen() {
         return;
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl, {
+        // Force an ephemeral browser session so the OAuth flow doesn't
+        // silently reuse a cached Google account from a prior sign-in.
+        // Without this, Chrome Custom Tabs share cookies with system Chrome
+        // and auth.emergentagent.com auto-completes with whichever Google
+        // account the user last used — causing "wrong account" lock-ins.
+        preferEphemeralSession: true,
+      });
 
       if (result.type === 'success' && result.url) {
         const sessionIdMatch = result.url.match(/[#?]session_id=([^&]+)/);
