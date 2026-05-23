@@ -550,10 +550,15 @@ export default function RouteScreen() {
 
   // (Map data updates are now prop-driven via DeliveryMap — no throttled injection needed)
 
-  // Reset map ready state when viewMode changes (map HTML is regenerated)
-  useEffect(() => {
-    setIsMapReady(false);
-  }, [viewMode]);
+  // NOTE: We do NOT reset isMapReady on viewMode change.
+  // DeliveryMap's underlying WebView is not remounted between planning and
+  // navigating modes — it persists across the whole tab lifetime — so
+  // `onMapReady` only ever fires ONCE (on first style load). Any reset
+  // here would leave `isMapReady` stuck at false forever, which silently
+  // disables the navigation camera hook (its `enabled` clause requires
+  // mapReady=true) and breaks every "fitBounds / drivingCamera / locate"
+  // path. Trust the first onMapReady; the map is ready for the whole
+  // session.
 
   // Keep latest mutable values for long-lived GPS callbacks
   useEffect(() => {
