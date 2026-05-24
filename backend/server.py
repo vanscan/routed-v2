@@ -721,6 +721,21 @@ async def archive_route(
     # Remove the MongoDB _id that insert_one adds to the dict
     route_doc.pop("_id", None)
 
+    # ── Route Telepathy (Phase A): record sequence preferences ──
+    # Currently gated to the owner account only (per request).
+    # Any errors are swallowed — learning failures must never break
+    # the archival flow, which is a critical path for the driver.
+    try:
+        if current_user.user_id == "user_2a7d88cbb419":
+            from ml.sequence_learner import record_completion as _seq_record
+            seq_stats = await _seq_record(db, current_user.user_id, route_doc)
+            logger.info(
+                "[sequence_learner] recorded route for user=%s: %s",
+                current_user.user_id, seq_stats,
+            )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[sequence_learner] record_completion failed: %s", e)
+
     return {"archived": True, "route": route_doc}
 
 
@@ -734,6 +749,35 @@ async def get_route_history(current_user: User = Depends(get_current_user)):
 
     routes = await cursor.to_list(500)
     return {"routes": routes}
+
+
+# ── Route Telepathy (Phase A) — sequence preference endpoints ──────────
+# Both endpoints are scoped strictly to the calling user; we never expose
+# another user's preferences. The owner-only gating happens inside
+# server.py's optimize/archive hooks, so these endpoints work for every
+# user (they just return zero data until the owner gate is widened).
+
+@api_router.get("/learn/sequence-stats")
+async def learn_sequence_stats(current_user: User = Depends(get_current_user)):
+    """Stats on learned sequence preferences for the calling user.
+
+    Used by the frontend to render a "🧠 Telepathy" badge once enough
+    high-confidence rules exist.
+    """
+    from ml.sequence_learner import get_stats as _seq_stats
+    stats = await _seq_stats(db, current_user.user_id)
+    # Echo whether this user is currently in the learning whitelist so the
+    # UI can show "Coming soon" vs "Active".
+    stats["enabled_for_user"] = current_user.user_id == "user_2a7d88cbb419"
+    return stats
+
+
+@api_router.post("/learn/sequence-reset")
+async def learn_sequence_reset(current_user: User = Depends(get_current_user)):
+    """Wipe all learned sequence preferences for the calling user."""
+    from ml.sequence_learner import reset as _seq_reset
+    deleted = await _seq_reset(db, current_user.user_id)
+    return {"deleted": deleted}
 
 
 @api_router.get("/routes/history/{route_id}")
@@ -6507,6 +6551,23 @@ async def _optimize_route_inner(
         )
 
     all_output_stops = optimized_stops + completed_stops
+
+    # ── Route Telepathy (Phase A): apply learned sequence preferences ──
+    # Currently gated to the owner account only.  Mutates `optimized_stops`
+    # in-place (only the uncompleted ones — completed stops stay where the
+    # archival flow placed them at the end of the list).
+    telepathy_meta: Dict[str, Any] = {"applied": False}
+    try:
+        if current_user.user_id == "user_2a7d88cbb419":
+            from ml.sequence_learner import apply_preferences as _seq_apply
+            telepathy_meta = await _seq_apply(db, current_user.user_id, optimized_stops)
+            if telepathy_meta.get("applied"):
+                # Re-build all_output_stops so the response carries the
+                # post-swap order. Completed stops always tail the list.
+                all_output_stops = optimized_stops + completed_stops
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[sequence_learner] apply_preferences failed: %s", e)
+
     # ── Absolute stop-id binding (no positional drift) ──────────────────
     # Frontend currently maps the route by positional order of `stops`.
     # That works as long as nothing reorders the array in transit, but it
@@ -6531,6 +6592,10 @@ async def _optimize_route_inner(
         "shadow": shadow,
         "quality_badge": quality_badge,
         "time_savings": time_savings,
+        # ── Route Telepathy meta — present even if no swaps were made,
+        # so the UI can show the "Learning..." badge once the user_id is
+        # whitelisted. Empty list = nothing was reordered.
+        "telepathy": telepathy_meta,
     }
     # Include cluster overlay data when cluster_first is used
     if algorithm_used == "cluster_first" and cluster_info:

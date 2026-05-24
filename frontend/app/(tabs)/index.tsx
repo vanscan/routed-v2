@@ -830,6 +830,16 @@ export default function RouteScreen() {
     return `\n⏱️ Saved ${pretty} (${savedPct.toFixed(0)}%) vs unoptimised`;
   };
 
+  // Telepathy badge — surfaces when the route was post-processed using
+  // learned sequence preferences from past deliveries. Empty string when
+  // no swaps were applied so the alert text stays clean.
+  const formatTelepathyBadge = (tp: any): string => {
+    if (!tp || !tp.applied) return '';
+    const n = Array.isArray(tp.swaps) ? tp.swaps.length : 0;
+    if (n <= 0) return '';
+    return `\n🧠 Telepathy: re-ordered ${n} stop${n === 1 ? '' : 's'} from your past deliveries`;
+  };
+
   const runOptimization = async (userLocation: { latitude: number; longitude: number } | null) => {
     const result = await optimizeRoute({
       algorithm: selectedAlgorithm,
@@ -1080,7 +1090,7 @@ export default function RouteScreen() {
         fromCurrent +
         `Algorithm: ${result.algorithm}\n` +
         `Total distance: ${result.total_distance_km} km\n` +
-        `${result.reasoning}${shadowText}${formatTimeSavingsBadge((result as any).time_savings)}${formatQualityBadge((result as any).quality_badge)}`,
+        `${result.reasoning}${shadowText}${formatTimeSavingsBadge((result as any).time_savings)}${formatQualityBadge((result as any).quality_badge)}${formatTelepathyBadge((result as any).telepathy)}`,
         alertButtons,
       );
       
@@ -1157,7 +1167,7 @@ export default function RouteScreen() {
       
       Alert.alert(
         '✨ Route Optimized!',
-        `${result.reasoning}\n\nTotal distance: ${result.total_distance_km} km${formatTimeSavingsBadge((result as any).time_savings)}${formatQualityBadge((result as any).quality_badge)}`,
+        `${result.reasoning}\n\nTotal distance: ${result.total_distance_km} km${formatTimeSavingsBadge((result as any).time_savings)}${formatQualityBadge((result as any).quality_badge)}${formatTelepathyBadge((result as any).telepathy)}`,
         [
           { text: 'Done', style: 'cancel' },
           { 
@@ -1511,7 +1521,7 @@ export default function RouteScreen() {
           : '';
       Alert.alert(
         '✨ Route Refined!',
-        `Optimized with ${drawnSections.length} section${drawnSections.length > 1 ? 's' : ''}.\n\nTotal distance: ${result.total_distance_km} km${formatTimeSavingsBadge((result as any).time_savings)}${formatQualityBadge((result as any).quality_badge)}${polishLine}`,
+        `Optimized with ${drawnSections.length} section${drawnSections.length > 1 ? 's' : ''}.\n\nTotal distance: ${result.total_distance_km} km${formatTimeSavingsBadge((result as any).time_savings)}${formatQualityBadge((result as any).quality_badge)}${formatTelepathyBadge((result as any).telepathy)}${polishLine}`,
         [{ text: 'Great!', style: 'default' }]
       );
       fetchRouteDirections();
