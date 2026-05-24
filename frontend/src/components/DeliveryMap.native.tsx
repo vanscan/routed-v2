@@ -1740,8 +1740,23 @@ function processMessage(d) {
       var rawLat = d.center ? d.center[1] : d.lat;
       if (rawLng == null || rawLat == null) return;
 
-      var bearing = d.bearing || 0;
-      var spd = d.speedMps || 0;
+      // Use the SMOOTHED puck bearing (lerped over ~220ms at 60fps in
+      // animateBearing) — NOT the raw GPS heading — so the camera's
+      // look-ahead direction rotates in lockstep with the visible puck.
+      // Previously the camera used d.bearing directly while the puck used
+      // _puckCurrentBearing, so they pointed in two different directions
+      // every tick and the puck visibly slid sideways inside the screen.
+      var rawBearing = d.bearing || 0;
+      if (_puckCurrentBearing == null) _puckCurrentBearing = rawBearing;
+      var bearing = _puckCurrentBearing;
+
+      // Smooth the speed so the look-ahead distance doesn't bounce on every
+      // tick. GPS speed is noisy at low speeds and oscillates by 1-3 m/s
+      // which moved the camera centre by tens of pixels per tick.
+      var rawSpd = d.speedMps || 0;
+      if (typeof _smoothedSpeed === 'undefined') _smoothedSpeed = rawSpd;
+      _smoothedSpeed = _smoothedSpeed * 0.7 + rawSpd * 0.3;
+      var spd = _smoothedSpeed;
 
       // ── Pixel-space look-ahead offset ─────────────────────────────────
       // Push the camera centre lookAhead pixels along the heading so the
@@ -1799,6 +1814,12 @@ function processMessage(d) {
       // inherit whatever zoom we'd lerped to during the previous session,
       // producing an inconsistent "where am I" first frame.
       _smoothedZoom = 16.5;
+      // Reset smoothed speed too so the first frame's look-ahead distance
+      // starts from "stopped" rather than inheriting last session's value.
+      _smoothedSpeed = 0;
+      // Snap puck bearing to whatever the GPS gives us first — avoids a
+      // brief sweep from last session's bearing on the first driving tick.
+      _puckCurrentBearing = null;
       if (map.getLayer('buildings-3d')) map.setLayoutProperty('buildings-3d','visibility','visible'); // OSM worldwide: ALWAYS on — fallback for non-QLD.
       if (map.getLayer('buildings-self-3d')) map.setLayoutProperty('buildings-self-3d','visibility','visible'); // QLD cadastre: ALWAYS on — OSM is empty in new estates, so this is the only source.
       _updateBuildingFade(); // Re-evaluate fade: fade near next-stop only while driving, full opacity otherwise.
@@ -2312,10 +2333,17 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
   //   hook yet.
   useEffect(() => {
     if (!mapReady) return;
-    // Always update the driver GeoJSON marker position
-    sendMsg({ type: 'updateDriver', location: driverLocation });
+    // When the high-frequency hook is active it now sends BOTH
+    // `updateDriver` AND `drivingCamera` from the same GPS tick (single
+    // source of truth). Firing `updateDriver` from this slower (≈400 ms)
+    // effect on top of that would race the hook's 250 ms stream and the
+    // puck would visibly snap back/forth between two GPS fixes — the
+    // root cause of the "puck moves around a lot" jitter. So we bail
+    // out early and let the hook own both writes.
+    if (highFreqCameraActive) return;
 
-    if (highFreqCameraActive) return; // hook owns the camera — bail out
+    // Legacy path: not in high-frequency nav mode, so we own the puck.
+    sendMsg({ type: 'updateDriver', location: driverLocation });
 
     // Legacy single-writer path (used in planning preview / non-nav modes)
     if (driverLocation && followDriver) {

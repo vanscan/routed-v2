@@ -115,6 +115,19 @@ export function useNavigationCamera(
           }
           // else: headingRef stays at its last good value (frozen)
 
+          // ── Single-source-of-truth: drive BOTH the puck marker AND the
+          //     camera from the same GPS tick. Previously the puck was being
+          //     updated from a separate, slower (400 ms) subscription via the
+          //     `driverLocation` prop, so the puck and the camera centre saw
+          //     two slightly different GPS fixes at two slightly different
+          //     times → puck visibly drifted/jumped inside the screen frame
+          //     between each tick. By emitting `updateDriver` + `drivingCamera`
+          //     back-to-back here, both are guaranteed to reference the exact
+          //     same fix → puck stays glued to its screen anchor.
+          sendRef.current({
+            type: 'updateDriver',
+            location: { latitude, longitude, heading: headingRef.current },
+          });
           // Send raw GPS — the WebView computes pixel-space look-ahead offset
           console.log('[NAV_CAM] Sending drivingCamera:', { lng: longitude.toFixed(5), lat: latitude.toFixed(5), bearing: headingRef.current.toFixed(1) });
           sendRef.current({
