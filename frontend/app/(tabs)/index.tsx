@@ -2911,7 +2911,7 @@ export default function RouteScreen() {
 
   // ── 250ms camera hook (bypasses React prop latency for buttery-smooth 3D POV) ──
   useNavigationCamera(sendToMap, {
-    enabled: isNavigating && viewMode === 'navigating',
+    enabled: isNavigating && viewMode === 'navigating' && !inOverviewModeRef.current,
     mapReady: isMapReady,
     onSpeedUpdate: (s) => { cameraSpeedRef.current = s; },
   });

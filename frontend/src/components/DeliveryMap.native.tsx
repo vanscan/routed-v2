@@ -1709,6 +1709,10 @@ function processMessage(d) {
       // below rather than a setTimeout so that a suspended JS thread can never
       // permanently lock the camera (root cause of "camera not following").
       if (_easeInFlight) return;
+      // Yield to active user interaction (pan / pinch) — don't fight the
+      // driver tapping the map. _userInteracting is set true on
+      // touchstart and cleared 3 s after the last interaction.
+      if (_userInteracting) return;
 
       var rawLng = d.center ? d.center[0] : d.lng;
       var rawLat = d.center ? d.center[1] : d.lat;
@@ -1768,6 +1772,11 @@ function processMessage(d) {
       // Reset route progress — each driving session starts fresh at the line origin.
       _routeProgressKm = 0;
       _routeTotalKm = 0;
+      // Reset zoom lerp so every driving session starts at the same baseline
+      // (16.5). Without this, the first easeTo in the new session would
+      // inherit whatever zoom we'd lerped to during the previous session,
+      // producing an inconsistent "where am I" first frame.
+      _smoothedZoom = 16.5;
       if (map.getLayer('buildings-3d')) map.setLayoutProperty('buildings-3d','visibility','visible'); // OSM worldwide: ALWAYS on — fallback for non-QLD.
       if (map.getLayer('buildings-self-3d')) map.setLayoutProperty('buildings-self-3d','visibility','visible'); // QLD cadastre: ALWAYS on — OSM is empty in new estates, so this is the only source.
       _updateBuildingFade(); // Re-evaluate fade: fade near next-stop only while driving, full opacity otherwise.
