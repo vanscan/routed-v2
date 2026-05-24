@@ -835,14 +835,35 @@ var map = new maplibregl.Map({
   maxPitch: 70
 });
 
-// Track user touch to pause driving camera
-map.on('touchstart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
-map.on('touchend', function() {
-  _interactionTimer = setTimeout(function() { _userInteracting = false; }, 3000);
+// Pause driving camera only on REAL map manipulation (drag/pinch/rotate).
+// Previously we used touchstart/mousedown which fired on any tap that hit
+// the map element — including taps that bubble through the bottom
+// NavigationPanel's transparent edges — and kept _userInteracting=true
+// for 3 s after every casual tap, silently freezing the camera (looked
+// like a "north lock" bug). MapLibre's dragstart fires only when a touch
+// actually starts dragging the map past the click-threshold.
+map.on('dragstart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
+map.on('dragend', function() {
+  _interactionTimer = setTimeout(function() { _userInteracting = false; }, 2000);
 });
-map.on('mousedown', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
-map.on('mouseup', function() {
-  _interactionTimer = setTimeout(function() { _userInteracting = false; }, 3000);
+map.on('pitchstart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
+map.on('pitchend', function() {
+  _interactionTimer = setTimeout(function() { _userInteracting = false; }, 2000);
+});
+map.on('rotatestart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
+map.on('rotateend', function() {
+  _interactionTimer = setTimeout(function() { _userInteracting = false; }, 2000);
+});
+// Pinch-zoom: only flag when the zoom is user-initiated (originalEvent
+// present). Programmatic zoom (from our easeTo) leaves originalEvent
+// undefined and must NOT pause the camera.
+map.on('zoomstart', function(e) {
+  if (e && e.originalEvent) { _userInteracting = true; clearTimeout(_interactionTimer); }
+});
+map.on('zoomend', function(e) {
+  if (e && e.originalEvent) {
+    _interactionTimer = setTimeout(function() { _userInteracting = false; }, 2000);
+  }
 });
 
 function initLayers() {
@@ -1709,6 +1730,11 @@ function processMessage(d) {
       // below rather than a setTimeout so that a suspended JS thread can never
       // permanently lock the camera (root cause of "camera not following").
       if (_easeInFlight) return;
+      // Pause auto-camera only when user is actively manipulating the map
+      // (real drag/pinch/rotate, not stray taps). _userInteracting is set
+      // by MapLibre's dragstart/pitchstart/rotatestart events below and
+      // cleared 2 s after the corresponding *end* event.
+      if (_userInteracting) return;
 
       var rawLng = d.center ? d.center[0] : d.lng;
       var rawLat = d.center ? d.center[1] : d.lat;
