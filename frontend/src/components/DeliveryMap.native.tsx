@@ -1790,17 +1790,21 @@ function processMessage(d) {
 
       _easeInFlight = true;
       // Listen ONCE for the next moveend — that's the canonical "easeTo
-      // finished" signal. Belt-and-braces: also clear via a 600 ms watchdog
+      // finished" signal. Belt-and-braces: also clear via a 300 ms watchdog
       // in case moveend is somehow suppressed (e.g. easeTo was a no-op).
       map.once('moveend', function() { _easeInFlight = false; });
-      setTimeout(function() { _easeInFlight = false; }, 600);
+      setTimeout(function() { _easeInFlight = false; }, 300);
 
       map.easeTo({
         center: finalCenter,
         bearing: bearing,
         pitch: 60,
         zoom: _smoothedZoom,
-        duration: 400
+        // Match the GPS tick rate (~250 ms from useNavigationCamera) so the
+        // camera animation finishes just as the next tick arrives. Previously
+        // this was 400 ms which made the camera rotation visibly trail the
+        // driver's actual heading by up to one full tick on turns.
+        duration: 250
       });
     }
 
