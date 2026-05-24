@@ -835,14 +835,32 @@ var map = new maplibregl.Map({
   maxPitch: 70
 });
 
-// Track user touch to pause driving camera
-map.on('touchstart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
-map.on('touchend', function() {
+// Track REAL map drag to pause driving camera. Previously we used touchstart
+// which fires on any tap that lands on the map element — including taps that
+// bubble through the transparent edges of the bottom NavigationPanel — and
+// kept _userInteracting=true for 3 s after every casual tap, which silently
+// froze the driving camera (looked like a "north lock" bug). dragstart only
+// fires on real map drags / pinches, which is what we actually want to yield to.
+map.on('dragstart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
+map.on('dragend', function() {
   _interactionTimer = setTimeout(function() { _userInteracting = false; }, 3000);
 });
-map.on('mousedown', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
-map.on('mouseup', function() {
+map.on('pitchstart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
+map.on('pitchend', function() {
   _interactionTimer = setTimeout(function() { _userInteracting = false; }, 3000);
+});
+map.on('rotatestart', function() { _userInteracting = true; clearTimeout(_interactionTimer); });
+map.on('rotateend', function() {
+  _interactionTimer = setTimeout(function() { _userInteracting = false; }, 3000);
+});
+map.on('zoomstart', function(e) {
+  // zoomstart fires for programmatic zoom too — only flag if it's user-driven
+  if (e && e.originalEvent) { _userInteracting = true; clearTimeout(_interactionTimer); }
+});
+map.on('zoomend', function(e) {
+  if (e && e.originalEvent) {
+    _interactionTimer = setTimeout(function() { _userInteracting = false; }, 3000);
+  }
 });
 
 function initLayers() {
@@ -1757,10 +1775,11 @@ function processMessage(d) {
       setTimeout(function() { _easeInFlight = false; }, 600);
 
       map.easeTo({
-        center: finalCenter,
+        center: [rawLng, rawLat],
         bearing: bearing,
         pitch: 60,
         zoom: _smoothedZoom,
+        padding: { top: topPad, bottom: 0, left: 0, right: 0 },
         duration: 400
       });
     }
