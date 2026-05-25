@@ -13,6 +13,13 @@
 
 set -eu
 
+# Prevent pytest below from generating __pycache__/ during the commit —
+# the platform's Save-to-Github wrapper sees those as new untracked dirs
+# and tries to `git add __pycache__`, which then fails because pycache
+# is in .gitignore. Setting this env var stops Python from writing any
+# .pyc files for the duration of this hook.
+export PYTHONDONTWRITEBYTECODE=1
+
 THRESHOLD=7500
 SERVER_PY="backend/server.py"
 RESUME_TEST="frontend/scripts/test-resume-navigation.js"
