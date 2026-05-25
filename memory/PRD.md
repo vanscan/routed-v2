@@ -1,3 +1,49 @@
+## 2026-05-25 — Route Telepathy (Phase A + B) Shipped
+
+### Summary
+Per-driver ML layer that learns from each completed route. Currently
+gated to the owner account only (`user_id == "user_2a7d88cbb419"`).
+
+### Phase A — Sequence preferences
+- New module: `/app/backend/ml/sequence_learner.py`
+- Hook: `archive_route` → records every (earlier→later) pair of
+  delivered stops, keyed by rounded lat/lng (~1 m precision).
+- Hook: `_optimize_route_inner` → after solver returns, a single
+  forward pass swaps adjacent stops where the driver has ≥0.6
+  confidence (after ≥3 observations) for the opposite order.
+- Response field: `telepathy: {applied, swaps[], reason}`
+- Frontend badge: "🧠 Telepathy: re-ordered N stops from your past
+  deliveries" appended to all three optimise-success alerts.
+- Endpoints: `GET /api/learn/sequence-stats`, `POST /api/learn/sequence-reset`.
+- New MongoDB collection: `sequence_preferences`
+- Test: `/app/backend/tests/test_sequence_learner.py` ✅ passing
+
+### Phase B — Road segment preferences
+- New module: `/app/backend/ml/road_segment_learner.py`
+- Hook: `archive_route` consumes `breadcrumb` from body, fires a
+  background task that map-matches via OSRM `/match` (radiuses=25,
+  batched at 95 coords with 1-coord overlap), increments per-edge
+  counters (smaller_node:larger_node, direction-insensitive).
+- Frontend: `archiveRoute({breadcrumb})` from `index.tsx` snapshot of
+  `traveledPath`, capped at 5000 points.
+- New endpoint `POST /api/route/preferred-polyline`: fetches up to 3
+  OSRM alternatives, scores each by user road familiarity, returns the
+  most-familiar within +15% duration of the fastest. Falls back to
+  fastest when no preferences exist.
+- Endpoints: `GET /api/learn/road-stats`, `POST /api/learn/road-reset`.
+- New MongoDB collection: `road_preferences`
+- Test: `/app/backend/tests/test_road_segment_learner.py` ✅ passing
+  (uses real QLD coords against local OSRM)
+
+### Pending
+- Backend deploy to Fly.io required (new module + endpoints).
+- Frontend wiring for `preferred-polyline` endpoint — currently the
+  optimize/reroute flow still uses standard OSRM. Phase B is recording
+  data but not yet steering route geometry until that wiring is added.
+
+---
+
+
 ## 2026-05-19 — Resume Route Hardened (P0 Bug Fix)
 
 - [x] **Bug**: User reported "Failed to resume route". Backend logs showed

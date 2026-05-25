@@ -381,7 +381,7 @@ interface StopsStore {
   removeOutliers: (stopIds: string[]) => Promise<number | null>;
   clearStops: () => void;
   deleteAllStops: () => Promise<boolean>;
-  archiveRoute: () => Promise<boolean>;
+  archiveRoute: (extras?: { breadcrumb?: Array<{ lat: number; lng: number }> }) => Promise<boolean>;
   /** Lock an ordered list of stop IDs into the DB's `sequence_number` so
    *  GET /api/stops returns them in that order permanently (until the next
    *  confirm call). Returns true on 2xx. Never throws — a flaky network
@@ -1252,7 +1252,7 @@ export const useStopsStore = create<StopsStore>((set, get) => ({
     }
   },
 
-  archiveRoute: async () => {
+  archiveRoute: async (extras?: { breadcrumb?: Array<{ lat: number; lng: number }> }) => {
     try {
       const { lastAlgorithm, lastDistanceKm, lastDurationSec } = useStopsStore.getState();
       // Body is optional — backend defaults all three to null in
@@ -1264,6 +1264,14 @@ export const useStopsStore = create<StopsStore>((set, get) => ({
       if (lastAlgorithm) body.algorithm = lastAlgorithm;
       if (typeof lastDistanceKm === 'number') body.total_distance_km = lastDistanceKm;
       if (typeof lastDurationSec === 'number') body.total_duration_seconds = lastDurationSec;
+      // Route Telepathy (Phase B): forward the GPS breadcrumb so the
+      // server can map-match it and learn road preferences. Capped at
+      // 5000 points client-side to keep the payload reasonable; the
+      // server decimates again to ~50 m intervals before calling OSRM.
+      if (extras?.breadcrumb && Array.isArray(extras.breadcrumb) && extras.breadcrumb.length >= 2) {
+        const cb = extras.breadcrumb;
+        body.breadcrumb = cb.length > 5000 ? cb.slice(cb.length - 5000) : cb;
+      }
       const response = await authFetch(`${BACKEND_URL}/api/routes/archive`, {
         method: 'POST',
         body: JSON.stringify(body),

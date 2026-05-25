@@ -1205,7 +1205,12 @@ export default function RouteScreen() {
           onPress: async () => {
             // Archive current route to history
             if (stops.length > 0) {
-              await archiveRoute();
+              // Capture the driver's actual GPS breadcrumb so the backend
+              // can map-match it for Phase B road-preference learning.
+              // We send a snapshot (not a ref) to avoid any in-flight
+              // mutation between the call and the network send.
+              const breadcrumbSnapshot = traveledPath.slice();
+              await archiveRoute({ breadcrumb: breadcrumbSnapshot });
             }
             // Call API to clear all stops from the database
             const success = await deleteAllStops();

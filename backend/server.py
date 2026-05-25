@@ -736,6 +736,44 @@ async def archive_route(
     except Exception as e:  # noqa: BLE001
         logger.warning("[sequence_learner] record_completion failed: %s", e)
 
+    # ── Route Telepathy (Phase B): map-match the GPS breadcrumb ──
+    # Breadcrumb arrives in optional_body["breadcrumb"] as a list of
+    # {lat, lng} dicts. We kick off the map-matching in a background task
+    # because OSRM /match can take 2-5 s for long routes, and we don't
+    # want to block the archival HTTP response on that. The task is
+    # fire-and-forget; errors only log.
+    try:
+        breadcrumb = optional_body.get("breadcrumb")
+        if (
+            current_user.user_id == "user_2a7d88cbb419"
+            and isinstance(breadcrumb, list)
+            and len(breadcrumb) >= 2
+        ):
+            from ml.road_segment_learner import record_route_breadcrumb as _road_record
+            # Coerce shape — frontend sometimes sends {longitude, latitude}.
+            normalised = []
+            for p in breadcrumb:
+                if not isinstance(p, dict):
+                    continue
+                lat = p.get("lat") if "lat" in p else p.get("latitude")
+                lng = p.get("lng") if "lng" in p else p.get("longitude")
+                if lat is None or lng is None:
+                    continue
+                try:
+                    normalised.append({"lat": float(lat), "lng": float(lng)})
+                except (TypeError, ValueError):
+                    continue
+            if len(normalised) >= 2:
+                asyncio.create_task(
+                    _road_record(db, current_user.user_id, normalised)
+                )
+                logger.info(
+                    "[road_learner] queued breadcrumb processing user=%s points=%d",
+                    current_user.user_id, len(normalised),
+                )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[road_learner] record_route_breadcrumb queue failed: %s", e)
+
     return {"archived": True, "route": route_doc}
 
 
@@ -778,6 +816,132 @@ async def learn_sequence_reset(current_user: User = Depends(get_current_user)):
     from ml.sequence_learner import reset as _seq_reset
     deleted = await _seq_reset(db, current_user.user_id)
     return {"deleted": deleted}
+
+
+@api_router.get("/learn/road-stats")
+async def learn_road_stats(current_user: User = Depends(get_current_user)):
+    """Stats on learned road-segment preferences for the calling user.
+
+    Surfaced by the Telepathy UI to show how many edges of the OSM
+    network the driver has traversed.
+    """
+    from ml.road_segment_learner import get_stats as _road_stats
+    stats = await _road_stats(db, current_user.user_id)
+    stats["enabled_for_user"] = current_user.user_id == "user_2a7d88cbb419"
+    return stats
+
+
+@api_router.post("/learn/road-reset")
+async def learn_road_reset(current_user: User = Depends(get_current_user)):
+    """Wipe all learned road-segment preferences for the calling user."""
+    from ml.road_segment_learner import reset as _road_reset
+    deleted = await _road_reset(db, current_user.user_id)
+    return {"deleted": deleted}
+
+
+@api_router.post("/route/preferred-polyline")
+async def preferred_polyline(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Return the user's preferred polyline between two coords.
+
+    Fetches up to 3 OSRM alternatives, scores each by historical road
+    familiarity, and picks the most-familiar one provided it's within
+    +15% of the fastest alternative's duration. Falls back to the
+    fastest if no preferences exist or all alternatives score 0.
+
+    Request body:
+        { "from": [lng, lat], "to": [lng, lat] }
+
+    Response:
+        {
+          "polyline": [[lng,lat], ...],
+          "duration_s": float,
+          "distance_m": float,
+          "familiarity": 0.0..1.0,
+          "chose_alternative": int,  # 0 = fastest, 1+ = preferred
+          "alternatives_considered": int
+        }
+    """
+    body = await request.json()
+    src = body.get("from")
+    dst = body.get("to")
+    if not (isinstance(src, list) and isinstance(dst, list) and len(src) == 2 and len(dst) == 2):
+        raise HTTPException(400, "from/to must be [lng, lat] pairs")
+
+    # Fetch OSRM alternatives. Reuse existing OSRM_URL.
+    coord = f"{src[0]:.6f},{src[1]:.6f};{dst[0]:.6f},{dst[1]:.6f}"
+    url = f"{OSRM_URL}/route/v1/driving/{coord}"
+    params = {
+        "alternatives": "3",
+        "overview": "full",
+        "geometries": "geojson",
+        "steps": "false",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(url, params=params)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"OSRM unavailable: {e}")
+    if r.status_code != 200:
+        raise HTTPException(502, f"OSRM HTTP {r.status_code}")
+    data = r.json()
+    if data.get("code") != "Ok":
+        raise HTTPException(502, f"OSRM returned {data.get('code')}")
+    routes = data.get("routes") or []
+    if not routes:
+        raise HTTPException(404, "No routes from OSRM")
+
+    # Score each alternative by familiarity.
+    from ml.road_segment_learner import score_polyline as _score
+    fastest_duration = routes[0].get("duration") or 0.0
+    scored: List[Dict[str, Any]] = []
+    for idx, rt in enumerate(routes):
+        coords_geo = rt.get("geometry", {}).get("coordinates") or []
+        if not coords_geo:
+            continue
+        score, matched, total = await _score(
+            db, current_user.user_id,
+            [(c[0], c[1]) for c in coords_geo],
+        )
+        scored.append({
+            "idx": idx,
+            "duration": rt.get("duration", 0.0),
+            "distance": rt.get("distance", 0.0),
+            "coords": coords_geo,
+            "score": score,
+            "matched": matched,
+            "total": total,
+        })
+
+    if not scored:
+        raise HTTPException(404, "No usable routes")
+
+    # Pick the highest-score route whose duration is ≤ 1.15x of fastest.
+    # This budget prevents wildly slower scenic detours from winning.
+    budget = fastest_duration * 1.15
+    eligible = [s for s in scored if s["duration"] <= budget]
+    if not eligible:
+        eligible = scored
+    eligible.sort(key=lambda s: (-s["score"], s["duration"]))
+    chosen = eligible[0]
+
+    # Gate the preference logic to the owner account for now — others
+    # always get the fastest route until we widen the rollout.
+    if current_user.user_id != "user_2a7d88cbb419" or chosen["score"] == 0:
+        chosen = scored[0]
+
+    return {
+        "polyline": chosen["coords"],
+        "duration_s": chosen["duration"],
+        "distance_m": chosen["distance"],
+        "familiarity": round(chosen["score"], 3),
+        "matched_edges": chosen["matched"],
+        "total_edges": chosen["total"],
+        "chose_alternative": chosen["idx"],
+        "alternatives_considered": len(scored),
+    }
 
 
 @api_router.get("/routes/history/{route_id}")
