@@ -9900,7 +9900,26 @@ import sqlite3 as _sqlite3
 import math as _math
 
 _building_tile_db = None
-_TILE_DB_PATH = str(ROOT_DIR.parent / 'tiles' / 'buildings.db')
+# Resolve the building tile DB across both dev and container layouts.
+# Dev:        /app/backend/server.py  -> /app/tiles/buildings.db          (ROOT_DIR.parent / 'tiles')
+# Container:  /app/server.py          -> /tiles/buildings.db              (ROOT_DIR.parent / 'tiles')
+#                                     -> /app/tiles/buildings.db          (ROOT_DIR / 'tiles', legacy)
+# Pick the first candidate that exists; fall back to the canonical dev path
+# so the warning log still points at the expected location.
+def _resolve_tile_db_path() -> str:
+    import os as _os
+    candidates = [
+        ROOT_DIR.parent / 'tiles' / 'buildings.db',
+        ROOT_DIR / 'tiles' / 'buildings.db',
+        Path('/tiles/buildings.db'),
+        Path('/app/tiles/buildings.db'),
+    ]
+    for p in candidates:
+        if _os.path.exists(str(p)):
+            return str(p)
+    return str(candidates[0])
+
+_TILE_DB_PATH = _resolve_tile_db_path()
 
 # ── Parcels + Address tiles moved to routes/tiles.py ───────────────────────
 # The /api/tiles/parcels/* and /api/tiles/addresses/* endpoints live in
@@ -9980,7 +9999,10 @@ from routes.waitlist import (
 api_router.include_router(waitlist_router)
 
 _building_tile_db = None
-_TILE_DB_PATH = str(ROOT_DIR.parent / 'tiles' / 'buildings.db')
+# Re-resolve here (the earlier assignment is shadowed by this one at module load).
+# Dev:        /app/backend/server.py  -> /app/tiles/buildings.db
+# Container:  /app/server.py          -> /tiles/buildings.db (Dockerfile target)
+_TILE_DB_PATH = _resolve_tile_db_path()
 
 def _get_tile_db():
     global _building_tile_db

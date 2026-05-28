@@ -49,7 +49,10 @@ WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
 COPY backend/ ./
-COPY tiles/buildings.db /app/tiles/buildings.db
+# server.py resolves _TILE_DB_PATH as Path(server.py).parent.parent / 'tiles' / 'buildings.db'.
+# Inside the container, server.py lives at /app/server.py, so its parent.parent is '/'.
+# Copy buildings.db to /tiles/buildings.db so the runtime lookup matches.
+COPY tiles/buildings.db /tiles/buildings.db
 
 # Railway injects $PORT at runtime. We strip any non-digit chars
 # defensively (saved us on Fly when "8080." crept in via a typo).
