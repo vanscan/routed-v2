@@ -354,6 +354,11 @@ interface StopsStore {
    *  params is unreliable on Android (the tab is persisted across mounts). */
   pendingNavTargetId: string | null;
   setPendingNavTarget: (stopId: string | null) => void;
+  /** Set true by addStop when a LATE-FREIGHT parcel (null original_sequence)
+   *  is added to an already-LOCKED route. The map screen watches this flag
+   *  and auto-runs the smart-insertion "scan" (re-optimize) so the parcel is
+   *  slotted into its optimal gap and re-numbered (e.g. 23A), then clears it. */
+  lateFreightScanPending: boolean;
   fetchStops: () => Promise<void>;
   addStop: (stop: StopCreate) => Promise<Stop>;
   updateStop: (id: string, updates: StopUpdate) => Promise<void>;
@@ -509,6 +514,7 @@ export const useStopsStore = create<StopsStore>((set, get) => ({
   lastAlgorithm: null,
   lastDistanceKm: null,
   lastDurationSec: null,
+  lateFreightScanPending: false,
   loadedStopIds: new Set<string>(),
   markStopLoaded: (stopId: string) => {
     // Re-create the Set every time so React reference equality detects
@@ -584,7 +590,23 @@ export const useStopsStore = create<StopsStore>((set, get) => ({
     }
 
     const newStop = await response.json();
-    set((state) => ({ stops: [...state.stops, newStop] }));
+    set((state) => {
+      const stops = [...state.stops, newStop];
+      // If the route is already LOCKED (any stop carries an
+      // original_sequence) and this new parcel is LATE FREIGHT (no
+      // sequence), flag the map screen to auto-run the smart-insertion
+      // "scan" so it gets slotted into its optimal gap and re-numbered
+      // (e.g. 23A) instead of being dumped at the end ("[last]A").
+      const routeLocked = stops.some(
+        (s) => typeof s.original_sequence === 'number' && !Number.isNaN(s.original_sequence),
+      );
+      const isLateFreight =
+        newStop.original_sequence === null || newStop.original_sequence === undefined;
+      return {
+        stops,
+        lateFreightScanPending: routeLocked && isLateFreight ? true : state.lateFreightScanPending,
+      };
+    });
     return newStop;
   },
 

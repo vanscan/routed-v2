@@ -1,4 +1,33 @@
-## 2026-05-29 — Add-Stop fix + Tracking Number field 🛠️
+## 2026-05-29 — Late-freight auto-scan + Mapbox token 🔁
+
+### Auto-scan on late-freight add (DONE in workspace, NOT yet OTA'd)
+- **Problem:** adding a late freight dumped it at the **end** of the route
+  (`order = max+1`), so the "45A" label traced back to the *last* locked
+  stop → "[last]A" (e.g. "50A"). It wasn't computing where the parcel
+  actually belongs.
+- **Fix (user choices 1a + 2b = automatic + reposition):**
+  - `stopsStore.addStop` now sets a new `lateFreightScanPending` flag when a
+    null-sequence parcel is added to an already-locked route.
+  - `index.tsx` watches the flag and auto-runs `optimizeRoute` (using current
+    GPS) on return — the backend's `ortools_smart_insertion` path slots the
+    parcel into its cheapest gap, holds locked stops in order, and the label
+    recomputes (e.g. "2A").
+- e2e verified: locked 1→2→3 + late parcel near stop 2 → optimize returns
+  `[s1, s2, LATE, s3]` → label **"2A"** (not "3A"). Reasoning string confirms
+  smart-insertion path.
+- ⚠️ **MUST deploy backend first.** On the *old* prod backend (no
+  smart-insertion branch) this auto-scan would re-sequence the whole locked
+  route. So this frontend change is **held from OTA** until
+  `server.py` smart-insertion is live on Coolify.
+
+### Mapbox token
+- New valid token (`pk.eyJ1IjoidmFuc2Nhbi...`) wired into preview `.env`;
+  `/api/geocode` now returns 200 with rich rooftop data. Production needs the
+  same token set in **Coolify** `MAPBOX_TOKEN` + redeploy.
+
+---
+
+
 
 ### Bug: "Add Stop not working" (FIXED, frontend-only → OTA)
 - **Root cause:** `add-stop.tsx` `searchAddress()` called `GET /api/geocode`

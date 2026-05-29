@@ -86,6 +86,11 @@ export default function RouteScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { stops, loading, fetchStops, optimizeRoute, optimizing, completeStop, uncompleteStop, arriveAtStop, deleteAllStops, archiveRoute, updateStop, deleteStop, reorderStops, fetchRecommendation, recommendation, flushSyncQueue, dismissQueuedAction, restoreQueuedAction, confirmRoute } = useStopsStore();
+  // Late-freight auto-scan trigger: set true by the store's addStop when a
+  // parcel is dropped onto an already-locked route. We subscribe separately
+  // so the map screen re-runs the smart-insertion optimize the moment we
+  // return from the Add-Stop screen.
+  const lateFreightScanPending = useStopsStore((s) => s.lateFreightScanPending);
   // Cross-screen "drop me into the navigating cockpit, target = this stop"
   // intent, set by stop-detail's Navigate button. Subscribed-to (not pulled
   // via getState) so the effect below re-runs the moment another screen
@@ -882,6 +887,28 @@ export default function RouteScreen() {
     }
     return result;
   };
+
+  // ── Late-freight auto-scan ──
+  // When a late freight is added to a locked route, the store sets
+  // `lateFreightScanPending`. On returning to this screen we clear the flag
+  // and re-run the optimize, which on the backend takes the
+  // smart-insertion path (locked stops held in order, the late parcel
+  // slotted into its cheapest gap) — so it gets re-numbered (e.g. 23A) and
+  // repositioned in the drive order instead of being dumped at the end.
+  useEffect(() => {
+    if (!lateFreightScanPending) return;
+    useStopsStore.setState({ lateFreightScanPending: false });
+    (async () => {
+      try {
+        await runOptimization(currentLocationRef.current);
+      } catch (e) {
+        console.warn('[late-freight] auto-scan failed:', (e as Error)?.message || e);
+      }
+    })();
+    // runOptimization is a stable closure for our purposes; we intentionally
+    // only re-fire when the pending flag flips true.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lateFreightScanPending]);
 
   const handleExportXlsx = async () => {
     try {
