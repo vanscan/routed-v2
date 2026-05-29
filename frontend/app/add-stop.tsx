@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStopsStore } from '../src/store/stopsStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -61,6 +62,7 @@ export default function AddStopScreen() {
   const [timeStart, setTimeStart] = useState('');
   const [timeEnd, setTimeEnd] = useState('');
   const [notes, setNotes] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [weight, setWeight] = useState('');
   const [quantity, setQuantity] = useState('');
   const [saving, setSaving] = useState(false);
@@ -90,13 +92,22 @@ export default function AddStopScreen() {
   const searchAddress = async () => {
     setSearching(true);
     try {
+      // /api/geocode requires authentication — attach the session token
+      // (same scheme as the app-wide authFetch). Without this the request
+      // 401s, `searchResults` stays empty, and no location can be selected,
+      // which makes the whole Add-Stop screen appear "broken".
+      const token = await AsyncStorage.getItem('session_token');
       const response = await fetch(
-        `${BACKEND_URL}/api/geocode?query=${encodeURIComponent(searchQuery)}`
+        `${BACKEND_URL}/api/geocode?query=${encodeURIComponent(searchQuery)}`,
+        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
       );
       const data = await response.json();
-      setSearchResults(data);
+      // Defensive: a 401/500 returns an object ({detail: ...}), not an array.
+      // Never feed a non-array into the results list.
+      setSearchResults(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Search error:', error);
+      setSearchResults([]);
     } finally {
       setSearching(false);
     }
@@ -146,6 +157,7 @@ export default function AddStopScreen() {
           end: timeEnd || undefined,
         } : undefined,
         notes: notes || undefined,
+        tracking_number: trackingNumber.trim() || undefined,
         weight: weight ? parseFloat(weight) : undefined,
         quantity: quantity ? parseInt(quantity) : undefined,
       });
@@ -300,6 +312,27 @@ export default function AddStopScreen() {
               onChangeText={setName}
               returnKeyType="next"
             />
+          </View>
+
+          {/* Tracking Number */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="barcode" size={14} color="#22c55e" /> TRACKING NUMBER (OPTIONAL)
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., 1Z999AA10123456784"
+              placeholderTextColor="#64748b"
+              value={trackingNumber}
+              onChangeText={setTrackingNumber}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="next"
+              testID="add-stop-tracking-input"
+            />
+            <Text style={styles.helperText}>
+              Scanned later in the Van Loading Assistant to match this parcel
+            </Text>
           </View>
 
           {/* Suburb */}

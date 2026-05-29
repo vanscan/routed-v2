@@ -141,6 +141,10 @@ class StopCreate(BaseModel):
     notes: Optional[str] = None
     weight: Optional[float] = None
     quantity: Optional[int] = None
+    # Carrier tracking number / barcode reference, entered when manually
+    # adding a stop (or carried over from import). Used by the Van Loading
+    # Assistant to match scanned barcodes against stops.
+    tracking_number: Optional[str] = None
     geocode_metadata: Optional[Dict[str, Any]] = None
     delivery_status: Optional[str] = "pending"
     failure_reason: Optional[str] = None

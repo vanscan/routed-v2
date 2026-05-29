@@ -332,6 +332,7 @@ async def create_stop(request: Request, current_user=Depends(_current_user)):
         notes=stop_data.notes,
         weight=stop_data.weight,
         quantity=stop_data.quantity,
+        tracking_number=stop_data.tracking_number,
         geocode_metadata=_build_stop_geocode_metadata(stop_data.geocode_metadata),
         delivery_status=stop_data.delivery_status or "pending",
         failure_reason=stop_data.failure_reason,

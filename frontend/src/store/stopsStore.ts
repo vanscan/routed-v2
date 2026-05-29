@@ -79,6 +79,8 @@ export interface StopCreate {
   priority?: string;
   time_window?: TimeWindow;
   notes?: string;
+  /** Carrier tracking number / barcode reference entered at manual add. */
+  tracking_number?: string;
   weight?: number;
   quantity?: number;
   geocode_metadata?: Record<string, any>;

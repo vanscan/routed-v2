@@ -1,4 +1,36 @@
-## 2026-05-29 — Late Freight Handling System (P0, partial) 📦
+## 2026-05-29 — Add-Stop fix + Tracking Number field 🛠️
+
+### Bug: "Add Stop not working" (FIXED, frontend-only → OTA)
+- **Root cause:** `add-stop.tsx` `searchAddress()` called `GET /api/geocode`
+  with a **plain unauthenticated `fetch`**, but the endpoint requires auth
+  (`Depends(get_current_user)`, server.py:9006). Result: 401 → empty
+  search results → no location selectable → Save stayed disabled → screen
+  appeared broken.
+- **Fix:** attach the `session_token` bearer (read from AsyncStorage, same
+  scheme as app-wide `authFetch`) + guard `setSearchResults` against
+  non-array (401/500) responses.
+- Verified: with a valid token the request passes auth and reaches Mapbox
+  (confirmed via curl). Preview's `MAPBOX_TOKEN` is invalid (direct Mapbox
+  call = 401) so search can't be fully e2e'd in preview, but production has
+  a valid token → search will work once the OTA ships.
+
+### Feature: Tracking number on manual Add-Stop (DONE)
+- **Backend:** `StopCreate` model gained `tracking_number: Optional[str]`;
+  `create_stop` now persists it. e2e curl confirmed the value round-trips.
+- **Frontend:** new "TRACKING NUMBER (OPTIONAL)" field on `add-stop.tsx`
+  (barcode icon, auto-caps), sent in the `addStop` payload; added to the
+  `StopCreate` TS type.
+- NOTE: tracking persistence needs the **backend deploy** (Coolify). Until
+  then the field shows but the value is silently dropped by the old prod
+  backend (Pydantic ignores the extra field — no error/crash).
+
+### Deploy status
+- Frontend (add-stop fix + tracking field) → ready for EAS OTA (pure JS).
+- Backend (`models/stops.py`, `routes/stops.py`) → needs GitHub→Coolify.
+
+---
+
+
 
 ### Scope (user-approved)
 User approved P0 **#1 Backend Smart Insertion** + **#2 Frontend 45A
