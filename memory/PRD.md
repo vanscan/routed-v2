@@ -1,3 +1,49 @@
+## 2026-05-29 — Telepathy Phase B Visible: Single-Stop Nav 🧠
+
+### Summary
+Wired Phase B familiarity scoring into the single-stop navigation flow
+so drivers actually SEE the app picking their preferred streets, not
+just the badge after a route completes.
+
+### Backend
+- Enhanced `POST /api/route/preferred-polyline` to return the same
+  shape as `/api/directions` (geometry / distance / duration / steps /
+  legs / waypoints / source) so callers can swap with zero downstream
+  changes. New top-level `telepathy` field exposes whether the
+  fastest route was overridden (`applied`), the familiarity score,
+  fastest-route familiarity (for comparison), matched/total edges,
+  which alternative was chosen, and the time cost in seconds.
+- Backward-compat: legacy `polyline` / `duration_s` / `distance_m`
+  fields kept on the response so older clients don't break.
+- Verified locally: HTTP 200, full directions shape, 23 steps,
+  graceful `telepathy.applied=false` fall-back when user has no road
+  history.
+
+### Frontend (`app/(tabs)/index.tsx::startSingleStopNavigation`)
+- Calls `/api/route/preferred-polyline` first. Falls back to plain
+  `/api/directions` if the endpoint 4xx/5xxs (older backend, OSRM
+  outage, unauth user) — driver is never stranded.
+- Wraps legacy-shape responses (`polyline` only) into a synthesised
+  geometry/distance/duration so the cockpit can swallow both shapes.
+- After live tracking starts, shows a one-shot Alert badge when
+  `telepathy.applied=true`: "🧠 Telepathy: routing via your familiar
+  roads. Picked alternative N (X% of segments are roads you've
+  driven before). +Ys vs fastest."
+
+### Why single-stop nav (not multi-stop)
+Per-leg alternatives for a 200-stop route would mean 200 OSRM calls
+(~5–10× slowdown). Single-stop nav is where the driver is actually
+following the line — biggest UX payoff for lowest cost.
+
+### Deploy steps
+1. Push to GitHub → Coolify redeploy (backend gets new endpoint shape).
+2. `eas update --branch production` (frontend gets the new call).
+3. Phase B record gate is still owner-only (`user_2a7d88cbb419`),
+   so non-owners always get fastest route + `applied=false`.
+
+---
+
+
 ## 2026-05-29 — Coolify Backend Migration Verified ✅
 
 ### Summary

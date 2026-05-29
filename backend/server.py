@@ -854,15 +854,10 @@ async def preferred_polyline(
     Request body:
         { "from": [lng, lat], "to": [lng, lat] }
 
-    Response:
-        {
-          "polyline": [[lng,lat], ...],
-          "duration_s": float,
-          "distance_m": float,
-          "familiarity": 0.0..1.0,
-          "chose_alternative": int,  # 0 = fastest, 1+ = preferred
-          "alternatives_considered": int
-        }
+    Response: same shape as /api/directions (geometry / distance /
+    duration / steps / legs) PLUS a `telepathy` field describing
+    whether familiarity preferences were applied, so the frontend can
+    show a "🧠 Telepathy: routing via your familiar roads" badge.
     """
     body = await request.json()
     src = body.get("from")
@@ -870,17 +865,18 @@ async def preferred_polyline(
     if not (isinstance(src, list) and isinstance(dst, list) and len(src) == 2 and len(dst) == 2):
         raise HTTPException(400, "from/to must be [lng, lat] pairs")
 
-    # Fetch OSRM alternatives. Reuse existing OSRM_URL.
+    # Fetch OSRM alternatives. Reuse existing OSRM_URL. Ask for steps so
+    # we can return turn-by-turn instructions matching /api/directions.
     coord = f"{src[0]:.6f},{src[1]:.6f};{dst[0]:.6f},{dst[1]:.6f}"
     url = f"{OSRM_URL}/route/v1/driving/{coord}"
     params = {
         "alternatives": "3",
         "overview": "full",
         "geometries": "geojson",
-        "steps": "false",
+        "steps": "true",
     }
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(url, params=params)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"OSRM unavailable: {e}")
@@ -907,6 +903,7 @@ async def preferred_polyline(
         )
         scored.append({
             "idx": idx,
+            "route": rt,
             "duration": rt.get("duration", 0.0),
             "distance": rt.get("distance", 0.0),
             "coords": coords_geo,
@@ -929,10 +926,54 @@ async def preferred_polyline(
 
     # Gate the preference logic to the owner account for now — others
     # always get the fastest route until we widen the rollout.
-    if current_user.user_id != "user_2a7d88cbb419" or chosen["score"] == 0:
-        chosen = scored[0]
+    fastest = scored[0]
+    applied = (
+        current_user.user_id == "user_2a7d88cbb419"
+        and chosen["idx"] != 0
+        and chosen["score"] > 0
+    )
+    if not applied:
+        chosen = fastest
+
+    # Build the directions-style response shape (same fields the frontend
+    # consumes from /api/directions) so callers can swap endpoints with
+    # zero shape changes downstream.
+    osrm_legs = chosen["route"].get("legs", [])
+    steps = _extract_steps(osrm_legs)
+    legs = [
+        {
+            "distance": leg.get("distance", 0),
+            "duration": leg.get("duration", 0),
+            "summary": leg.get("summary", ""),
+        }
+        for leg in osrm_legs
+    ]
+    geometry = chosen["route"].get("geometry") or {
+        "type": "LineString",
+        "coordinates": chosen["coords"],
+    }
 
     return {
+        # /api/directions-compatible fields
+        "geometry": geometry,
+        "distance": chosen["distance"],
+        "duration": chosen["duration"],
+        "steps": steps,
+        "legs": legs,
+        "waypoints": data.get("waypoints", []),
+        "source": "osrm",
+        # Telepathy metadata for the badge / debugging
+        "telepathy": {
+            "applied": applied,
+            "familiarity": round(chosen["score"], 3),
+            "fastest_familiarity": round(fastest["score"], 3),
+            "matched_edges": chosen["matched"],
+            "total_edges": chosen["total"],
+            "chose_alternative": chosen["idx"],
+            "alternatives_considered": len(scored),
+            "time_cost_s": round(chosen["duration"] - fastest["duration"], 1),
+        },
+        # Legacy fields for any older clients still on the old shape
         "polyline": chosen["coords"],
         "duration_s": chosen["duration"],
         "distance_m": chosen["distance"],

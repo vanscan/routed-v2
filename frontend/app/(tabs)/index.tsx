@@ -3120,7 +3120,28 @@ export default function RouteScreen() {
     try {
       const headers = await getAuthHeaders();
       const coordsStr = `${currentLocation.longitude},${currentLocation.latitude};${targetStop.longitude},${targetStop.latitude}`;
-      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordsStr}`, { headers });
+
+      // Try the Telepathy-aware endpoint FIRST. It picks the alternative
+      // OSRM route with the highest familiarity score (within +15% of
+      // fastest duration) so drivers get steered onto their preferred
+      // streets. Returns the same shape as /api/directions, plus a
+      // `telepathy` metadata block we can surface as a badge.
+      let response = await fetch(`${BACKEND_URL}/api/route/preferred-polyline`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: [currentLocation.longitude, currentLocation.latitude],
+          to: [targetStop.longitude, targetStop.latitude],
+        }),
+      });
+      // Fall back to plain directions if Telepathy endpoint is
+      // unreachable (older backend, OSRM hiccup, unauth user, etc.).
+      // The driver should never be stranded just because preference
+      // routing is unavailable.
+      if (!response.ok) {
+        console.warn('[startSingleStopNavigation] preferred-polyline failed', response.status, '— falling back to plain directions');
+        response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordsStr}`, { headers });
+      }
 
       // Synthesise a degenerate "route" if the directions call fails. The
       // distance is great-circle (Haversine) so the ETA is at least
@@ -3147,6 +3168,19 @@ export default function RouteScreen() {
       let directionsData: any;
       if (response.ok) {
         directionsData = await response.json();
+        // Backward-compat: older deploys of /api/route/preferred-polyline
+        // only return `polyline` (legacy shape). Synthesise the directions
+        // fields the rest of the cockpit expects so we never feed an
+        // undefined geometry into the navigation data.
+        if (!directionsData.geometry && Array.isArray(directionsData.polyline)) {
+          directionsData = {
+            ...directionsData,
+            geometry: { type: 'LineString', coordinates: directionsData.polyline },
+            distance: directionsData.distance_m ?? haversineMeters,
+            duration: directionsData.duration_s ?? (haversineMeters / (50 * 1000 / 3600)),
+            steps: directionsData.steps ?? [],
+          };
+        }
       } else {
         console.warn('[startSingleStopNavigation] directions fetch failed', response.status, '— falling back to straight-line geometry');
         directionsData = {
@@ -3204,6 +3238,22 @@ export default function RouteScreen() {
       startLiveTracking();
       speakInstruction(`Starting navigation to ${targetStop.name || targetStop.address}`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Surface the Telepathy badge if Phase B steered us off the
+      // fastest route onto a familiar alternative. Non-blocking — just
+      // a small alert acknowledging the preference was applied. Keeps
+      // drivers informed why their nav line might differ from a fresh
+      // OSRM call.
+      const t = directionsData?.telepathy;
+      if (t?.applied) {
+        const fam = Math.round((t.familiarity || 0) * 100);
+        const cost = Math.max(0, Math.round(t.time_cost_s || 0));
+        Alert.alert(
+          '🧠 Telepathy: routing via your familiar roads',
+          `Picked alternative ${t.chose_alternative} (${fam}% of segments are roads you’ve driven before). ${cost > 0 ? `+${cost}s vs fastest.` : 'No time cost.'}`,
+          [{ text: 'OK' }],
+        );
+      }
     } catch (error) {
       console.error('[startSingleStopNavigation] error:', error);
       Alert.alert('Navigation Error', 'Failed to start navigation.');
