@@ -16,6 +16,7 @@ import { useStopsStore } from '../../src/store/stopsStore';
 import { TelemetryCard } from '../../src/components/TelemetryCard';
 import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
 import { MLBuildingSideCard } from '../../src/components/MLBuildingSideCard';
+import { TelepathyCard } from '../../src/components/TelepathyCard';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -252,6 +253,7 @@ export default function ProfileScreen() {
       ) : null}
 
       <TelemetryCard />
+      <TelepathyCard />
       <MLServiceTimeCard />
       <MLBuildingSideCard />
 

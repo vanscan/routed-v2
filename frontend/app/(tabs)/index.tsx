@@ -3121,25 +3121,46 @@ export default function RouteScreen() {
       const headers = await getAuthHeaders();
       const coordsStr = `${currentLocation.longitude},${currentLocation.latitude};${targetStop.longitude},${targetStop.latitude}`;
 
-      // Try the Telepathy-aware endpoint FIRST. It picks the alternative
-      // OSRM route with the highest familiarity score (within +15% of
-      // fastest duration) so drivers get steered onto their preferred
-      // streets. Returns the same shape as /api/directions, plus a
-      // `telepathy` metadata block we can surface as a badge.
-      let response = await fetch(`${BACKEND_URL}/api/route/preferred-polyline`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: [currentLocation.longitude, currentLocation.latitude],
-          to: [targetStop.longitude, targetStop.latitude],
-        }),
-      });
-      // Fall back to plain directions if Telepathy endpoint is
-      // unreachable (older backend, OSRM hiccup, unauth user, etc.).
-      // The driver should never be stranded just because preference
-      // routing is unavailable.
-      if (!response.ok) {
-        console.warn('[startSingleStopNavigation] preferred-polyline failed', response.status, '— falling back to plain directions');
+      // Driver-set toggle in Profile → Route Telepathy card. Defaults to
+      // ON so the feature works out of the box; opt-out is one tap.
+      // Reading it inline (not via React state) keeps this callback's
+      // dep list lean and avoids stale-closure bugs after the driver
+      // flips the switch mid-session.
+      let preferFamiliar = true;
+      try {
+        const saved = await AsyncStorage.getItem('telepathy.prefer_familiar_roads');
+        if (saved !== null) preferFamiliar = saved === 'true';
+      } catch {
+        // Storage read failures: stay on default (true).
+      }
+
+      // Try the Telepathy-aware endpoint FIRST (when opted in). It
+      // picks the alternative OSRM route with the highest familiarity
+      // score (within +15% of fastest duration) so drivers get steered
+      // onto their preferred streets. Returns the same shape as
+      // /api/directions, plus a `telepathy` metadata block we can
+      // surface as a badge.
+      let response: Response;
+      if (preferFamiliar) {
+        response = await fetch(`${BACKEND_URL}/api/route/preferred-polyline`, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: [currentLocation.longitude, currentLocation.latitude],
+            to: [targetStop.longitude, targetStop.latitude],
+          }),
+        });
+        // Fall back to plain directions if Telepathy endpoint is
+        // unreachable (older backend, OSRM hiccup, unauth user, etc.).
+        // The driver should never be stranded just because preference
+        // routing is unavailable.
+        if (!response.ok) {
+          console.warn('[startSingleStopNavigation] preferred-polyline failed', response.status, '— falling back to plain directions');
+          response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordsStr}`, { headers });
+        }
+      } else {
+        // Driver opted out of Telepathy: go straight to plain OSRM —
+        // no extra alternatives call, no familiarity scoring round-trip.
         response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordsStr}`, { headers });
       }
 

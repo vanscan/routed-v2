@@ -1,3 +1,47 @@
+## 2026-05-29 — Telepathy Card on Profile Tab 🧠
+
+### Summary
+Made Route Telepathy visible as a first-class profile feature so
+drivers can see what the ML has learned and opt out if they want.
+
+### New component: `src/components/TelepathyCard.tsx`
+- Header pill: **Active** / **Learning** / **Coming soon** based on
+  `enabled_for_user` + `ready` flags from the stats endpoints.
+- 4-cell stats grid:
+  - **edges driven** (road_preferences.total_edges)
+  - **favourites** (road_preferences.frequent_edges, used ≥3×)
+  - **sequences** (sequence_preferences.total_rules)
+  - **locked-in** (sequence_preferences.high_confidence_rules)
+- **Prefer familiar roads** toggle — persists to AsyncStorage at key
+  `telepathy.prefer_familiar_roads`. Default ON.
+- Two reset buttons (sequence / road) with destructive confirmation.
+- Calls `GET /api/learn/sequence-stats`, `GET /api/learn/road-stats`,
+  `POST /api/learn/{sequence,road}-reset` (all already exist).
+
+### `startSingleStopNavigation` honours the toggle
+- Reads `telepathy.prefer_familiar_roads` from AsyncStorage inline at
+  invocation time (no stale-closure bugs after mid-session flip).
+- When OFF → skips `/api/route/preferred-polyline` entirely; goes
+  straight to `/api/directions`. Saves one round-trip per nav.
+- When ON → calls preferred-polyline first, falls back to plain
+  directions on any failure.
+
+### Verified
+- TelepathyCard renders on the profile tab (smoke screenshot
+  captured at /app via web preview — card visible between Telemetry
+  and Service-time, in expected loading state with no web session).
+- Backend endpoint unchanged from prior commit; legacy clients
+  still get a usable response.
+
+### Deploy
+Same as previous task: push to GitHub → Coolify redeploy (no backend
+change actually needed for this commit, but server.py from prior
+commit still pending) → `eas update --branch production` for the new
+card to appear on drivers' devices.
+
+---
+
+
 ## 2026-05-29 — Telepathy Phase B Visible: Single-Stop Nav 🧠
 
 ### Summary
