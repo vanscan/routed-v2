@@ -1,3 +1,48 @@
+## 2026-05-30 — Map delivery clusters (OTA-safe, WebView maplibre-gl) 🗺️ (DONE — needs OTA + on-device check)
+
+### What
+Added zoomed-out **delivery clustering** to the map using maplibre-gl's
+built-in `cluster:true` source **inside the existing WebView** — NO native
+deps (`@maplibre/maplibre-react-native` deliberately avoided; would crash OTA).
+
+### Implementation
+**WebView (`DeliveryMap.native.tsx`, in `initLayers` HTML):**
+- `delivery-clusters` GeoJSON source (`cluster:true`, radius 60, maxZoom 14,
+  `clusterProperties.parcels` sum).
+- Layers: `clusters` (dark-blue `#0b2545` bubbles, stepped radius),
+  `cluster-count` (white `point_count`), `cluster-point` (single-stop dot).
+- Zoom toggle `window.__applyClusterVisibility`: clusters show when
+  `_hasClusterData && zoom < 14`, else the numbered `stops-icon` pins show.
+  Guarded so pins are NEVER hidden if no cluster data was pushed.
+- Cluster tap → `getClusterExpansionZoom` ease-in; single-stop tap → reuses
+  existing `post({type:'stopClick'})`.
+- `processMessage` gains a `setClusters` case → `source.setData()` + toggle.
+
+**RN bridge:**
+- `DeliveryMapRef.setClusters(fc)` (native + optional web stub) → `sendMsg({type:'setClusters'})`.
+- `index.tsx`: `clusterFC` memo keyed on `stops` only (uses
+  `display_lat/lng ?? lat/lng`), pushed via `useEffect([clusterFC, isMapReady])`.
+
+### Performance (constraint met)
+Data flows imperatively through the ref → `React.memo` map + `html` memoised
+`[]` + `clusterFC` memoised on `stops` ⇒ GPS/location ticks never re-render
+the map or rebuild the WebView/GeoJSON.
+
+### Verified
+- Injected vanilla JS: `node --check` + executed OK.
+- TypeScript: zero new errors from clustering (3 remaining errors are
+  pre-existing: lasso handler 2592, web map-ref 573/751).
+- Metro bundles.
+- NOTE: clusters live in the native WebView HTML and need zoom interaction →
+  not web-testable; **verify on-device after OTA** (open map zoomed out →
+  dark-blue count bubbles; zoom past 14 → numbered pins; tap bubble → zoom-in).
+
+### Deploy
+- Pure **frontend** JS → EAS OTA. No native modules.
+
+---
+
+
 ## 2026-05-30 — Van Scan now matches Load-Van bins 📦 (DONE — needs OTA)
 
 ### Problem

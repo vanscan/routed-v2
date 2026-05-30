@@ -431,6 +431,33 @@ export default function RouteScreen() {
   const cameraSpeedRef = useRef(0);
   // Stable callback for hooks that need direct WebView access (bypasses prop latency)
   const sendToMap = useCallback((msg: object) => { mapRef.current?.sendMessage(msg); }, []);
+
+  // ── Delivery clusters (zoomed-out overview) ──────────────────────────────
+  // Rebuilt ONLY when the stop set changes (never on GPS ticks), then pushed
+  // imperatively into the WebView's maplibre-gl clustering source. Dark-blue
+  // bubbles with white stop counts render when zoomed out; the numbered pins
+  // take over when zoomed in. Imperative push ⇒ zero map/WebView re-renders.
+  const clusterFC = useMemo(() => ({
+    type: 'FeatureCollection' as const,
+    features: stops
+      .filter((s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
+      .map((s) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [
+            s.display_longitude ?? s.longitude,
+            s.display_latitude ?? s.latitude,
+          ],
+        },
+        properties: { id: s.id },
+      })),
+  }), [stops]);
+
+  useEffect(() => {
+    if (!isMapReady) return;
+    mapRef.current?.setClusters?.(clusterFC);
+  }, [clusterFC, isMapReady]);
   const mapContainerLayoutRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   // RouteProgressObserver — manages arrival detection and route reset at each waypoint

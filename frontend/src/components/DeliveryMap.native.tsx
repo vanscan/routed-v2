@@ -67,6 +67,11 @@ export interface DeliveryMapRef {
    *    lock-in. */
   setRouteConfirmed: (confirmed: boolean) => void;
   sendMessage: (msg: object) => void;
+  /** Push a GeoJSON FeatureCollection of delivery stops into the WebView's
+   *  built-in maplibre-gl clustering source (cluster:true). Sent imperatively
+   *  so it never re-renders the map. Dark-blue bubbles + white stop counts
+   *  show when zoomed out; numbered pins take over when zoomed in. */
+  setClusters: (fc: { type: 'FeatureCollection'; features: any[] }) => void;
   /** Force-clear the cached fingerprint so the next stops-effect tick
    *  re-ships every feature to the WebView regardless of cache state.
    *  Use after POST /api/routes/confirm to guarantee blue→red flip. */
@@ -1196,6 +1201,92 @@ function initLayers() {
     },
   });
 
+  // ── Delivery clusters (OTA-safe; dark-blue bubbles, white stop counts) ────
+  // Additive overlay fed imperatively from RN via the 'setClusters' message.
+  // Clusters render only when zoomed OUT past CLUSTER_SWAP_ZOOM; zoomed in,
+  // we hide them and show the detailed numbered 'stops-icon' pins instead.
+  // Guarded by _hasClusterData so the pins are NEVER hidden when no cluster
+  // data has been pushed (preserves current behaviour if the parent doesn't
+  // wire setClusters).
+  map.addSource('delivery-clusters', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterRadius: 60,
+    clusterMaxZoom: 14,
+    clusterProperties: { parcels: ['+', ['coalesce', ['get', 'parcel_count'], 1]] }
+  });
+  map.addLayer({
+    id: 'clusters', type: 'circle', source: 'delivery-clusters',
+    filter: ['has', 'point_count'],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': '#0b2545',
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+      'circle-radius': ['step', ['get', 'point_count'], 18, 25, 24, 100, 32]
+    }
+  });
+  map.addLayer({
+    id: 'cluster-count', type: 'symbol', source: 'delivery-clusters',
+    filter: ['has', 'point_count'],
+    layout: {
+      visibility: 'none',
+      'text-field': ['get', 'point_count_abbreviated'],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': 14,
+      'text-allow-overlap': true
+    },
+    paint: { 'text-color': '#ffffff' }
+  });
+  map.addLayer({
+    id: 'cluster-point', type: 'circle', source: 'delivery-clusters',
+    filter: ['!', ['has', 'point_count']],
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-color': '#1d4ed8',
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+      'circle-radius': 7
+    }
+  });
+
+  // Zoom-based swap: clusters (out) ⇄ numbered pins (in).
+  var CLUSTER_SWAP_ZOOM = 14;
+  var _hasClusterData = false;
+  window.__applyClusterVisibility = function() {
+    if (!map.getLayer('clusters')) return;
+    var clustered = _hasClusterData && map.getZoom() < CLUSTER_SWAP_ZOOM;
+    var cv = clustered ? 'visible' : 'none';
+    map.setLayoutProperty('clusters', 'visibility', cv);
+    map.setLayoutProperty('cluster-count', 'visibility', cv);
+    map.setLayoutProperty('cluster-point', 'visibility', cv);
+    if (map.getLayer('stops-icon')) {
+      map.setLayoutProperty('stops-icon', 'visibility', clustered ? 'none' : 'visible');
+    }
+  };
+  window.__setHasClusterData = function(v) { _hasClusterData = v; };
+  map.on('zoom', window.__applyClusterVisibility);
+
+  // Tap a cluster → ease in to its expansion zoom.
+  map.on('click', 'clusters', function(e) {
+    var f = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })[0];
+    if (!f) return;
+    map.getSource('delivery-clusters').getClusterExpansionZoom(
+      f.properties.cluster_id,
+      function(err, zoom) {
+        if (err) return;
+        map.easeTo({ center: f.geometry.coordinates, zoom: zoom });
+      }
+    );
+  });
+  // Tap a single (un-clustered) stop → reuse the existing stopClick bridge.
+  map.on('click', 'cluster-point', function(e) {
+    if (e.features && e.features[0]) post({ type: 'stopClick', id: e.features[0].properties.id });
+  });
+  map.on('mouseenter', 'clusters', function(){ map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'clusters', function(){ map.getCanvas().style.cursor = ''; });
+
   // ── Route source ─────────────────────────────────────────────────────────
   map.addSource('route', {type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:[]}}});
   // White casing UNDER the main route line — adds the subtle outline that
@@ -1402,6 +1493,13 @@ function animatePulse(time) {
 
 function processMessage(d) {
   try {
+    if (d.type === 'setClusters' && map.getSource('delivery-clusters')) {
+      var _fc = d.data || { type: 'FeatureCollection', features: [] };
+      map.getSource('delivery-clusters').setData(_fc);
+      if (window.__setHasClusterData) window.__setHasClusterData(((_fc.features || []).length > 0));
+      if (window.__applyClusterVisibility) window.__applyClusterVisibility();
+      return;
+    }
     if (d.type === 'updateStops' && map.getSource('stops')) {
       // Store features for lasso point-in-polygon
       _stopsFeatures = (d.features || []).slice();
@@ -2080,6 +2178,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     flyTo: (center, opts) => sendMsg({ type: 'flyTo', center, ...opts }),
     jumpTo: (center, opts) => sendMsg({ type: 'jumpTo', center, ...opts }),
     fitBounds: (bounds, padding) => sendMsg({ type: 'fitBounds', bounds, padding }),
+    setClusters: (fc) => sendMsg({ type: 'setClusters', data: fc }),
     setDrawingMode: (enabled: boolean) => {
       drawingActiveRef.current = enabled;
       if (enabled) {

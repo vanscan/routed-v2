@@ -74,6 +74,9 @@ export interface DeliveryMapRef {
    *  re-ships every feature to the WebView. Use after POST /api/routes/confirm
    *  to guarantee the blue→red flip lands even on partial JSON. */
   forceStopsRefresh?: () => void;
+  /** Native WebView pushes a GeoJSON FeatureCollection into maplibre-gl's
+   *  built-in clustering source; web canvas no-ops (type parity). */
+  setClusters?: (fc: { type: 'FeatureCollection'; features: any[] }) => void;
   getMap: () => maplibregl.Map | null;
 }
 
