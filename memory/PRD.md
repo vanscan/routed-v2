@@ -1,3 +1,41 @@
+## 2026-05-30 — Late-freight labels (45A/45B) now show in driving mode 🚗 (DONE — needs OTA)
+
+### Problem
+Late-freight stops (no locked `original_sequence`) showed a **blank badge**
+in the driving/navigation cockpit. The cockpit (`NavigationPanel.tsx`) used
+`stopPinNumber(currentStop)`, which returns `null` for late freight → empty
+number. The "45A/45B" labels were only wired into the planning map + sidebar,
+not the driving UI.
+
+### Fix (`frontend/src/components/route/NavigationPanel.tsx`)
+- Imported `buildLateFreightLabels` and build a `{stopId: label}` map from
+  the `stops` prop (memoised).
+- New `currentStopLabel`: locked stop → `original_sequence`; late freight →
+  the "45A"/"45B" label (nearest preceding locked anchor); else "".
+- Replaced the three driving-mode display sites (immersive big badge,
+  minimal badge, address fallback line) and the **Jump-to-stop menu** row
+  number (`—` → late label) with the resolved label.
+- No behaviour change for locked stops (still show their Sharpie number).
+
+### Verified
+- TypeScript compiles clean (`tsc --noEmit`).
+- Label logic sanity (node): locked 45/46/47 with two late stops in the
+  45→46 gap → `{L1:"45A", L2:"45B"}`.
+
+### Deploy
+- Pure **frontend** JS change → EAS OTA
+  (`node ./scripts/eas-update-guarded.js --branch production --environment production --platform android`).
+  No native modules added.
+
+### Still open (user shifted topic mid-thread)
+- **Van Scan vs Load-Van mismatch**: van-scan shows fixed 4-quadrant zones
+  (`getVanZone`) while load-van uses the configured grid (`assignBin` +
+  `vanLayoutStore`). Awaiting user confirm on whether to converge the
+  scanner onto the configured grid bins (A1/B2…) or keep 4 quadrants.
+
+---
+
+
 ## 2026-05-30 — Cluster-first removed from optimize 🧹 (DONE, e2e verified — needs backend deploy)
 
 ### Why

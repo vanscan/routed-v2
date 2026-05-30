@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stop } from '../../store/stopsStore';
 import { ViewMode } from '../../types/route';
 import { formatDistance, getManeuverIcon, getGeocodeMetadataEntries } from '../../utils/route';
-import { stopPinNumber } from '../../utils/stopPinNumber';
+import { stopPinNumber, buildLateFreightLabels } from '../../utils/stopPinNumber';
 // SwipeToDeliver retired on 2026-05-11 per driver request — see comment
 // in the Main Actions row below for the rationale and how to restore.
 // Component file `./SwipeToDeliver.tsx` is intentionally kept on disk
@@ -125,6 +125,21 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   // stay welded to the physical box. Returns null when the stop has no
   // numeric identity (rare; pre-hydration only).
   const currentStopNumber = stopPinNumber(currentStop);
+  // Late-freight stops have no locked `original_sequence`, so
+  // `stopPinNumber` returns null and the badge would render blank in
+  // driving mode. Resolve a human label ("45A", "45B" …) anchored to the
+  // nearest preceding locked stop — same labels the planning map/sidebar
+  // already show — so the driver sees a consistent badge everywhere.
+  const lateFreightLabels = useMemo(
+    () => buildLateFreightLabels(stops as any),
+    [stops],
+  );
+  const currentStopLabel = useMemo(() => {
+    if (currentStopNumber != null) return String(currentStopNumber);
+    const id = (currentStop as any)?.id;
+    if (id && lateFreightLabels[id]) return lateFreightLabels[id];
+    return '';
+  }, [currentStopNumber, currentStop, lateFreightLabels]);
   const geocodeMetaEntries = useMemo(
     () => getGeocodeMetadataEntries(currentLeg?.to_stop?.geocode_metadata),
     [currentLeg?.to_stop?.geocode_metadata]
@@ -376,7 +391,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               style={styles.immersiveStopBadge}
               testID="nav-stop-badge"
             >
-              <Text style={styles.immersiveStopNum}>{currentStopNumber}</Text>
+              <Text style={styles.immersiveStopNum}>{currentStopLabel}</Text>
               <Text style={styles.immersiveStopOf}>/{totalStops}</Text>
             </Pressable>
             {colocatedCount > 1 && (
@@ -542,7 +557,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                 style={StyleSheet.absoluteFill}
                 testID="nav-stop-badge-minimal"
               />
-              <Text style={styles.immersiveMinimalBadgeText}>{currentStopNumber}</Text>
+              <Text style={styles.immersiveMinimalBadgeText}>{currentStopLabel}</Text>
             </View>
             {colocatedCount > 1 && (
               <View style={styles.navMultiplierBadgeSmall} data-testid="nav-multiplier-badge-minimal">
@@ -554,7 +569,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                 {currentLeg?.to_stop?.name || currentLeg?.to_stop?.address?.split(',')[0] || 'Next Stop'}
               </Text>
               <Text style={styles.immersiveMinimalAddress} numberOfLines={1} testID="immersive-waypoint-address">
-                {currentLeg?.to_stop?.address || `Stop ${currentStopNumber} of ${totalStops}`}
+                {currentLeg?.to_stop?.address || `Stop ${currentStopLabel} of ${totalStops}`}
               </Text>
             </View>
             <Ionicons name="chevron-up" size={16} color="#64748b" />
@@ -631,7 +646,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                       isFailed && styles.jumpMenuNumFailed,
                       isCurrent && styles.jumpMenuNumCurrent,
                     ]}>
-                      <Text style={styles.jumpMenuNumText}>{stopPinNumber(s) ?? '—'}</Text>
+                      <Text style={styles.jumpMenuNumText}>{stopPinNumber(s) != null ? stopPinNumber(s) : (s?.id && lateFreightLabels[s.id]) || '—'}</Text>
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <Text style={styles.jumpMenuName} numberOfLines={1}>
