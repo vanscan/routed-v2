@@ -1801,31 +1801,52 @@ export default function RouteScreen() {
           distanceInterval: 0, // fire on time interval even when stationary
         },
         (location) => {
-          // ── Freeze-on-stop bearing (Google-Maps-style) ──
-          // GPS course-over-ground is meaningless when the vehicle is stationary
-          // (it's often null/-1/random on various devices). Without this, the
-          // puck flips to north (`|| 0`) every time the driver stops at a light,
-          // and the next compass tick rotates the camera off the road.
-          // Only accept a new heading when we're confidently moving.
+          // ── setMinDisplacement(3) + strictly-GPS course (Google-Maps-style) ──
+          // The WebView writes the puck position STRAIGHT from these coords,
+          // and the heading otherwise falls back to the magnetometer when GPS
+          // course is invalid. In a metal van at a red light that means
+          // (a) the puck vibrates on raw GPS scatter and (b) the arrow spins
+          // on compass interference. Both are fixed purely in JS (OTA-safe):
+          //   • Min-displacement gate (≈ native setMinDisplacement(3)): if we
+          //     are essentially stationary AND haven't moved ≥3 m from the
+          //     last RENDERED fix, skip the puck/heading/route update so it
+          //     freezes perfectly still.
+          //   • Heading relies STRICTLY on GPS course. When stopped we FREEZE
+          //     the last GPS course instead of handing the arrow to the
+          //     compass. Compass is only a cold-start seed, used before the
+          //     very first GPS course of the session (so the puck isn't stuck
+          //     pointing north on launch).
           const MOVING_SPEED_MPS = 1.4;
+          const MIN_DISPLACEMENT_M = 3;
           const rawSpeed = Math.max(0, location.coords.speed ?? 0);
           const rawGpsHeading = location.coords.heading;
+
+          const lastFix = currentLocationRef.current;
+          if (lastFix) {
+            const movedM = calculateDistance(
+              lastFix.latitude, lastFix.longitude,
+              location.coords.latitude, location.coords.longitude,
+            );
+            if (rawSpeed < MOVING_SPEED_MPS && movedM < MIN_DISPLACEMENT_M) {
+              // Stationary GPS jitter — keep the puck + camera frozen; only
+              // refresh the speed HUD (to ~0).
+              setCurrentSpeed(Math.round(rawSpeed * 3.6));
+              return;
+            }
+          }
+
           const hasValidCourse =
             rawSpeed >= MOVING_SPEED_MPS &&
             typeof rawGpsHeading === 'number' &&
             rawGpsHeading >= 0;
-          // Once GPS gives us a real course, stop accepting compass updates —
-          // GPS course-over-ground is more accurate for in-vehicle nav.
+          // Once GPS gives us a real course, never hand the heading back to
+          // the compass — GPS course-over-ground is authoritative in-vehicle.
           if (hasValidCourse) hasGpsCourseRef.current = true;
-          const lastHeading = currentLocationRef.current?.heading ?? compassHeadingRef.current;
-          // Pick target heading: GPS when moving, compass when not.
-          // No JS-side smoothing here — the WebView-side `animateBearing`
-          // lerp (~60 fps in DeliveryMap.native.tsx) is the single source
-          // of visual smoothness. Adding a second filter caused the puck to
-          // visibly lag the GPS truth.
           const newHeading = hasValidCourse
             ? (rawGpsHeading as number)
-            : compassHeadingRef.current;
+            : hasGpsCourseRef.current
+              ? (lastFix?.heading ?? compassHeadingRef.current) // freeze last GPS course
+              : compassHeadingRef.current;                      // cold-start seed only
 
           const newLocation = {
             latitude: location.coords.latitude,

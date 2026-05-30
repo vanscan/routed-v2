@@ -1,3 +1,40 @@
+## 2026-05-30 — Driver puck: stop jitter + strictly-GPS heading 🧭 (DONE — needs OTA + on-device check)
+
+### Problem
+Puck vibrated when stationary and the arrow spun at red lights. Root cause:
+the WebView writes the puck position STRAIGHT from raw GPS (no displacement
+filter) and the heading fell back to the **magnetometer** when GPS course was
+invalid → compass interference in a metal van. The requested native fix
+(`MapLibreGL.locationManager.setMinDisplacement`, `renderMode="gps"`,
+`showsUserHeadingIndicator`, `FollowWithCourse`) is NOT applicable — RouTeD's
+puck is a WebView `driver` GeoJSON layer, not native `MapLibreGL.UserLocation`
+(that lib would crash on OTA).
+
+### Fix (`frontend/app/(tabs)/index.tsx`, `watchPositionAsync` handler) — OTA-safe
+- **Min-displacement gate (≈ `setMinDisplacement(3)`):** when `speed < 1.4 m/s`
+  AND moved `< 3 m` from the last rendered fix → skip the puck/heading/route
+  update (only refresh speed HUD). Puck + camera freeze perfectly still.
+- **Strictly-GPS heading:** when stopped, FREEZE the last GPS course instead
+  of handing the arrow to the compass. Compass is only a cold-start seed,
+  used before the first valid GPS course of the session.
+- No compass cone exists (puck is an arrow + pulse halo) → nothing to hide.
+- Camera `FollowWithCourse` was already implemented (look-ahead `easeTo` on
+  `driverLocation.heading`); it now freezes correctly when stopped.
+- Thresholds `MOVING_SPEED_MPS=1.4`, `MIN_DISPLACEMENT_M=3` are easy to tune.
+
+### Verified
+- `calculateDistance` (returns metres) imported; TypeScript clean around edit;
+  Metro bundles.
+- NOTE: requires real GPS movement → not web/agent-testable. **Verify
+  on-device after OTA**: park at a light → puck dead still, arrow holds
+  heading; drive off → arrow points down the road and glides.
+
+### Deploy
+- Pure **frontend** JS → EAS OTA. No native modules.
+
+---
+
+
 ## 2026-05-30 — Route Telepathy enabled for owner (env-gated) 🧠 (DONE — needs backend deploy)
 
 ### What
