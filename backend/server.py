@@ -280,6 +280,20 @@ OSRM_URL = os.environ.get('OSRM_URL', 'https://router.project-osrm.org')
 # clustered matrix for solver quality. Set empty to disable.
 OSRM_PUBLIC_URL = os.environ.get('OSRM_PUBLIC_URL', 'https://router.project-osrm.org')
 
+# ── Route Telepathy allowlist ────────────────────────────────────────────
+# Which user_ids get the learned-sequence reorder applied in /api/optimize.
+# Configurable via TELEPATHY_USER_IDS (comma-separated). When unset it
+# DEFAULTS to the admin allowlist (STRIPE_ADMIN_USER_IDS) so an owner who
+# already bypasses the paywall gets Telepathy with zero extra Coolify config.
+# The original owner id is always included for back-compat.
+_telepathy_csv = os.environ.get('TELEPATHY_USER_IDS', '').strip()
+if _telepathy_csv:
+    TELEPATHY_USER_IDS = {u.strip() for u in _telepathy_csv.split(',') if u.strip()}
+else:
+    _tp_admin_csv = os.environ.get('STRIPE_ADMIN_USER_IDS', '')
+    TELEPATHY_USER_IDS = {u.strip() for u in _tp_admin_csv.split(',') if u.strip()}
+TELEPATHY_USER_IDS.add('user_2a7d88cbb419')
+
 # Optional production OSRM URL: when set AND the configured OSRM_URL is a
 # loopback host that's not actually listening (i.e. we're running on the
 # production pod which doesn't ship the OSRM binary), promote this URL to
@@ -6943,7 +6957,7 @@ async def _optimize_route_inner(
     # archival flow placed them at the end of the list).
     telepathy_meta: Dict[str, Any] = {"applied": False}
     try:
-        if current_user.user_id == "user_2a7d88cbb419":
+        if current_user.user_id in TELEPATHY_USER_IDS:
             from ml.sequence_learner import apply_preferences as _seq_apply
             telepathy_meta = await _seq_apply(db, current_user.user_id, optimized_stops)
             if telepathy_meta.get("applied"):

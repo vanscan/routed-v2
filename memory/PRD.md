@@ -1,3 +1,38 @@
+## 2026-05-30 — Route Telepathy enabled for owner (env-gated) 🧠 (DONE — needs backend deploy)
+
+### What
+Route Telepathy's learned-sequence reorder in `/api/optimize` (Phase A,
+`ml/sequence_learner.apply_preferences`) was hard-gated to a single
+hardcoded `user_2a7d88cbb419`. Replaced with an env-driven allowlist.
+
+### Change (`backend/server.py`)
+- New module-level `TELEPATHY_USER_IDS`:
+  - If `TELEPATHY_USER_IDS` env (CSV) is set → use it.
+  - Else **defaults to `STRIPE_ADMIN_USER_IDS`** so an owner who already
+    bypasses the paywall gets Telepathy with zero extra Coolify config.
+  - Original owner id `user_2a7d88cbb419` always included (back-compat).
+- Gate changed from `== "user_2a7d88cbb419"` to `in TELEPATHY_USER_IDS`.
+
+### Behaviour notes
+- Telepathy is a POST-solve reorder (applies learned habits on top of the
+  OSRM/OR-Tools result), not part of the cost matrix.
+- It only *reorders* once the account has accumulated learned preferences
+  (captured via `record_completion` on each finished route). First optimize
+  after enabling → `telepathy.applied=false` + "Learning…" badge until data
+  builds up.
+
+### Verified
+- ruff clean; backend healthy; allowlist parse sanity (default→admin,
+  explicit, empty) all correct.
+
+### Deploy
+- Pure **backend** change → Save to GitHub → Coolify. No OTA.
+- No new Coolify env needed (defaults to your existing STRIPE_ADMIN_USER_IDS).
+  Optional: set `TELEPATHY_USER_IDS` to scope it independently of admins.
+
+---
+
+
 ## 2026-05-30 — Map delivery clusters (OTA-safe, WebView maplibre-gl) 🗺️ (DONE — needs OTA + on-device check)
 
 ### What
