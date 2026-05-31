@@ -1,3 +1,216 @@
+## 2026-05-31 — Native Map Migration Phase 3 ✏️ (editing tools; needs EAS dev build)
+
+Built on Phase 0/1/2. Still native-only — validate on an EAS development build,
+NOT Expo Go / web (web bundle uses the `DeliveryMapNative.tsx` stub).
+
+### Added in Phase 3 (`DeliveryMapNative.native.tsx` + new `mapEditingHelpers.ts`)
+- **New module `src/components/map/mapEditingHelpers.ts`** — pure JS, web-safe,
+  runtime-tested: `pointInPoly`, `ringCentroid`, `sectionToFC`, `nogoToFC`,
+  `buildDrivewayFC` (skips completed + <5 m degenerate access points),
+  `downsamplePath`.
+- **Freehand lasso** (`setDrawingMode`/`clearLasso`): a `PanResponder` overlay
+  (shown only in draw mode so normal gestures are untouched) captures the drag;
+  `react-native-svg` paints the orange dashed path + translucent fill in screen
+  space; on release the path is projected to geo via the native map's
+  `unproject`, point-in-polygon selects non-completed stops, and
+  `onLassoComplete(stopIds, polygon)` fires. Gesture handler is ref-stable so it
+  isn't recreated mid-draw.
+- **Section polygons** (`addSectionPolygon`/`removeSectionPolygon`/
+  `clearAllSectionPolygons`): coloured fill + outline + centroid label, one
+  source per section (geometry-type filters).
+- **No-go zones** (`setNogoZones`): red translucent fill + dashed outline; tap a
+  zone → `onNogoZoneClick(id, name)` (suppressed during draw/block modes).
+- **Block-road** (`setBlockRoadMode`): one-shot map `onPress` → `onBlockRoadTap
+  (lat, lng)`, then auto-disarms (parent re-arms after server confirms).
+- **Driveway hints**: dashed purple connector pin→access-point + access dot,
+  derived from each stop's `access_lat`/`access_lng`.
+- `DeliveryMapNative.types.ts`: widened `onLassoComplete` to `(stopIds,
+  polygon)` to match the parent contract.
+
+### Verified
+- TypeScript clean for all native-map files; project error count unchanged
+  (31 pre-existing, none introduced). Web bundle compiles (stub).
+- `mapEditingHelpers` runtime unit checks all pass (see above).
+
+### Still TODO
+- Optional polish: animated next-stop pulse ring (static ring ships today).
+- Phase 4: cutover behind `useNativeMap`, A/B, delete legacy WebView map.
+
+---
+
+
+
+Built on Phase 0/1. Still native-only — validate on an EAS development build,
+NOT Expo Go / web (web bundle uses the `DeliveryMapNative.tsx` stub).
+
+### Added in Phase 2 (`DeliveryMapNative.native.tsx` + new `mapTileLoaders.ts`)
+- **New module `src/components/map/mapTileLoaders.ts`** — pure JS (no MapLibre
+  import, web-safe). Ports the WebView's tile pipeline to React-Native JS since
+  the native map has no injected WebView JS:
+  - `loadBuildingTiles` (z14), `loadParcelTiles` (z16), `loadAddressTiles` (z16),
+    `fetchHouseNumbers` (bbox query) — same endpoints, same slippy-tile math,
+    same bounded FIFO caches (64 tiles), self-debounced by visible "view key".
+  - `tagAddressesWithStops` — flags address features within ~25 m of a stop so
+    delivery-target numbers render bolder/red (parity with WebView).
+- **Overlays wired into the native map (match legacy WebView 1:1):**
+  - `buildings-3d` — worldwide OSM fill-extrusion on the style's `openmaptiles`
+    vector source / `building` source-layer (always on ≥ z13).
+  - `buildings-self-fill` + `buildings-self-3d` — self-hosted QLD cadastre
+    GeoJSON, fed by `/api/tiles/buildings` on camera idle.
+  - `parcels-fill` + `parcels-line` — cadastral grid, toggled via
+    `toggleParcels()` (fed by `/api/tiles/parcels`).
+  - `address-label` (muted) + `address-label-stops` (red, on delivery targets) —
+    fed by `/api/tiles/addresses`, shown with parcels.
+  - `house-numbers` — global OSM, fed by `/api/housenumbers` (≥ z17.5).
+  - `delivery-clusters` — native clustering GeoJSON source fed imperatively by
+    `setClusters()`; cluster bubble + count + single-point layers; tap a cluster
+    → `getClusterExpansionZoom` ease-in; pin⇄cluster swap at z14 via min/maxzoom.
+- **Imperative ref:** `toggleParcels()` and `setClusters()` now functional (were
+  no-ops). Camera-idle (`onRegionDidChange`) drives `refreshOverlays()`.
+
+### Verified (data layer, against live backend)
+- `/api/tiles/buildings/14/15158/9451.json` → 276 feats w/ `render_height`.
+- `/api/tiles/parcels/16/...` → 200 OK. `/api/tiles/addresses/16/...` → 124 feats
+  w/ `street_number`. `/api/housenumbers?bbox=...` → 190 feats w/ `housenumber`.
+- Style source `openmaptiles` + `building` source-layer present; `Noto Sans
+  Bold`/`Regular` glyphs 200. TypeScript clean for both new/edited files.
+
+### Still TODO (Phase 3 — typed no-ops in the native ref today)
+- Editing tools: `setDrawingMode` (lasso), `clearLasso`, section polygons,
+  `setBlockRoadMode`, `setNogoZones`, driveway-hint dots, next-stop pulse anim.
+- Phase 4: cutover behind `useNativeMap`, A/B, delete legacy WebView map.
+
+---
+
+
+## 2026-05-31 — Native Map Migration Phase 1 🚚 (driving parity + flag wiring; needs EAS dev build)
+
+Built on top of the Phase 0 entry below. Still native-only — validate on an EAS
+development build, not Expo Go / web.
+
+### Added in Phase 1
+- **Driving parity in `DeliveryMapNative.native.tsx`:**
+  - Pin painter parity with the WebView: per-feature `color` + `label` —
+    completed=green, locked stop (has `original_sequence`)=navy w/ sequence #,
+    late freight=purple w/ slot label (e.g. "45A", via `buildLateFreightLabels`)
+    in locked mode / blue w/ `order+1` in planning mode. Driven by a
+    `routeConfirmed` state set through `setRouteConfirmed()`.
+  - **Driving camera**: `sendMessage({type:'drivingCamera', ...})` (emitted by
+    the platform-agnostic `useNavigationCamera` hook at 250 ms) drives the
+    native `Camera.easeTo` with pitch 55°, zoom 17, course bearing, and
+    bottom-heavy look-ahead padding (~42% of map height → puck in lower third).
+    Re-entrancy guard (`easeInFlight`) + user-pan guard (`onRegionIsChanging`
+    userInteraction → 2 s suppression) mirror the WebView behaviour.
+  - `followDriver` effect now SKIPS when `highFreqCameraActive` (no camera
+    tug-of-war with the hook). Camera flattens (pitch→0 via `setStop`) when
+    leaving driving mode.
+  - `forceStopsRefresh()` now bumps a nonce to force a full pin recompute.
+  - Verified all v11 `CameraRef` signatures (flyTo/jumpTo/easeTo/fitBounds/
+    setStop) against the type defs; tsc clean.
+- **Feature-flag wiring (safe):** `DeliveryMap.native.tsx` now forks at the top
+  of the component — reads `getUseNativeMapSync()` ONCE via a useState
+  initializer (stable hook order) and, when on, `require()`s + renders
+  `DeliveryMapNative` with the same ref. The `require` is GATED by the flag, so
+  a production OTA build WITHOUT the native module never evaluates maplibre when
+  the flag is off (default). **⚠️ Do NOT OTA this to old builds with the flag
+  ON** — needs a fresh EAS build that includes the native module.
+- `app/_layout.tsx` calls `hydrateFeatureFlags()` on launch so a persisted
+  toggle applies on the next cold start.
+- `app/native-map-test.tsx` gained a "Set default" pill (calls
+  `setUseNativeMap`) → flips the whole app to the native map after relaunch,
+  plus the existing recenter/follow controls.
+
+### How the user A/B tests on a dev build
+1. EAS development build (native module included).
+2. Open `routed://native-map-test` → validate bare native map, pins, puck,
+   recenter/follow.
+3. Tap "Set default" → relaunch the app → the MAIN map (index.tsx) now renders
+   the native MapLibre map. Tap again to revert to the WebView map.
+   (Or bake `EXPO_PUBLIC_USE_NATIVE_MAP=true` into the build for a hard default.)
+
+### Verified (agent surface)
+- tsc: 0 new errors (project total stays 31, all pre-existing in
+  index.tsx/_layout(tabs)/DeliveryMap.native deep code).
+- Web preview: `/` + `/native-map-test` both 200 (no regression from the
+  shared `_layout.tsx` edit).
+
+### Still TODO (Phase 2/3 — typed no-ops in the native ref today)
+clusters, lasso select, no-go draw + block-road tap, parcels, section polygons,
+address labels / house numbers, 3D buildings. Then Phase 4 cutover + delete the
+WebView path.
+
+---
+
+
+## 2026-05-31 — Native Map Migration Phase 0 🗺️ (DONE in workspace — needs EAS dev build)
+
+### Goal
+Begin migrating the map from WebView MapLibre GL JS (`DeliveryMap.native.tsx`,
+~2.7k lines) to the NATIVE SDK `@maplibre/maplibre-react-native`, in phases,
+behind a `useNativeMap` flag, without breaking the existing WebView map.
+Keep OpenFreeMap "Liberty" + self-hosted OSRM (no Mapbox/Google billing).
+
+### Version decision (updated from handoff)
+`@maplibre/maplibre-react-native@11.3.0` is now the **stable latest** (v11 left
+alpha). It natively supports React Native's New Architecture — which RouTeD
+requires (`newArchEnabled:true`, reanimated 4). So we installed **v11.3.0**,
+NOT the v10.2.1 interop path the handoff hedged on. Peer deps match exactly
+(react 19.1, RN 0.81, `@expo/config-plugins >=54`).
+
+### What shipped (Phase 0, all in workspace)
+- `yarn expo install @maplibre/maplibre-react-native` → 11.3.0 (+ turf deps).
+- Expo config plugin `"@maplibre/maplibre-react-native"` added to `app.json`
+  plugins (merged via `app.config.js`). `expo config --type prebuild` +
+  Android `expo prebuild` both verified clean (generated `android/` removed
+  via `git clean`; managed workflow preserved).
+- `src/components/map/DeliveryMapNative.native.tsx` — NATIVE map (v11 API:
+  `Map`, `Camera`, `GeoJSONSource`, unified `Layer`, `UserLocation`). Renders
+  Liberty style via backend `/api/map/style`, numbered stop pins (circle +
+  symbol; `text-font:['Noto Sans Regular']` since the backend glyphs serve
+  Noto, NOT Open Sans → confirmed 200 vs 404), route/traveled lines,
+  next-stop ring, native location puck. Implements the FULL `DeliveryMapRef`
+  (flyTo/jumpTo/fitBounds wired to `CameraRef`; lasso/no-go/parcels/clusters/
+  section-polygons are typed no-ops to be ported in later phases).
+- `src/components/map/DeliveryMapNative.tsx` — WEB stub (no maplibre import) +
+  `DeliveryMapNative.types.ts` (shared props). Platform split keeps the native
+  module OUT of the web/SSR bundle (web bundle 1572→1498 modules; web static
+  render no longer crashes on `codegenNativeComponent`).
+- `src/utils/featureFlags.ts` — `useNativeMap` flag (env `EXPO_PUBLIC_USE_NATIVE_MAP`
+  default + persisted runtime override). NOT yet wired into the main map
+  (Phase 1) — zero risk to the production WebView path.
+- `app/native-map-test.tsx` — isolated harness (real stops or QLD demo set,
+  contextual location-permission flow w/ Settings fallback, recenter/follow
+  FABs). Reachable on a dev build via deep link `routed://native-map-test`.
+
+### Verified (agent-testable surface)
+- TypeScript: 0 errors in all new files (31 pre-existing errors in
+  index.tsx/_layout.tsx are untouched).
+- Expo config + Android prebuild succeed with the plugin.
+- Web preview: `/` 200 (no regression), `/native-map-test` renders the
+  "Native build required" stub gracefully (no maplibre on web).
+- Backend healthy; `/api/map/style` 200, Noto glyphs 200.
+
+### CANNOT be agent-tested → needs USER
+Native MapLibre rendering (style/pins/puck) only works in an **EAS development
+build on a real device** — not Expo Go / web. User must trigger a dev build,
+then open `routed://native-map-test`.
+
+### Also fixed this session
+- Fork container was missing Python deps (`haversine`, `openlocationcode`, …)
+  → backend was down. Reinstalled via `pip install -r requirements.txt
+  --no-deps` (the `lkh`→`click<7` pin conflict is stale; freeze is exact).
+  Backend now healthy.
+
+### Deploy
+- Native module added → **NOT OTA-safe**. Needs a fresh EAS dev/prod build.
+- Backend OSRM `/api/directions` fix from the prior session is present &
+  committed in `server.py` (`_osrm_note_success()` at the directions success
+  path + host-adaptive `httpx.Timeout`). Still needs **Save to GitHub →
+  Coolify** to reach production.
+
+---
+
+
 ## 2026-05-31 — /api/directions stops falling back to Mapbox 🛣️ (DONE — needs backend deploy)
 
 ### Problem
@@ -1406,7 +1619,7 @@ gated to the owner account only (`user_id == "user_2a7d88cbb419"`).
   - `.gitignore` cleaned of duplicated `.env` blockers (lines 96–116) so
     Emergent deploy can auto-inject prod env vars.
   - `frontend/.env::EXPO_PACKAGER_PROXY_URL` switched from
-    `https://route-opt.preview.emergentagent.com` →
+    `https://native-logistics-map.preview.emergentagent.com` →
     `https://route-opt.ngrok.io` (correct format for Expo tunnel).
   - `routes/map_assets.py::get_glyph_range` now splits MapLibre comma-
     separated fontstacks (`"Noto Sans Bold,Open Sans Bold"`) and tries each
