@@ -1,3 +1,30 @@
+## 2026-05-31 — Off-route route line now re-snaps to driver's path 🧭 (DONE — needs OTA)
+
+### Problem (pre-existing)
+While driving, deviating off the planned route did NOT re-snap the route
+line to the new path. Root cause: `snapToRouteGeometry` (index.tsx) snapped
+the driver's GPS onto the OLD planned route with a **~100 m radius** (and the
+check was in distorted raw degrees, `> 0.001`). So minor/parallel deviations
+were magnetically pulled back onto the stale route BEFORE the directions
+recompute, so the line never followed the driver.
+
+### Fix (`frontend/app/(tabs)/index.tsx`)
+- Replaced the `> 0.001` degree check with a proper metres-based radius:
+  `SNAP_RADIUS_M = 40` via `calculateDistance`. Within 40 m → snap (on-route
+  GPS jitter). Beyond 40 m → return RAW GPS, so the `/api/directions` fetch
+  in `updateLiveRoute` recomputes a fresh road-snapped line from the driver's
+  ACTUAL position to the next stop (line re-snaps to the new path).
+
+### Verified
+- TypeScript clean around edit; Metro bundles. (Off-route behaviour needs
+  real driving → verify on-device after OTA.)
+
+### Deploy
+- Pure **frontend** JS → EAS OTA. No native modules.
+
+---
+
+
 ## 2026-05-30 — Driver puck: stop jitter + strictly-GPS heading 🧭 (DONE — needs OTA + on-device check)
 
 ### Problem

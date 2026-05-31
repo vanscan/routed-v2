@@ -1968,9 +1968,18 @@ export default function RouteScreen() {
       }
     }
 
-    // If snapped point is > ~100m from raw GPS, don't snap (driver may have left the route)
-    // Rough conversion: 0.001° ≈ 111m at equator
-    if (Math.sqrt(minDistSq) > 0.001) return { lng, lat };
+    // Off-route handling: only snap GPS onto the planned route for genuine
+    // on-route jitter (road width + typical urban GPS error, ~40 m). Beyond
+    // SNAP_RADIUS_M the driver has actually deviated — return RAW GPS so the
+    // Directions fetch in updateLiveRoute recomputes a fresh road-snapped
+    // line FROM the driver's real position to the next stop (i.e. the line
+    // re-snaps to the NEW path) instead of magnetically clinging to the old
+    // route. The previous ~100 m radius (measured in distorted raw degrees)
+    // was so wide it kept pulling minor deviations back onto the stale route,
+    // so the line never updated when the driver went off-course.
+    const SNAP_RADIUS_M = 40;
+    const snappedMeters = calculateDistance(lat, lng, snappedLat, snappedLng);
+    if (snappedMeters > SNAP_RADIUS_M) return { lng, lat };
 
     return { lng: snappedLng, lat: snappedLat };
   };
