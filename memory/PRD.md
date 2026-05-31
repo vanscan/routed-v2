@@ -1,3 +1,32 @@
+## 2026-05-31 — /api/directions stops falling back to Mapbox 🛣️ (DONE — needs backend deploy)
+
+### Problem
+Live directions were failing OSRM and silently routing via **Mapbox**. Root
+cause in `get_directions` (`server.py`):
+- The OSRM **success path never called `_osrm_note_success()`** (only the
+  matrix paths did). Directions is the highest-frequency OSRM caller (fires
+  every few metres while driving), so a couple of transient failures
+  accumulated `_osrm_consecutive_failures` with no reset → tripped the
+  circuit breaker → **5 minutes of Mapbox** even though OSRM was healthy.
+- Flat `timeout=30.0` also let a cold Fly.io connect count as a failure.
+
+### Fix (`backend/server.py`, `get_directions`)
+- Call `_osrm_note_success()` on the directions OSRM success → resets the
+  breaker on every good call, so it can't drift into the open state.
+- Host-adaptive `httpx.Timeout(connect=10, read=30, write=10, pool=5)` so a
+  cold prod-OSRM connect isn't miscounted as a failure.
+
+### Verified (preview)
+- `GET /api/directions` → `source: osrm`, valid 12.8 km geometry.
+- 10 rapid driving-style calls → **10/10 `osrm`**, zero Mapbox.
+- ruff clean.
+
+### Deploy
+- Pure **backend** change → Save to GitHub → Coolify. No OTA.
+
+---
+
+
 ## 2026-05-31 — Off-route route line now re-snaps to driver's path 🧭 (DONE — needs OTA)
 
 ### Problem (pre-existing)

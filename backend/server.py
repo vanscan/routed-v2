@@ -9237,7 +9237,12 @@ async def get_directions(coordinates: str, response: Response):
                 "geometries": "geojson",
                 "steps": "true",
             }
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            # Generous connect headroom: the prod OSRM (pathpilot-osrm.fly.dev)
+            # can cold-start, and a 1-2 s TCP/TLS stall must NOT be counted as
+            # a failure — otherwise a few cold connects trip the circuit
+            # breaker and force every direction onto Mapbox for 5 minutes.
+            _dir_timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=5.0)
+            async with httpx.AsyncClient(timeout=_dir_timeout) as client:
                 resp = await client.get(url, params=params)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -9276,6 +9281,13 @@ async def get_directions(coordinates: str, response: Response):
                             "waypoints": data.get("waypoints", []),
                             "source": "osrm"
                         }
+                        # Reset the circuit breaker on success. Directions is
+                        # the highest-frequency OSRM caller (fires every few
+                        # metres while driving); without this reset, a couple
+                        # of transient failures would accumulate uncleared and
+                        # trip the breaker into 5 min of Mapbox even though
+                        # OSRM is healthy.
+                        _osrm_note_success()
                         _directions_cache.set(cache_key, result)
                         return result
         except Exception as e:
