@@ -6,6 +6,7 @@ import { AuthProvider } from '../src/context/AuthContext';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import * as Updates from 'expo-updates';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
+import { hydrateFeatureFlags } from '../src/utils/featureFlags';
 
 // Boot-time invariant: every API call in the app reads
 // `process.env.EXPO_PUBLIC_BACKEND_URL`, replaced inline at bundle time
@@ -44,6 +45,10 @@ export default function RootLayout() {
   const [otaStatus, setOtaStatus] = useState<string | null>(null);
 
   useEffect(() => {
+    // Load any persisted feature-flag overrides (e.g. the native-map toggle)
+    // early so the map picks up the right implementation on this launch.
+    hydrateFeatureFlags().catch(() => {});
+
     const isWebRuntime = typeof document !== 'undefined';
     if (Platform.OS !== 'web' && !isWebRuntime) {
       import('expo-keep-awake')
