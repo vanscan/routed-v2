@@ -16,7 +16,7 @@ import os
 import time
 
 # Use the public URL for testing
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://route-opt.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com').rstrip('/')
 
 # DEV_MODE header for authentication bypass
 DEV_HEADERS = {

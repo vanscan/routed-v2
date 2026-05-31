@@ -20,7 +20,7 @@ import os
 import time
 
 # Use the public URL from environment
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://route-opt.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com')
 
 # All 7 local algorithms
 ALL_LOCAL_ALGORITHMS = ["alns", "ortools", "nearest_neighbor", "two_opt", "simulated_annealing", "genetic", "clarke_wright"]

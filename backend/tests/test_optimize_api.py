@@ -14,7 +14,7 @@ import time
 from typing import List, Dict, Any
 
 # Get backend URL from environment
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://route-opt.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com')
 
 # 12-stop SE Queensland test dataset (realistic delivery route)
 TEST_STOPS_12 = [

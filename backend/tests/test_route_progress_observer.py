@@ -29,7 +29,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
 # Get backend URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://route-opt.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com')
 
 
 # ============================================

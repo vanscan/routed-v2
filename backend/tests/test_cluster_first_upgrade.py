@@ -16,7 +16,7 @@ import os
 import time
 
 # Use the public URL from frontend/.env
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://route-opt.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com')
 
 # Optimization can take 30-60 seconds due to Mapbox API calls
 OPTIMIZE_TIMEOUT = 120

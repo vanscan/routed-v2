@@ -20,7 +20,7 @@ import math
 from typing import List, Dict, Any
 
 # Use the external URL for testing
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://route-opt.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com')
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

@@ -12,7 +12,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://route-opt.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com').rstrip('/')
 
 # Test session token for xmltvg@gmail.com (whitelisted user)
 TEST_SESSION_TOKEN = "59c60389-8953-4a7b-9088-d6175aa30243"

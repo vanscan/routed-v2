@@ -36,7 +36,7 @@ from solvers import (
     insertion_cost,
 )
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://route-opt.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com').rstrip('/')
 
 
 # ============================================================

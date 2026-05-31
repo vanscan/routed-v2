@@ -18,7 +18,7 @@ import time
 import uuid
 
 # Base URL from environment - must include /api prefix for endpoints
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://route-opt.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://native-logistics-map.preview.emergentagent.com')
 
 # Test data prefix for cleanup
 TEST_PREFIX = "TEST_"
