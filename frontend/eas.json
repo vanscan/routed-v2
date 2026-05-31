@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://api.getrouted.xyz"
+        "EXPO_PUBLIC_BACKEND_URL": "https://delivery-maplibre.preview.emergentagent.com"
       },
       "android": {
         "buildType": "apk"
@@ -19,7 +19,7 @@
       "distribution": "internal",
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://api.getrouted.xyz"
+        "EXPO_PUBLIC_BACKEND_URL": "https://delivery-maplibre.preview.emergentagent.com"
       },
       "android": {
         "buildType": "apk"
