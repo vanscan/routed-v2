@@ -7,7 +7,7 @@ import io
 import pandas as pd
 
 # Backend API URL from frontend/.env
-BACKEND_URL = "https://route-opt.preview.emergentagent.com/api"
+BACKEND_URL = "https://native-logistics-map.preview.emergentagent.com/api"
 
 class TestImportAddressPreservation:
     """Test suite specifically for XLS/CSV import address preservation bug fix"""

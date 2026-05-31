@@ -1,0 +1,53 @@
+RouTeD — Changed files for manual GitHub upload
+================================================
+Generated: 2026-05-31
+
+WHY THIS ZIP EXISTS
+-------------------
+The managed "Save to GitHub" action fails with a non-fast-forward (500) because
+the workspace `main` has diverged from GitHub's `main`. This zip contains the
+CURRENT content of every source file changed in the un-pushed local history, so
+you can upload them to GitHub manually and make the remote match the workspace.
+
+HOW TO UPLOAD
+-------------
+Option A (GitHub web UI): open your repo → "Add file" → "Upload files" → drag the
+  folders from this zip (keep the same paths) → commit to `main`.
+Option B (git CLI on your machine):
+  1) Clone/pull your repo.
+  2) Copy these files over the same paths.
+  3) git add -A && git commit -m "Native map migration Phase 0-3 + OSRM fix" && git push
+
+NOTE: paths in this zip are relative to the repo root (e.g. frontend/..., backend/...).
+Do NOT upload node_modules, .expo, caches, or .env files.
+
+WHAT'S INCLUDED
+---------------
+Native MapLibre migration (Phase 0–3):
+  frontend/src/components/map/DeliveryMapNative.native.tsx   (native map: driving, overlays, editing)
+  frontend/src/components/map/DeliveryMapNative.tsx          (web stub — keeps native module out of web bundle)
+  frontend/src/components/map/DeliveryMapNative.types.ts     (shared cross-platform types)
+  frontend/src/components/map/mapTileLoaders.ts              (Phase 2 overlay tile loaders)
+  frontend/src/components/map/mapEditingHelpers.ts           (Phase 3 lasso/section/no-go/driveway helpers)
+  frontend/src/components/DeliveryMap.native.tsx             (legacy WebView map — feature-flag wiring)
+  frontend/src/utils/featureFlags.ts                         (useNativeMap flag)
+  frontend/app/_layout.tsx                                   (flag state)
+  frontend/app/native-map-test.tsx                           (isolated test screen)
+  frontend/app/(tabs)/index.tsx                              (map ref calls: clusters/parcels/lasso)
+  frontend/app.json                                          (maplibre config plugin)
+  frontend/eas.json                                          (dev/preview backend URL)
+  frontend/package.json, frontend/package-lock.json          (@maplibre/maplibre-react-native dep)
+
+Backend:
+  backend/server.py                                          (OSRM directions fix + tile/housenumber endpoints)
+  backend/tests/*, backend_test.py                           (related tests)
+
+Docs:
+  memory/PRD.md, test_result.md                              (progress notes — optional, safe to skip)
+
+CAVEAT
+------
+Because GitHub's `main` is unreachable from the workspace, I could not diff
+against the exact remote HEAD. This package includes all source files touched in
+recent local history (covers the full migration + backend fix). Uploading them is
+safe — identical files simply overwrite with the same content.
