@@ -17,6 +17,7 @@ import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, us
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { buildLateFreightLabels } from '../utils/stopPinNumber';
+import { getUseNativeMapSync } from '../utils/featureFlags';
 
 // ─── Types (shared with web) ─────────────────────────────────────────────────
 
@@ -2149,6 +2150,20 @@ window.handleMessage = function(msg) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function DeliveryMapNative(props, ref) {
+  // ── Native-map feature flag fork ──────────────────────────────────────────
+  // When `useNativeMap` is on (EAS dev build with the native module), render
+  // the native MapLibre map instead of this WebView implementation. Read ONCE
+  // at mount via a useState initializer so the hook order below stays stable
+  // for this instance's lifetime. The `require` is GATED by the flag, so a
+  // production OTA build WITHOUT `@maplibre/maplibre-react-native` in its
+  // binary never evaluates the native module when the flag is off (default).
+  const [useNativeMap] = useState(() => getUseNativeMapSync());
+  if (useNativeMap) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const DeliveryMapNativeImpl = require('./map/DeliveryMapNative').DeliveryMapNative;
+    return <DeliveryMapNativeImpl {...props} ref={ref} />;
+  }
+
   const {
     stops, routeCoordinates, driverLocation, traveledPath,
     initialCenter = [153.0251, -27.4698], initialZoom = 12,
