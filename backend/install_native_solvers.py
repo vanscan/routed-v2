@@ -253,7 +253,7 @@ def _try_apt_install_jdk() -> str | None:
         return None
     try:
         logger.info("[jdk-installer] trying apt-get install openjdk-17-jre-headless...")
-         = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+        env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
         subprocess.run(
             ["apt-get", "install", "-y", "--no-install-recommends", "openjdk-17-jre-headless"],
             timeout=300, check=True,
