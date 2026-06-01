@@ -318,3 +318,6 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Sensitive credentials
+memory/test_credentials.md
