@@ -124,3 +124,9 @@ watchfiles==1.2.0
 websockets==16.0
 yarl==1.24.2
 zipp==4.1.0
+
+# Route optimization solvers
+ortools==9.10.4067
+pyvroom==1.15.0
+pyvrp==0.13.3
+lkh==2.0.0
