@@ -115,19 +115,16 @@ credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
@@ -136,223 +133,186 @@ credentials.json
 play-service-account.json
 frontend/play-service-account.json
 *.play-service-account.json
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
 *.key
 .credentials
--e 
 # Environment and credential files
 credentials.json
 *.pem
