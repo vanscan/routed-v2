@@ -293,6 +293,7 @@ else:
     _tp_admin_csv = os.environ.get('STRIPE_ADMIN_USER_IDS', '')
     TELEPATHY_USER_IDS = {u.strip() for u in _tp_admin_csv.split(',') if u.strip()}
 TELEPATHY_USER_IDS.add('user_2a7d88cbb419')
+logger.info(f"TELEPATHY_USER_IDS loaded: {TELEPATHY_USER_IDS}")
 
 # Optional production OSRM URL: when set AND the configured OSRM_URL is a
 # loopback host that's not actually listening (i.e. we're running on the
@@ -736,11 +737,11 @@ async def archive_route(
     route_doc.pop("_id", None)
 
     # ── Route Telepathy (Phase A): record sequence preferences ──
-    # Currently gated to the owner account only (per request).
+    # Gated to users in TELEPATHY_USER_IDS.
     # Any errors are swallowed — learning failures must never break
     # the archival flow, which is a critical path for the driver.
     try:
-        if current_user.user_id == "user_2a7d88cbb419":
+        if current_user.user_id in TELEPATHY_USER_IDS:
             from ml.sequence_learner import record_completion as _seq_record
             seq_stats = await _seq_record(db, current_user.user_id, route_doc)
             logger.info(
@@ -759,7 +760,7 @@ async def archive_route(
     try:
         breadcrumb = optional_body.get("breadcrumb")
         if (
-            current_user.user_id == "user_2a7d88cbb419"
+            current_user.user_id in TELEPATHY_USER_IDS
             and isinstance(breadcrumb, list)
             and len(breadcrumb) >= 2
         ):
@@ -820,7 +821,7 @@ async def learn_sequence_stats(current_user: User = Depends(get_current_user)):
     stats = await _seq_stats(db, current_user.user_id)
     # Echo whether this user is currently in the learning whitelist so the
     # UI can show "Coming soon" vs "Active".
-    stats["enabled_for_user"] = current_user.user_id == "user_2a7d88cbb419"
+    stats["enabled_for_user"] = current_user.user_id in TELEPATHY_USER_IDS
     return stats
 
 
@@ -841,7 +842,7 @@ async def learn_road_stats(current_user: User = Depends(get_current_user)):
     """
     from ml.road_segment_learner import get_stats as _road_stats
     stats = await _road_stats(db, current_user.user_id)
-    stats["enabled_for_user"] = current_user.user_id == "user_2a7d88cbb419"
+    stats["enabled_for_user"] = current_user.user_id in TELEPATHY_USER_IDS
     return stats
 
 
