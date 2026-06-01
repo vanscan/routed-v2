@@ -8,7 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://api.getrouted.xyz"
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.getrouted.xyz",
+        "EXPO_PUBLIC_USE_NATIVE_MAP": "true"
       },
       "android": {
         "buildType": "apk"
