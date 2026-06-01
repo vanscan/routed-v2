@@ -26,10 +26,18 @@ COPY backend/requirements.txt ./
 # lkh==2.0.0 pins Click<7 (conflicts with black/litellm/uvicorn);
 # install with --no-deps first then the rest without lkh in the file.
 # emergentintegrations lives on Emergent's CloudFront index, not PyPI.
-RUN pip install --upgrade pip \
- && pip install --no-deps lkh==2.0.0 \
- && grep -v '^lkh==' requirements.txt > /tmp/req-no-lkh.txt \
- && pip install \
+
+# Step 1: Upgrade pip
+RUN pip install --upgrade pip
+
+# Step 2: Install lkh with --no-deps to bypass stale click<7 constraint
+RUN pip install --no-deps lkh==2.0.0
+
+# Step 3: Filter out lkh from requirements (already installed)
+RUN grep -v '^lkh==' requirements.txt > /tmp/req-no-lkh.txt
+
+# Step 4: Install remaining dependencies
+RUN pip install \
         --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ \
         -r /tmp/req-no-lkh.txt
 

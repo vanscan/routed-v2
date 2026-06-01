@@ -33,12 +33,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #      doesn't re-resolve and fail again). emergentintegrations ships on
 #      Emergent's CloudFront index, not on public PyPI.
 COPY backend/requirements.txt ./
-RUN pip install --upgrade pip \
-    && pip install --no-deps lkh==2.0.0 \
-    && grep -v '^lkh==' requirements.txt > /tmp/req-no-lkh.txt \
-    && pip install \
-        --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ \
-        -r /tmp/req-no-lkh.txt
+
+# Step 1: Upgrade pip
+RUN pip install --upgrade pip
+
+# Step 2: Install lkh with --no-deps to bypass stale click<7 constraint
+RUN pip install --no-deps lkh==2.0.0
+
+# Step 3: Filter out lkh from requirements (already installed)
+RUN grep -v '^lkh==' requirements.txt > /tmp/req-no-lkh.txt
+
+# Step 4: Install remaining dependencies
+# emergentintegrations ships on Emergent's CloudFront index
+RUN pip install \
+    --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ \
+    -r /tmp/req-no-lkh.txt
 
 # Copy backend source
 COPY backend/ ./
