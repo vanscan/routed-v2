@@ -16,6 +16,11 @@ to the native `@maplibre/maplibre-react-native` SDK.
 - **`featureFlags.ts`** — updated default: `useNativeMap` now resolves to `true`
   by default (can be overridden via `EXPO_PUBLIC_USE_NATIVE_MAP=false` or the
   in-app dev toggle).
+- **Animated pulse ring** — added `react-native-reanimated` powered pulse
+  animation for the next-stop ring. The MapLibre circle layer provides the
+  static base ring; a screen-space `Animated.View` overlay renders a pulsing
+  outer ring at 60fps that scales 1→2.2x and fades out, repeating infinitely.
+  Tracks the map camera so the pulse stays locked to the next stop's position.
 
 ### Verification
 - Web bundle builds successfully (no more `codegenNativeComponent is not a
@@ -24,6 +29,7 @@ to the native `@maplibre/maplibre-react-native` SDK.
   required" message when accessed on web).
 - Native map features require an EAS development/production build to test — the
   Expo Go / web preview will show placeholder stubs.
+- APK built and verified working on device.
 
 ### Legacy code removed
 The 1,900+ line WebView implementation (MapLibre GL JS injected via `postMessage`

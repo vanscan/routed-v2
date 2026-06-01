@@ -36,6 +36,13 @@ import React, {
   useState,
 } from 'react';
 import { View, StyleSheet, Dimensions, PanResponder } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import Svg, { Polyline as SvgPolyline, Polygon as SvgPolygon } from 'react-native-svg';
 import {
   Map as MapLibreMap,
@@ -253,6 +260,57 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const [sections, setSections] = useState<SectionPolygon[]>([]);
     // No-go zones (red impassable polygons).
     const [nogoFC, setNogoFC] = useState<GeoJSON.FeatureCollection>(EMPTY_FC);
+
+    // ── Animated pulse ring state ────────────────────────────────────────────
+    // The static MapLibre circle layer provides a base; this animated overlay
+    // adds a pulsing outer ring in screen-space using react-native-reanimated.
+    const pulseScale = useSharedValue(1);
+    const pulseOpacity = useSharedValue(0.6);
+    const [pulseScreenXY, setPulseScreenXY] = useState<{ x: number; y: number } | null>(null);
+
+    // Kick off the infinite pulse animation.
+    useEffect(() => {
+      pulseScale.value = withRepeat(
+        withTiming(2.2, { duration: 1400, easing: Easing.out(Easing.ease) }),
+        -1, // infinite
+        false, // no reverse — snap back to 1
+      );
+      pulseOpacity.value = withRepeat(
+        withTiming(0, { duration: 1400, easing: Easing.out(Easing.ease) }),
+        -1,
+        false,
+      );
+    }, [pulseScale, pulseOpacity]);
+
+    // Convert next-stop geo coords → screen XY for the pulse overlay. Called
+    // after every camera change so the ring tracks the map.
+    const updatePulseScreenPos = useCallback(() => {
+      if (!nextStopCoord || !mapRef.current) {
+        setPulseScreenXY(null);
+        return;
+      }
+      // MapLibre native: getPointInView returns screen coords for a geo coord.
+      mapRef.current
+        .getPointInView(nextStopCoord)
+        .then((pt) => {
+          if (pt && typeof pt[0] === 'number' && typeof pt[1] === 'number') {
+            setPulseScreenXY({ x: pt[0], y: pt[1] });
+          } else {
+            setPulseScreenXY(null);
+          }
+        })
+        .catch(() => setPulseScreenXY(null));
+    }, [nextStopCoord]);
+
+    // Re-project the pulse position whenever the next-stop or camera changes.
+    useEffect(() => {
+      updatePulseScreenPos();
+    }, [nextStopCoord, updatePulseScreenPos]);
+
+    const pulseAnimatedStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: pulseScale.value }],
+      opacity: pulseOpacity.value,
+    }));
 
     const center = initialCenter ?? DEFAULT_CENTER;
     const zoom = initialZoom ?? DEFAULT_ZOOM;
@@ -632,11 +690,13 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           if (Array.isArray(c) && c.length >= 2) {
             refreshOverlays(c[0], c[1], zz);
           }
+          // Update pulse ring position to track the camera.
+          updatePulseScreenPos();
         } catch {
           // ignore malformed region events
         }
       },
-      [onCameraIdle, zoom, refreshOverlays],
+      [onCameraIdle, zoom, refreshOverlays, updatePulseScreenPos],
     );
 
     // Handle a tap on the delivery-clusters source: expand a cluster bubble or
@@ -1129,6 +1189,30 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           {/* Native location puck (device GPS + heading arrow) */}
           <UserLocation animated heading minDisplacement={3} />
         </MapLibreMap>
+
+        {/* ── Animated pulse ring overlay (screen-space) ────────────────────────
+            A reanimated View that renders a pulsing ring at the screen position
+            of the next stop. This overlay animates smoothly at 60fps while the
+            MapLibre circle layer underneath provides the static base ring. */}
+        {pulseScreenXY && nextStopCoord && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              {
+                position: 'absolute',
+                left: pulseScreenXY.x - 24,
+                top: pulseScreenXY.y - 24,
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                borderWidth: 3,
+                borderColor: nextStopColor || '#f59e0b',
+                backgroundColor: 'transparent',
+              },
+              pulseAnimatedStyle,
+            ]}
+          />
+        )}
 
         {/* ── Lasso drawing overlay ──────────────────────────────────────────
             Rendered ONLY while in draw mode so normal map gestures are
