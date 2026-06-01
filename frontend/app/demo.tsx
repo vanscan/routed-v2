@@ -37,7 +37,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Stack } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { DeliveryMap, DeliveryMapRef } from '../src/components/DeliveryMap.native';
+import { DeliveryMap, DeliveryMapRef } from '../src/components/DeliveryMap';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 

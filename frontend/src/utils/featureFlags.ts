@@ -1,14 +1,14 @@
 /**
  * featureFlags.ts — lightweight runtime feature-flag registry.
  *
- * Phase 0 of the native-map migration (`@maplibre/maplibre-react-native`)
- * is gated behind `useNativeMap`. The flag resolves in this priority order:
+ * Phase 4 (cutover complete): The native-map migration is now the default.
+ * The flag `useNativeMap` resolves in this priority order:
  *
  *   1. A runtime override (set via the in-app dev toggle / `setUseNativeMap`)
  *      and persisted to AsyncStorage so it survives reloads.
- *   2. The build-time env default `EXPO_PUBLIC_USE_NATIVE_MAP=true`.
- *   3. `false` (the existing WebView MapLibre GL JS map stays the default
- *      until full parity is reached — see PRD).
+ *   2. The build-time env default `EXPO_PUBLIC_USE_NATIVE_MAP` (if set).
+ *   3. `true` — the native `@maplibre/maplibre-react-native` map is now the
+ *      default. The legacy WebView-based map has been removed as of Phase 4.
  *
  * The sync getter (`getUseNativeMapSync`) reads a module-level cache so the
  * map component can branch ONCE at mount without an async race. Call
@@ -18,10 +18,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'feature.useNativeMap';
 
+// Phase 4: native map is now the default. The env var can override to 'false'
+// if someone explicitly wants the legacy WebView (unlikely since it's removed).
 const ENV_DEFAULT =
-  String(process.env.EXPO_PUBLIC_USE_NATIVE_MAP || '').toLowerCase() === 'true';
+  String(process.env.EXPO_PUBLIC_USE_NATIVE_MAP || 'true').toLowerCase() !== 'false';
 
-// null = no runtime override yet → fall back to the env default.
+// null = no runtime override yet → fall back to the env default (now `true`).
 let _useNativeMapOverride: boolean | null = null;
 let _hydrated = false;
 

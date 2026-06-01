@@ -82,6 +82,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/jest": "29.5.14",
+    "babel-preset-expo": "^56.0.14",
     "husky": "^9.1.7"
   },
   "private": true,
