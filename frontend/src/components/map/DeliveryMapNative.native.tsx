@@ -531,6 +531,20 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       });
     }, [followDriver, driverLocation, highFreqCameraActive]);
 
+    // ── Initial camera center on driver location (even when not in navigation mode) ──
+    const initialCenterDoneRef = useRef(false);
+    useEffect(() => {
+      if (initialCenterDoneRef.current) return;
+      if (!driverLocation || !cameraRef.current) return;
+      // Center camera on user's current location once when map loads
+      initialCenterDoneRef.current = true;
+      cameraRef.current.flyTo({
+        center: [driverLocation.longitude, driverLocation.latitude],
+        zoom: 16,
+        duration: 800,
+      });
+    }, [driverLocation]);
+
     // ── Flatten the camera (pitch → 0) when leaving driving mode ───────────
     useEffect(() => {
       if (wasDrivingRef.current && !highFreqCameraActive && cameraRef.current) {
