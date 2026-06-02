@@ -365,7 +365,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     );
 
     // ── Driving camera: drive the native Camera from a drivingCamera message.
-    //    Look-ahead is achieved with bottom-heavy padding (puck → lower third,
+    //    Look-ahead is achieved with top-heavy padding (puck → lower third,
     //    road ahead up top), matching the WebView's pixel-space offset. ──────
     const driveCamera = useCallback(
       (lng: number, lat: number, bearing?: number, _speedMps?: number) => {
@@ -374,7 +374,8 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         // Re-entrancy + user-pan guards (parity with the WebView path).
         if (easeInFlightRef.current) return;
         if (userInteractingRef.current) return;
-        const bottomPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
+        // TOP padding pushes the center DOWN on screen, placing puck in lower third
+        const topPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
         easeInFlightRef.current = true;
         try {
           cam.easeTo({
@@ -382,7 +383,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             zoom: DRIVING_ZOOM,
             bearing: bearing ?? 0,
             pitch: DRIVING_PITCH,
-            padding: { top: 0, right: 0, bottom: bottomPad, left: 0 },
+            padding: { top: topPad, right: 0, bottom: 0, left: 0 },
             duration: DRIVING_EASE_MS,
           });
         } catch {
