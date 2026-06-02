@@ -289,9 +289,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         setPulseScreenXY(null);
         return;
       }
-      // MapLibre native: getPointInView returns screen coords for a geo coord.
+      // MapLibre native v11: project() returns screen coords for a geo coord.
       mapRef.current
-        .getPointInView(nextStopCoord)
+        .project(nextStopCoord)
         .then((pt) => {
           if (pt && typeof pt[0] === 'number' && typeof pt[1] === 'number') {
             setPulseScreenXY({ x: pt[0], y: pt[1] });
