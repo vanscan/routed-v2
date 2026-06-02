@@ -11,6 +11,31 @@ config.cacheStores = [
   new FileStore({ root: path.join(root, 'cache') }),
 ];
 
+// Disable Hermes for exports to avoid hermesc compilation errors
+config.transformer.enableBabelRCLookup = false;
+config.transformer.hermesParser = false;
+if (!config.transformer.getTransformOptions) {
+  config.transformer.getTransformOptions = async () => ({
+    transform: {
+      experimentalImportSupport: false,
+      inlineRequires: false,
+    },
+  });
+} else {
+  const originalGetTransformOptions = config.transformer.getTransformOptions;
+  config.transformer.getTransformOptions = async (args) => {
+    const options = await originalGetTransformOptions(args);
+    return {
+      ...options,
+      transform: {
+        ...options?.transform,
+        experimentalImportSupport: false,
+        inlineRequires: false,
+      },
+    };
+  };
+}
+
 
 // // Exclude unnecessary directories from file watching
 // config.watchFolders = [__dirname];

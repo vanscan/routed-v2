@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.routedopt.app",
       "runtimeVersion": {
         "policy": "appVersion"
-      }
+      },
+      "jsEngine": "jsc"
     },
     "android": {
       "adaptiveIcon": {
