@@ -14,8 +14,21 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential gcc g++ curl git libgomp1 \
+        build-essential gcc g++ curl wget git libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Build LKH-3 solver binary from source
+# The `lkh` Python package is just a wrapper; it requires the LKH binary on PATH
+# ─────────────────────────────────────────────────────────────────────────────
+WORKDIR /tmp
+RUN wget -q http://akira.ruc.dk/~keld/research/LKH-3/LKH-3.0.10.tgz \
+    && tar xzf LKH-3.0.10.tgz \
+    && cd LKH-3.0.10 \
+    && make \
+    && cp LKH /usr/local/bin/LKH \
+    && cd .. \
+    && rm -rf LKH-3.0.10 LKH-3.0.10.tgz
 
 WORKDIR /usr/src/app
 RUN python -m venv /opt/venv
