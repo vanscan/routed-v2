@@ -183,9 +183,10 @@ function lineFeature(coords: number[][] | null): GeoJSON.FeatureCollection {
 }
 
 // ─── Driving-camera tuning (parity with WebView 3D driving mode) ─────────────
-const DRIVING_PITCH = 55; // degrees — 3D look-ahead tilt
-const DRIVING_ZOOM = 17; // street-level
+const DRIVING_PITCH = 50; // degrees — 3D look-ahead tilt (reduced from 55)
+const DRIVING_ZOOM = 17.5; // street-level (slightly closer)
 const DRIVING_EASE_MS = 250; // matches the 250 ms useNavigationCamera cadence
+const DRIVING_BOTTOM_PAD_RATIO = 0.30; // bottom padding ratio (reduced from 0.42)
 
 // ─── Phase 2 overlay tuning ──────────────────────────────────────────────────
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -373,7 +374,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         // Re-entrancy + user-pan guards (parity with the WebView path).
         if (easeInFlightRef.current) return;
         if (userInteractingRef.current) return;
-        const bottomPad = Math.round(mapHeightRef.current * 0.42);
+        const bottomPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
         easeInFlightRef.current = true;
         try {
           cam.easeTo({
@@ -1186,8 +1187,28 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             </GeoJSONSource>
           )}
 
-          {/* Native location puck (device GPS + heading arrow) */}
-          <UserLocation animated heading minDisplacement={3} />
+          {/* Native location puck (device GPS + heading arrow) with custom styling */}
+          <UserLocation animated heading minDisplacement={3}>
+            {/* Outer glow/halo circle */}
+            <CircleLayer
+              id="user-location-glow"
+              style={{
+                circleRadius: 24,
+                circleColor: 'rgba(59, 130, 246, 0.2)',
+                circleStrokeWidth: 0,
+              }}
+            />
+            {/* Main puck circle */}
+            <CircleLayer
+              id="user-location-puck"
+              style={{
+                circleRadius: 12,
+                circleColor: '#3b82f6',
+                circleStrokeWidth: 3,
+                circleStrokeColor: '#ffffff',
+              }}
+            />
+          </UserLocation>
         </MapLibreMap>
 
         {/* ── Animated pulse ring overlay (screen-space) ────────────────────────
