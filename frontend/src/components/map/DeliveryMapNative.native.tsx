@@ -1189,8 +1189,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
 
           {/* Native location puck (device GPS + heading arrow) */}
           <UserLocation 
-            animated 
-            showsUserHeadingIndicator
+            visible
+            animated
+            heading
             minDisplacement={3}
             puckBearing="heading"
             puckBearingEnabled
