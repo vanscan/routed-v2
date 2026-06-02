@@ -1039,13 +1039,11 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           </GeoJSONSource>
 
           {/* Direction arrow icon for route */}
-          <Images>
-            {{
-              'route-arrow': {
-                uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAApgAAAKYB3X3/OAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAADTSURBVEiJ7ZUxDsIwDEV/EhYGJm7AxsLCzMrEBTgQV+EuXIOBhYWJiYkDIDoghEgbO04KQ5D4UhTZ/s92GgfqwAKIA39lWQI2wCb2XALbEPBWMsgpq4HzT+A8U/gOXHwCT1nFLmQAXD8ZHH0AF1UFb0TkOzLhzm6c1sHEqLMbt1Rwkw3rVHJ5nVXKAX7LYjg0hl3JYO1qegJsnQDL0WA/y2JkwG4E7FYT+A+B/WyCqAn8VYZdNkGqBcepCdq8uiawTwJPYwJ5FMjaLNsQsLM4KXAL/AJvmExbMjKxvgAAAABJRU5ErkJggg==',
-              },
+          <Images
+            images={{
+              'route-arrow': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAApgAAAKYB3X3/OAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAADTSURBVEiJ7ZUxDsIwDEV/EhYGJm7AxsLCzMrEBTgQV+EuXIOBhYWJiYkDIDoghEgbO04KQ5D4UhTZ/s92GgfqwAKIA39lWQI2wCb2XALbEPBWMsgpq4HzT+A8U/gOXHwCT1nFLmQAXD8ZHH0AF1UFb0TkOzLhzm6c1sHEqLMbt1Rwkw3rVHJ5nVXKAX7LYjg0hl3JYO1qegJsnQDL0WA/y2JkwG4E7FYT+A+B/WyCqAn8VYZdNkGqBcepCdq8uiawTwJPYwJ5FMjaLNsQsLM4KXAL/AJvmExbMjKxvgAAAABJRU5ErkJggg==',
             }}
-          </Images>
+          />
 
           {/* Active / preview route polyline */}
           <GeoJSONSource id="route-src" data={routeFC}>
