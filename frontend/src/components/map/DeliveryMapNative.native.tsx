@@ -1187,28 +1187,14 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             </GeoJSONSource>
           )}
 
-          {/* Native location puck (device GPS + heading arrow) with custom styling */}
-          <UserLocation animated heading minDisplacement={3}>
-            {/* Outer glow/halo circle */}
-            <CircleLayer
-              id="user-location-glow"
-              style={{
-                circleRadius: 24,
-                circleColor: 'rgba(59, 130, 246, 0.2)',
-                circleStrokeWidth: 0,
-              }}
-            />
-            {/* Main puck circle */}
-            <CircleLayer
-              id="user-location-puck"
-              style={{
-                circleRadius: 12,
-                circleColor: '#3b82f6',
-                circleStrokeWidth: 3,
-                circleStrokeColor: '#ffffff',
-              }}
-            />
-          </UserLocation>
+          {/* Native location puck (device GPS + heading arrow) */}
+          <UserLocation 
+            animated 
+            showsUserHeadingIndicator
+            minDisplacement={3}
+            puckBearing="heading"
+            puckBearingEnabled
+          />
         </MapLibreMap>
 
         {/* ── Animated pulse ring overlay (screen-space) ────────────────────────
