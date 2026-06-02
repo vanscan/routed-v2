@@ -11,18 +11,31 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # System deps:
-#   build-essential / gcc — native wheels (rare, but safer for fallbacks)
+#   build-essential / gcc — native wheels + LKH-3 compilation
 #   libgomp1              — OpenMP runtime for OR-Tools (REQUIRED at runtime)
-#   curl                  — debugging
+#   curl / wget           — downloading LKH-3 source + debugging
 #   git                   — /api/healthz/version uses `git rev-parse`
 #   default-jre-headless  — Timefold solver needs a JRE (no-op if ENABLE_TIMEFOLD=false)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
+        wget \
         git \
         libgomp1 \
         default-jre-headless \
     && rm -rf /var/lib/apt/lists/*
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Build & install LKH-3 solver binary from source
+# The `lkh` Python package is just a wrapper; it requires the LKH binary on PATH
+# ─────────────────────────────────────────────────────────────────────────────
+RUN wget -q http://akira.ruc.dk/~keld/research/LKH-3/LKH-3.0.10.tgz \
+    && tar xzf LKH-3.0.10.tgz \
+    && cd LKH-3.0.10 \
+    && make \
+    && cp LKH /usr/local/bin/LKH \
+    && cd .. \
+    && rm -rf LKH-3.0.10 LKH-3.0.10.tgz
 
 # Install Python deps.
 #   1) lkh==2.0.0 declares a stale `Click<7.0` constraint that breaks pip's resolver
