@@ -268,9 +268,8 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const pulseOpacity = useSharedValue(0.6);
     const [pulseScreenXY, setPulseScreenXY] = useState<{ x: number; y: number } | null>(null);
 
-    // Kick off the infinite pulse animation (only when nextStopCoord exists).
+    // Kick off the infinite pulse animation.
     useEffect(() => {
-      if (!nextStopCoord) return;
       pulseScale.value = withRepeat(
         withTiming(2.0, { duration: 1800, easing: Easing.out(Easing.ease) }),
         -1, // infinite
@@ -281,31 +280,26 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         -1,
         false,
       );
-    }, [nextStopCoord, pulseScale, pulseOpacity]);
+    }, [pulseScale, pulseOpacity]);
 
     // Convert next-stop geo coords → screen XY for the pulse overlay. Called
-    // after every camera change so the ring tracks the map. Debounced to reduce
-    // getPointInView calls during rapid camera movements.
-    const pulseUpdateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // after every camera change so the ring tracks the map.
     const updatePulseScreenPos = useCallback(() => {
       if (!nextStopCoord || !mapRef.current) {
         setPulseScreenXY(null);
         return;
       }
-      // Debounce to avoid excessive getPointInView calls during pan/zoom
-      if (pulseUpdateRef.current) clearTimeout(pulseUpdateRef.current);
-      pulseUpdateRef.current = setTimeout(() => {
-        mapRef.current
-          ?.getPointInView(nextStopCoord)
-          .then((pt) => {
-            if (pt && typeof pt[0] === 'number' && typeof pt[1] === 'number') {
-              setPulseScreenXY({ x: pt[0], y: pt[1] });
-            } else {
-              setPulseScreenXY(null);
-            }
-          })
-          .catch(() => setPulseScreenXY(null));
-      }, 50); // 50ms debounce
+      // MapLibre native: getPointInView returns screen coords for a geo coord.
+      mapRef.current
+        .getPointInView(nextStopCoord)
+        .then((pt) => {
+          if (pt && typeof pt[0] === 'number' && typeof pt[1] === 'number') {
+            setPulseScreenXY({ x: pt[0], y: pt[1] });
+          } else {
+            setPulseScreenXY(null);
+          }
+        })
+        .catch(() => setPulseScreenXY(null));
     }, [nextStopCoord]);
 
     // Re-project the pulse position whenever the next-stop or camera changes.
