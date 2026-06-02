@@ -50,6 +50,7 @@ import {
   GeoJSONSource,
   Layer,
   UserLocation,
+  Images,
   LogManager,
   type MapRef,
   type CameraRef,
