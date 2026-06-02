@@ -183,10 +183,10 @@ function lineFeature(coords: number[][] | null): GeoJSON.FeatureCollection {
 }
 
 // ─── Driving-camera tuning (parity with WebView 3D driving mode) ─────────────
-const DRIVING_PITCH = 50; // degrees — 3D look-ahead tilt (reduced from 55)
-const DRIVING_ZOOM = 17.5; // street-level (slightly closer)
+const DRIVING_PITCH = 60; // degrees — 3D look-ahead tilt
+const DRIVING_ZOOM = 18.5; // street-level, close to driver
 const DRIVING_EASE_MS = 250; // matches the 250 ms useNavigationCamera cadence
-const DRIVING_BOTTOM_PAD_RATIO = 0.30; // bottom padding ratio (reduced from 0.42)
+const DRIVING_BOTTOM_PAD_RATIO = 0.45; // push driver toward bottom of screen
 
 // ─── Phase 2 overlay tuning ──────────────────────────────────────────────────
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
