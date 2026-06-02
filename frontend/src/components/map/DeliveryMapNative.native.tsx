@@ -1041,7 +1041,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           {/* Direction arrow icon for route */}
           <Images
             images={{
-              'route-arrow': require('../../../../assets/images/route-arrow.png'),
+              'route-arrow': require('../../../assets/images/route-arrow.png'),
             }}
           />
 
