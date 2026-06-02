@@ -130,3 +130,7 @@ ortools==9.10.4067
 pyvroom==1.15.0
 pyvrp==0.13.3
 lkh==2.0.0
+
+# Excel export
+openpyxl==3.1.5
+et-xmlfile==2.0.0
