@@ -15,13 +15,14 @@ const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
 const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
 
 // Generate the correct redirect URI for each platform
-// For standalone Android builds, use the Expo auth proxy which handles redirects reliably
+// For standalone Android/iOS builds, we MUST use the Expo auth proxy
+// because Google blocks custom scheme redirects (routr://)
 const redirectUri = AuthSession.makeRedirectUri({
-  scheme: 'routr',
-  path: 'auth',
-  // Use proxy for production builds - more reliable redirect handling
-  preferLocalhost: false,
+  // Use Expo's auth proxy for production builds - this provides HTTPS redirect
+  useProxy: true,
 });
+
+console.log('[GoogleAuth] Configured redirect URI:', redirectUri);
 
 export interface GoogleAuthResult {
   success: boolean;
