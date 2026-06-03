@@ -1,4 +1,4 @@
-// Supabase Storage hook for file uploads
+// Supabase Storage hook for file uploads and route data backup
 import { useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { getSupabase } from '../lib/supabase';
@@ -24,7 +24,15 @@ export interface FileInfo {
   uri: string;
 }
 
+export interface BackupResult {
+  success: boolean;
+  path?: string;
+  timestamp?: string;
+  error?: string;
+}
+
 // Default bucket for route-related files
+// Note: This bucket must be created in Supabase Dashboard > Storage
 const DEFAULT_BUCKET = 'route-files';
 
 export function useSupabaseStorage(bucket: string = DEFAULT_BUCKET) {
