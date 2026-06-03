@@ -52,7 +52,7 @@ export default function ImportScreen() {
   const { fetchStops, stops } = useStopsStore();
   const { reconnect } = useAuth();
   
-  const [step, setStep] = useState<'upload' | 'mapping' | 'processing' | 'done'>('upload');
+  const [step, setStep] = useState<'upload' | 'mapping' | 'processing' | 'result' | 'done'>('upload');
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [mapping, setMapping] = useState<FieldMapping>({ address: '' });
@@ -278,7 +278,8 @@ export default function ImportScreen() {
         const jobData = await safeParseJSON(response);
         if (!jobData?.job_id) throw new Error('Server started import but returned no job ID');
         
-        setImportStatus?.(`Geocoding ${jobData.total_rows} addresses...`);
+        const totalRows = jobData.total_rows || 0;
+        setImportStatus(`Geocoding ${totalRows} addresses...`);
         
         // Poll until done or error (5 min max)
         const pollStart = Date.now();
@@ -290,6 +291,13 @@ export default function ImportScreen() {
           });
           if (!pollResp.ok) continue;
           const poll = await safeParseJSON(pollResp);
+          
+          // Update progress if available
+          if (poll?.processed !== undefined && totalRows > 0) {
+            const pct = Math.round((poll.processed / totalRows) * 100);
+            setImportStatus(`Geocoding addresses... ${poll.processed}/${totalRows} (${pct}%)`);
+          }
+          
           if (poll?.status === 'done') {
             setImportResult(poll.result);
             setStep('result');
@@ -522,9 +530,29 @@ export default function ImportScreen() {
 
   const renderProcessingStep = () => (
     <View style={styles.stepContent}>
-      <ActivityIndicator size="large" color="#3b82f6" />
-      <Text style={styles.processingText}>Importing and geocoding addresses...</Text>
-      <Text style={styles.processingSubtext}>This may take a few moments</Text>
+      <View style={styles.processingContainer}>
+        <View style={styles.processingIconContainer}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+        </View>
+        <Text style={styles.processingText}>
+          {importStatus || 'Importing and geocoding addresses...'}
+        </Text>
+        <Text style={styles.processingSubtext}>
+          {importStatus 
+            ? 'Please wait while we locate each address on the map'
+            : 'This may take a few moments'}
+        </Text>
+        <View style={styles.processingTips}>
+          <View style={styles.tipItem}>
+            <Ionicons name="information-circle" size={16} color="#64748b" />
+            <Text style={styles.tipText}>Each address is being converted to GPS coordinates</Text>
+          </View>
+          <View style={styles.tipItem}>
+            <Ionicons name="time" size={16} color="#64748b" />
+            <Text style={styles.tipText}>Large files may take 1-2 minutes</Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 
@@ -609,7 +637,7 @@ export default function ImportScreen() {
       {step === 'upload' && renderUploadStep()}
       {step === 'mapping' && renderMappingStep()}
       {step === 'processing' && renderProcessingStep()}
-      {step === 'done' && renderDoneStep()}
+      {(step === 'done' || step === 'result') && renderDoneStep()}
     </SafeAreaView>
   );
 }
@@ -856,12 +884,48 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     marginTop: 24,
+    fontWeight: '600',
   },
   processingSubtext: {
     color: '#64748b',
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
+  },
+  processingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  processingIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  processingTips: {
+    marginTop: 40,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    width: '100%',
+  },
+  tipItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 6,
+  },
+  tipText: {
+    color: '#64748b',
+    fontSize: 13,
+    marginLeft: 10,
+    flex: 1,
   },
   resultStats: {
     flexDirection: 'row',
