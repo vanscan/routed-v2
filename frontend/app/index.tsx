@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { useSupabase } from '../src/contexts/SupabaseContext';
+import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
@@ -65,6 +66,14 @@ export default function LoginScreen() {
     signInWithOAuth: supabaseSignInWithOAuth,
     signOut: supabaseSignOut,
   } = useSupabase();
+  
+  // Native Google OAuth hook (expo-auth-session + Supabase signInWithIdToken)
+  const { 
+    signInWithGoogle: nativeGoogleSignIn, 
+    isLoading: googleAuthLoading, 
+    error: googleAuthError,
+    isReady: googleAuthReady,
+  } = useGoogleAuth();
   
   // Unified user state - prefer Supabase user, fall back to legacy
   const user = supabaseUser || legacyUser;
@@ -243,6 +252,17 @@ export default function LoginScreen() {
     }
   }, [user, loading]);
 
+  // Show Google auth errors from the native OAuth hook
+  useEffect(() => {
+    if (googleAuthError) {
+      Alert.alert(
+        'Google Sign-In Failed',
+        googleAuthError,
+        [{ text: 'OK', onPress: () => {} }]
+      );
+    }
+  }, [googleAuthError]);
+
   const exchangeSessionOnce = async (rawSessionId: string) => {
     if (!rawSessionId) return;
     // Normalise so percent-encoded vs decoded variants dedupe against each
@@ -380,8 +400,18 @@ export default function LoginScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       }
 
-      // Try Supabase Google OAuth first
-      console.log('[AUTH] Attempting Supabase Google OAuth...');
+      // Use native Google OAuth flow (expo-auth-session + Supabase signInWithIdToken)
+      // This provides the best UX on native devices
+      if (googleAuthReady) {
+        console.log('[AUTH] Using native Google sign-in via expo-auth-session...');
+        await nativeGoogleSignIn();
+        // The auth state change will be handled by SupabaseContext's onAuthStateChange
+        // and the useGoogleAuth hook's response handler
+        return;
+      }
+
+      // Fallback: Try Supabase OAuth (web browser redirect)
+      console.log('[AUTH] Native Google auth not ready, trying Supabase OAuth...');
       const { error } = await supabaseSignInWithOAuth('google');
       
       if (error) {
@@ -391,8 +421,6 @@ export default function LoginScreen() {
         return;
       }
       
-      // For native apps, Supabase will open an in-app browser
-      // The auth state change listener in SupabaseContext will handle the redirect
       console.log('[AUTH] Supabase OAuth initiated successfully');
       
     } catch (error: any) {
@@ -464,7 +492,7 @@ export default function LoginScreen() {
   // Authenticating state — the prior version flashed a centered
   // spinner that looked identical to a network stall. Reuse the
   // splash chrome so the user sees the brand instead of a void.
-  if (loading || authLoading) {
+  if (loading || authLoading || googleAuthLoading) {
     return (
       <View style={styles.container} data-testid="login-loading-state">
         <View style={styles.bgFill} />
@@ -472,7 +500,7 @@ export default function LoginScreen() {
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color={COLOR.accent} />
           <Text style={styles.loadingText}>
-            {authLoading ? 'Signing you in…' : backendWaking ? 'Connecting to server…' : 'Booting the cockpit…'}
+            {(authLoading || googleAuthLoading) ? 'Signing you in…' : backendWaking ? 'Connecting to server…' : 'Booting the cockpit…'}
           </Text>
         </View>
       </View>
