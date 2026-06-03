@@ -1,7 +1,9 @@
 // Enhanced Supabase Auth Context Provider - Platform-aware with SSR support
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 import type { User as SupabaseUserType, Session as SupabaseSessionType, AuthError as SupabaseAuthError } from '@supabase/supabase-js';
+import { registerSupabaseClientGetter } from '../utils/authTokenBridge';
 
 // Re-export Supabase types with our aliases
 export type SupabaseUser = SupabaseUserType;
@@ -83,6 +85,13 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
         const { supabase } = await import('../lib/supabase');
         setSupabaseClient(supabase);
         
+        // Register the supabase client getter with the auth token bridge
+        // This allows stopsStore and other API callers to get tokens
+        registerSupabaseClientGetter(async () => {
+          const { getSupabase } = await import('../lib/supabase');
+          return getSupabase();
+        });
+        
         // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         setSession(initialSession);
@@ -152,10 +161,20 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
   const signInWithOAuth = useCallback(async (provider: 'google' | 'github' | 'apple') => {
     if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
     try {
+      // Build the redirect URL based on platform
+      // Native apps use the custom scheme (routr://), web uses origin
+      const redirectUrl = Platform.OS === 'web' 
+        ? window.location.origin 
+        : Linking.createURL('/');
+      
+      console.log('[Supabase OAuth] Provider:', provider, 'Redirect URL:', redirectUrl);
+      
       const { error } = await supabaseClient.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: Platform.OS === 'web' ? window.location.origin : undefined,
+          redirectTo: redirectUrl,
+          // Skip the intermediate Supabase auth page and go directly to the provider
+          skipBrowserRedirect: Platform.OS !== 'web',
         },
       });
       return { error: error ? { message: error.message, status: error.status } : null };
@@ -167,8 +186,13 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
   const resetPassword = useCallback(async (email: string) => {
     if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
     try {
+      // Build redirect URL - native uses custom scheme, web uses origin
+      const redirectUrl = Platform.OS === 'web' 
+        ? `${window.location.origin}/reset-password`
+        : Linking.createURL('/reset-password');
+      
       const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: Platform.OS === 'web' ? `${window.location.origin}/reset-password` : undefined,
+        redirectTo: redirectUrl,
       });
       return { error: error ? { message: error.message, status: error.status } : null };
     } catch (error: any) {
@@ -189,10 +213,15 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
   const signInWithMagicLink = useCallback(async (email: string) => {
     if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
     try {
+      // Build redirect URL - native uses custom scheme, web uses origin
+      const redirectUrl = Platform.OS === 'web' 
+        ? window.location.origin
+        : Linking.createURL('/');
+      
       const { error } = await supabaseClient.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: Platform.OS === 'web' ? window.location.origin : undefined,
+          emailRedirectTo: redirectUrl,
         },
       });
       return { error: error ? { message: error.message, status: error.status } : null };

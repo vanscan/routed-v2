@@ -407,9 +407,11 @@ interface StopsStore {
 }
 
 import { triggerReconnect } from '../utils/authBridge';
+import { getAuthToken } from '../utils/authTokenBridge';
 
 const getAuthHeaders = async (): Promise<HeadersInit> => {
-  const token = await AsyncStorage.getItem('session_token');
+  // Use the unified auth token bridge (supports both Supabase JWT and legacy sessions)
+  const token = await getAuthToken();
   return {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -463,8 +465,8 @@ const _rawAuthFetch = async (url: string, options: RequestInit = {}, timeoutMs?:
  *      the in-flight) `triggerReconnect()` to re-issue the
  *      session_token via Emergent OAuth.
  *   3. On reconnect success, retry the original request EXACTLY ONCE.
- *      `getAuthHeaders` reads the freshly-stored token from
- *      AsyncStorage so the retry carries the new bearer.
+ *      `getAuthHeaders` reads the freshly-stored token from the
+ *      auth token bridge so the retry carries the new bearer.
  *   4. On reconnect failure, return the original 401 untouched —
  *      callers (fetchStops, etc.) still see the auth error and can
  *      surface their own UI fallback.
@@ -478,7 +480,7 @@ const _rawAuthFetch = async (url: string, options: RequestInit = {}, timeoutMs?:
  * happen to 401 — the user never asked to sign in for those.
  */
 const authFetch = async (url: string, options: RequestInit = {}, timeoutMs?: number): Promise<Response> => {
-  const initialToken = await AsyncStorage.getItem('session_token');
+  const initialToken = await getAuthToken();
   const response = await _rawAuthFetch(url, options, timeoutMs);
   if (response.status !== 401 || !initialToken) return response;
 

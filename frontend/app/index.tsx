@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
+import { useSupabase } from '../src/contexts/SupabaseContext';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
@@ -50,7 +51,25 @@ const COLOR = {
 };
 
 export default function LoginScreen() {
-  const { user, loading, login, loginAsReviewer, loginWithEmail, registerWithEmail, forceSetPassword } = useAuth();
+  // Legacy auth context (for backwards compatibility with existing sessions)
+  const { user: legacyUser, loading: legacyLoading, login, loginAsReviewer, loginWithEmail, registerWithEmail, forceSetPassword } = useAuth();
+  
+  // New Supabase auth context
+  const { 
+    user: supabaseUser, 
+    session: supabaseSession,
+    loading: supabaseLoading, 
+    isReady: supabaseReady,
+    signIn: supabaseSignIn,
+    signUp: supabaseSignUp,
+    signInWithOAuth: supabaseSignInWithOAuth,
+    signOut: supabaseSignOut,
+  } = useSupabase();
+  
+  // Unified user state - prefer Supabase user, fall back to legacy
+  const user = supabaseUser || legacyUser;
+  const loading = !supabaseReady || supabaseLoading || legacyLoading;
+  
   const router = useRouter();
   const [authLoading, setAuthLoading] = useState(false);
   const [backendWaking, setBackendWaking] = useState(true);
@@ -113,13 +132,30 @@ export default function LoginScreen() {
     }
     try {
       setAuthLoading(true);
+      
+      // Use Supabase for email/password auth
       if (isSettingPassword) {
-        // Set password for existing Google account
+        // Setting password for existing account - use legacy method
         await forceSetPassword(emailInput.trim(), passwordInput);
       } else if (isRegistering) {
-        await registerWithEmail(emailInput.trim(), passwordInput, nameInput.trim());
+        // Register new user with Supabase
+        const { error } = await supabaseSignUp(emailInput.trim(), passwordInput);
+        if (error) {
+          throw new Error(error.message || 'Registration failed');
+        }
+        // Show success message - Supabase sends confirmation email
+        Alert.alert(
+          'Check your email',
+          'We sent you a confirmation link. Please check your email to verify your account.',
+        );
+        return;
       } else {
-        await loginWithEmail(emailInput.trim(), passwordInput);
+        // Sign in with Supabase
+        const { error } = await supabaseSignIn(emailInput.trim(), passwordInput);
+        if (error) {
+          throw new Error(error.message || 'Authentication failed');
+        }
+        // Success - user state will update via context and trigger redirect
       }
     } catch (e: any) {
       setEmailError(e?.message || 'Authentication failed');
@@ -327,6 +363,33 @@ export default function LoginScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       }
 
+      // Try Supabase Google OAuth first
+      console.log('[AUTH] Attempting Supabase Google OAuth...');
+      const { error } = await supabaseSignInWithOAuth('google');
+      
+      if (error) {
+        console.log('[AUTH] Supabase OAuth error, falling back to Emergent Auth:', error.message);
+        // Fall back to legacy Emergent auth if Supabase fails
+        await handleLegacyGoogleLogin();
+        return;
+      }
+      
+      // For native apps, Supabase will open an in-app browser
+      // The auth state change listener in SupabaseContext will handle the redirect
+      console.log('[AUTH] Supabase OAuth initiated successfully');
+      
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      // Fallback to legacy auth on any error
+      await handleLegacyGoogleLogin();
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Legacy Emergent Auth Google login (fallback)
+  const handleLegacyGoogleLogin = async () => {
+    try {
       const redirectUrl = Platform.OS === 'web'
         ? `${window.location.origin}/`
         : Linking.createURL('/');
@@ -356,9 +419,7 @@ export default function LoginScreen() {
       // If result.type is 'cancel' or 'dismiss', the deep-link listener above
       // will still catch the session_id if the browser delivered it via the OS.
     } catch (error) {
-      console.error('Login error:', error);
-    } finally {
-      setAuthLoading(false);
+      console.error('Legacy login error:', error);
     }
   };
 
