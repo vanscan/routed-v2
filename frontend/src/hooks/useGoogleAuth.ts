@@ -3,6 +3,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
 import { getSupabase } from '../lib/supabase';
 
 // Required for web browser auth session completion
@@ -12,6 +13,15 @@ WebBrowser.maybeCompleteAuthSession();
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
 const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
+
+// Generate the correct redirect URI for each platform
+// For standalone Android builds, use the Expo auth proxy which handles redirects reliably
+const redirectUri = AuthSession.makeRedirectUri({
+  scheme: 'routr',
+  path: 'auth',
+  // Use proxy for production builds - more reliable redirect handling
+  preferLocalhost: false,
+});
 
 export interface GoogleAuthResult {
   success: boolean;
@@ -35,6 +45,7 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
     webClientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    redirectUri: redirectUri,
   });
 
   // Handle the OAuth response
@@ -99,6 +110,7 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
     try {
       console.log('[GoogleAuth] Starting Google sign-in flow...');
       console.log('[GoogleAuth] Platform:', Platform.OS);
+      console.log('[GoogleAuth] Redirect URI:', redirectUri);
       console.log('[GoogleAuth] Web Client ID:', GOOGLE_WEB_CLIENT_ID ? 'Set' : 'Missing');
       console.log('[GoogleAuth] iOS Client ID:', GOOGLE_IOS_CLIENT_ID ? 'Set' : 'Missing');
       console.log('[GoogleAuth] Android Client ID:', GOOGLE_ANDROID_CLIENT_ID ? 'Set' : 'Missing');
