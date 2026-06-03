@@ -1,3 +1,11 @@
+
+# Excel export
+# Route optimization solvers
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+PyJWT==2.13.0
+PyYAML==6.0.3
+Pygments==2.20.0
 aiohappyeyeballs==2.6.2
 aiohttp==3.13.5
 aiosignal==1.4.0
@@ -20,6 +28,7 @@ dnspython==2.8.0
 ecdsa==0.19.2
 email-validator==2.3.0
 emergentintegrations==0.1.2
+et-xmlfile==2.0.0
 fastapi==0.110.1
 fastuuid==0.14.0
 filelock==3.29.0
@@ -29,13 +38,13 @@ fsspec==2026.4.0
 google-ai-generativelanguage==0.6.15
 google-api-core==2.30.3
 google-api-python-client==2.197.0
-google-auth==2.53.0
 google-auth-httplib2==0.4.0
+google-auth==2.53.0
 google-genai==2.7.0
 google-generativeai==0.8.6
 googleapis-common-protos==1.75.0
-grpcio==1.80.0
 grpcio-status==1.71.2
+grpcio==1.80.0
 h11==0.16.0
 haversine==2.9.0
 hf-xet==1.5.0
@@ -47,16 +56,15 @@ idna==3.17
 importlib_metadata==9.0.0
 iniconfig==2.3.0
 isort==8.0.1
-Jinja2==3.1.6
 jiter==0.15.0
 jmespath==1.1.0
 jq==1.11.0
-jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
+jsonschema==4.26.0
 librt==0.11.0
 litellm==1.80.0
+lkh==2.0.0
 markdown-it-py==4.2.0
-MarkupSafe==3.0.3
 mccabe==0.7.0
 mdurl==0.1.2
 motor==3.3.1
@@ -67,6 +75,8 @@ numpy==2.4.6
 oauthlib==3.3.1
 openai==1.99.9
 openlocationcode==1.0.1
+openpyxl==3.1.5
+ortools==9.10.4067
 packaging==26.2
 pandas==3.0.3
 passlib==1.7.4
@@ -84,21 +94,21 @@ pycparser==3.0
 pydantic==2.13.4
 pydantic_core==2.46.4
 pyflakes==3.4.0
-Pygments==2.20.0
-PyJWT==2.13.0
 pymongo==4.5.0
 pyparsing==3.3.2
 pytest==9.0.3
+python-calamine
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.29
 pytokens==0.4.1
-PyYAML==6.0.3
+pyvroom==1.15.0
+pyvrp==0.13.3
 referencing==0.37.0
 regex==2026.5.9
-requests==2.34.2
 requests-oauthlib==2.0.0
+requests==2.34.2
 rich==15.0.0
 rpds-py==2026.5.1
 rsa==4.9.1
@@ -109,6 +119,9 @@ six==1.17.0
 sniffio==1.3.1
 starlette==0.37.2
 stripe==14.4.1
+supabase-auth==2.30.1
+supabase-functions==2.30.1
+supabase==2.30.1
 tenacity==9.1.4
 tiktoken==0.13.0
 tokenizers==0.23.1
@@ -124,14 +137,3 @@ watchfiles==1.2.0
 websockets==16.0
 yarl==1.24.2
 zipp==4.1.0
-
-# Route optimization solvers
-ortools==9.10.4067
-pyvroom==1.15.0
-pyvrp==0.13.3
-lkh==2.0.0
-
-# Excel export
-openpyxl==3.1.5
-et-xmlfile==2.0.0
-python-calamine
