@@ -18,8 +18,7 @@
       "bundleIdentifier": "com.routedopt.app",
       "runtimeVersion": {
         "policy": "appVersion"
-      },
-      "jsEngine": "jsc"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -35,11 +34,10 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.routedopt.app",
-      "versionCode": 99,
+      "versionCode": 100,
       "runtimeVersion": {
         "policy": "appVersion"
-      },
-      "jsEngine": "jsc"
+      }
     },
     "androidStatusBar": {
       "backgroundColor": "#000000"
