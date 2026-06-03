@@ -101,12 +101,12 @@
       "requestHeaders": {
         "expo-channel-name": "production"
       },
-      "url": "https://u.expo.dev/9c68c69f-ba25-4c17-822e-24f283fae8c6"
+      "url": "https://u.expo.dev/9d24c7e2-97b1-488b-b6fd-73ee5b7ad989"
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "9c68c69f-ba25-4c17-822e-24f283fae8c6"
+        "projectId": "9d24c7e2-97b1-488b-b6fd-73ee5b7ad989"
       }
     },
     "owner": "xxmltvguides-organization",
