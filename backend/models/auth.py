@@ -19,6 +19,8 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    supabase_uid: Optional[str] = None
+    provider: Optional[str] = None
 
 
 class UserSession(BaseModel):

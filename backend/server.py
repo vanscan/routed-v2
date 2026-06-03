@@ -428,19 +428,135 @@ from models import (  # noqa: F401  (re-exports for backward compat)
 
 # ===================== Auth Helpers =====================
 
-async def get_session_from_request(request: Request) -> Optional[UserSession]:
-    # Check cookie first
-    session_token = request.cookies.get("session_token")
+# Supabase JWT validation
+import jwt as pyjwt  # PyJWT
+
+SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+
+
+def _decode_supabase_jwt(token: str) -> Optional[dict]:
+    """Decode and validate a Supabase JWT access token.
     
-    # Fallback to Authorization header
+    Returns the decoded payload if valid, None otherwise.
+    Supabase JWTs use HS256 with the project's JWT secret.
+    """
+    if not SUPABASE_JWT_SECRET:
+        logger.warning("[auth] SUPABASE_JWT_SECRET not configured")
+        return None
+    
+    try:
+        # Supabase JWTs are signed with HS256
+        # The `aud` claim is "authenticated" for logged-in users
+        payload = pyjwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
+        )
+        return payload
+    except pyjwt.ExpiredSignatureError:
+        logger.debug("[auth] Supabase JWT expired")
+        return None
+    except pyjwt.InvalidAudienceError:
+        logger.debug("[auth] Supabase JWT invalid audience")
+        return None
+    except pyjwt.InvalidTokenError as e:
+        logger.debug("[auth] Supabase JWT invalid: %s", e)
+        return None
+
+
+async def _get_or_create_user_from_supabase(payload: dict) -> Optional[User]:
+    """Find or create a MongoDB user record from Supabase JWT payload.
+    
+    Supabase JWT payload contains:
+    - sub: Supabase user UUID
+    - email: User's email
+    - user_metadata: { full_name, avatar_url, ... }
+    """
+    supabase_uid = payload.get("sub")
+    email = payload.get("email")
+    
+    if not supabase_uid or not email:
+        logger.warning("[auth] Supabase JWT missing sub or email")
+        return None
+    
+    email = email.lower()
+    
+    # Check for existing user by email (may have been created via legacy auth)
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if existing:
+        # Update Supabase UID if not already set
+        if existing.get("supabase_uid") != supabase_uid:
+            await db.users.update_one(
+                {"email": email},
+                {"$set": {"supabase_uid": supabase_uid}},
+            )
+        return User(**existing)
+    
+    # Create new user from Supabase data
+    user_metadata = payload.get("user_metadata", {})
+    name = user_metadata.get("full_name") or user_metadata.get("name") or email.split("@")[0]
+    picture = user_metadata.get("avatar_url") or user_metadata.get("picture")
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    user_doc = {
+        "user_id": user_id,
+        "email": email,
+        "name": name,
+        "picture": picture,
+        "supabase_uid": supabase_uid,
+        "provider": "supabase",
+        "created_at": now,
+    }
+    
+    await db.users.insert_one(user_doc)
+    logger.info("[auth] Created user from Supabase: email=%s, user_id=%s", email, user_id)
+    
+    return User(**user_doc)
+
+
+async def get_session_from_request(request: Request) -> Optional[UserSession]:
+    """Get session from request - supports both legacy sessions and Supabase JWTs.
+    
+    Priority:
+    1. Authorization: Bearer <token> header (Supabase JWT or legacy session token)
+    2. session_token cookie (legacy)
+    """
+    auth_header = request.headers.get("Authorization")
+    session_token = None
+    
+    # Check Authorization header first
+    if auth_header and auth_header.startswith("Bearer "):
+        session_token = auth_header.split(" ")[1]
+        
+        # Try to decode as Supabase JWT first
+        if session_token and not session_token.startswith(("ses_", "rvw_")):
+            # Looks like a JWT (not a legacy prefixed token)
+            payload = _decode_supabase_jwt(session_token)
+            if payload:
+                # Valid Supabase JWT - store in request state for get_current_user
+                request.state.supabase_payload = payload
+                # Return a synthetic session (user will be resolved in get_current_user)
+                supabase_uid = payload.get("sub")
+                return UserSession(
+                    user_id=f"supabase:{supabase_uid}",  # Marker for Supabase auth
+                    session_token=session_token,
+                    expires_at=datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc),
+                    created_at=datetime.fromtimestamp(payload.get("iat", 0), tz=timezone.utc),
+                )
+    
+    # Fallback to cookie
     if not session_token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            session_token = auth_header.split(" ")[1]
+        session_token = request.cookies.get("session_token")
     
     if not session_token:
         return None
     
+    # Legacy session lookup in MongoDB
     session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
     if not session:
         return None
@@ -487,6 +603,13 @@ DEV_USER = User(
 # Auth access policy (ALLOWED_USERS / SIGNUPS_DISABLED) lives in routes/auth.py.
 
 async def get_current_user(request: Request) -> User:
+    """Get current authenticated user from request.
+    
+    Supports:
+    1. DEV_MODE bypass (for local development)
+    2. Supabase JWT (via Authorization: Bearer header)
+    3. Legacy session token (via cookie or Authorization header)
+    """
     # DEV MODE: Return dev user without authentication
     if DEV_MODE:
         return DEV_USER
@@ -495,6 +618,20 @@ async def get_current_user(request: Request) -> User:
     if not session:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
+    # Check if this is a Supabase JWT session (user_id starts with "supabase:")
+    if session.user_id.startswith("supabase:"):
+        # Resolve user from Supabase JWT payload stored in request.state
+        supabase_payload = getattr(request.state, "supabase_payload", None)
+        if not supabase_payload:
+            raise HTTPException(status_code=401, detail="Invalid Supabase session")
+        
+        user = await _get_or_create_user_from_supabase(supabase_payload)
+        if not user:
+            raise HTTPException(status_code=401, detail="Failed to resolve Supabase user")
+        
+        return user
+    
+    # Legacy session: lookup user by user_id in MongoDB
     user = await db.users.find_one({"user_id": session.user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
