@@ -5,13 +5,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY!;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseKey) {
   console.warn('Supabase configuration missing. Some features may not work.');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+export const supabase = createClient(supabaseUrl || '', supabaseKey || '', {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
