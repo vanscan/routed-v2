@@ -15,13 +15,24 @@
     emails can sign in
 
 
-## Email/Password Auth (Fallback when Google OAuth is down)
+## Email/Password Auth (Supabase - Primary Auth Provider)
+- **Signup**: Uses Supabase Auth `signUp()` via `SupabaseContext`
+- **Login**: Uses Supabase Auth `signIn()` via `SupabaseContext`  
+- **Email verification**: DISABLED (users can login immediately after signup)
+- Min password length: 6 characters
+- Frontend: "Can't sign in with Google? Use email" toggle on login screen
+- Backend validates both Supabase JWTs and legacy session tokens (hybrid mode)
+
+### Test Account (Supabase Auth)
+- **Email**: `routrtest1780473695@gmail.com`
+- **Password**: `TestPass123!`
+- **Status**: Verified working (signup + login + redirect to main app)
+
+### Legacy Email/Password Auth (Fallback)
 - **Register**: `POST /api/auth/register-email` `{ "email": "...", "password": "...", "name": "..." }`
 - **Login**: `POST /api/auth/login-email` `{ "email": "...", "password": "..." }`
 - **Set password for Google user**: `POST /api/auth/set-password` `{ "password": "..." }` (requires auth session)
-- Min password length: 6 characters
 - Both flows return the same `session_token` shape as Google OAuth
-- Frontend: "Can't sign in with Google? Use email" toggle on login screen
 
 ## 🎬 Reviewer / Test Account (Google Play submission)
 

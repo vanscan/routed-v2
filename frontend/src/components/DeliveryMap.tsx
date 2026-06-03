@@ -623,6 +623,12 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     ) => {},
     removeSectionPolygon: (_sectionId: number) => {},
     clearAllSectionPolygons: () => {},
+    // Additional native-only stubs
+    setBlockRoadMode: (_enabled: boolean) => {},
+    setNogoZones: (_zones: Array<{ id: string; name?: string; polygon: number[][] }>) => {},
+    setRouteConfirmed: (_confirmed: boolean) => {},
+    forceStopsRefresh: () => {},
+    setClusters: (_fc: { type: 'FeatureCollection'; features: any[] }) => {},
   }));
 
   // ── (c) Smooth camera follow with flyTo easing ────────────────────────────
