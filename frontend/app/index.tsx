@@ -139,25 +139,42 @@ export default function LoginScreen() {
         await forceSetPassword(emailInput.trim(), passwordInput);
       } else if (isRegistering) {
         // Register new user with Supabase
-        const { error } = await supabaseSignUp(emailInput.trim(), passwordInput);
-        if (error) {
-          throw new Error(error.message || 'Registration failed');
+        console.log('[AUTH] Attempting Supabase signup for:', emailInput.trim());
+        const result = await supabaseSignUp(emailInput.trim(), passwordInput, { 
+          full_name: nameInput.trim() || undefined 
+        });
+        console.log('[AUTH] Supabase signup result:', JSON.stringify(result));
+        
+        if (result.error) {
+          // Log detailed error for debugging
+          console.error('[AUTH] Supabase signup error:', result.error);
+          throw new Error(result.error.message || 'Registration failed');
         }
-        // Show success message - Supabase sends confirmation email
-        Alert.alert(
-          'Check your email',
-          'We sent you a confirmation link. Please check your email to verify your account.',
-        );
+        
+        // Check if email confirmation is needed
+        if (result.needsConfirmation) {
+          Alert.alert(
+            'Check your email',
+            'We sent you a confirmation link. Please check your email to verify your account.',
+          );
+        } else {
+          // Auto-confirmed - user is logged in
+          console.log('[AUTH] User registered and auto-confirmed');
+        }
         return;
       } else {
         // Sign in with Supabase
+        console.log('[AUTH] Attempting Supabase signin for:', emailInput.trim());
         const { error } = await supabaseSignIn(emailInput.trim(), passwordInput);
         if (error) {
+          console.error('[AUTH] Supabase signin error:', error);
           throw new Error(error.message || 'Authentication failed');
         }
+        console.log('[AUTH] Supabase signin successful');
         // Success - user state will update via context and trigger redirect
       }
     } catch (e: any) {
+      console.error('[AUTH] Auth error:', e);
       setEmailError(e?.message || 'Authentication failed');
     } finally {
       setAuthLoading(false);
