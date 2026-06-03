@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/context/AuthContext';
+import { useSupabase } from '../../src/contexts/SupabaseContext';
 import { useStopsStore } from '../../src/store/stopsStore';
 import { TelemetryCard } from '../../src/components/TelemetryCard';
 import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
@@ -23,10 +24,19 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const { signOut: supabaseSignOut, user: supabaseUser } = useSupabase();
   const router = useRouter();
   const { stops, clearStops, archiveRoute } = useStopsStore();
   const [archiving, setArchiving] = React.useState(false);
   const [saveResult, setSaveResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+
+  // Combined user from either auth system
+  const activeUser = user || (supabaseUser ? {
+    user_id: supabaseUser.id,
+    email: supabaseUser.email || '',
+    name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'User',
+    picture: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
+  } : null);
 
   // Stale-session auto-recovery — when the app's stored session_token was
   // minted against a DB the backend no longer uses (e.g., after the
@@ -125,7 +135,11 @@ export default function ProfileScreen() {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
+          // Sign out from both auth systems
           await logout();
+          if (supabaseUser) {
+            await supabaseSignOut();
+          }
           clearStops();
           router.replace('/');
         },
@@ -158,16 +172,16 @@ export default function ProfileScreen() {
       {/* Profile Card */}
       <View style={styles.profileCard}>
         <View style={styles.avatarContainer}>
-          {user?.picture ? (
-            <Image source={{ uri: user.picture }} style={styles.avatar} />
+          {activeUser?.picture ? (
+            <Image source={{ uri: activeUser.picture }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Ionicons name="person" size={40} color="#64748b" />
             </View>
           )}
         </View>
-        <Text style={styles.userName}>{user?.name || 'User'}</Text>
-        <Text style={styles.userEmail}>{user?.email || ''}</Text>
+        <Text style={styles.userName}>{activeUser?.name || 'User'}</Text>
+        <Text style={styles.userEmail}>{activeUser?.email || ''}</Text>
       </View>
 
       {/* Stats */}
