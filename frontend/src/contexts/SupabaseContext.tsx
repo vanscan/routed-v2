@@ -1,29 +1,40 @@
-// Supabase Auth Context Provider - Platform-aware with SSR support
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+// Enhanced Supabase Auth Context Provider - Platform-aware with SSR support
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Platform } from 'react-native';
+import type { User as SupabaseUserType, Session as SupabaseSessionType, AuthError as SupabaseAuthError } from '@supabase/supabase-js';
 
-// Types from supabase
-interface User {
-  id: string;
-  email?: string;
-  [key: string]: unknown;
+// Re-export Supabase types with our aliases
+export type SupabaseUser = SupabaseUserType;
+export type SupabaseSession = SupabaseSessionType;
+
+export interface AuthError {
+  message: string;
+  status?: number;
 }
 
-interface Session {
-  access_token: string;
-  user: User;
-  [key: string]: unknown;
-}
-
-interface SupabaseContextType {
-  user: User | null;
-  session: Session | null;
+export interface SupabaseContextType {
+  // State
+  user: SupabaseUser | null;
+  session: SupabaseSession | null;
   loading: boolean;
   isReady: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  
+  // Auth methods
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: AuthError | null; needsConfirmation?: boolean }>;
   signOut: () => Promise<void>;
-  signInWithOAuth: (provider: 'google' | 'github' | 'apple') => Promise<{ error: Error | null }>;
+  signInWithOAuth: (provider: 'google' | 'github' | 'apple') => Promise<{ error: AuthError | null }>;
+  
+  // Password management
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
+  
+  // Magic link
+  signInWithMagicLink: (email: string) => Promise<{ error: AuthError | null }>;
+  
+  // Session management
+  refreshSession: () => Promise<{ error: AuthError | null }>;
+  getAccessToken: () => Promise<string | null>;
 }
 
 const defaultContextValue: SupabaseContextType = {
@@ -31,10 +42,15 @@ const defaultContextValue: SupabaseContextType = {
   session: null,
   loading: true,
   isReady: false,
-  signIn: async () => ({ error: new Error('Supabase not initialized') }),
-  signUp: async () => ({ error: new Error('Supabase not initialized') }),
+  signIn: async () => ({ error: { message: 'Supabase not initialized' } }),
+  signUp: async () => ({ error: { message: 'Supabase not initialized' } }),
   signOut: async () => {},
-  signInWithOAuth: async () => ({ error: new Error('Supabase not initialized') }),
+  signInWithOAuth: async () => ({ error: { message: 'Supabase not initialized' } }),
+  resetPassword: async () => ({ error: { message: 'Supabase not initialized' } }),
+  updatePassword: async () => ({ error: { message: 'Supabase not initialized' } }),
+  signInWithMagicLink: async () => ({ error: { message: 'Supabase not initialized' } }),
+  refreshSession: async () => ({ error: { message: 'Supabase not initialized' } }),
+  getAccessToken: async () => null,
 };
 
 const SupabaseContext = createContext<SupabaseContextType>(defaultContextValue);
@@ -46,8 +62,8 @@ const isClient = () => {
 };
 
 export function SupabaseProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [session, setSession] = useState<SupabaseSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [supabaseClient, setSupabaseClient] = useState<any>(null);
@@ -58,6 +74,8 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+
+    let subscription: { unsubscribe: () => void } | null = null;
 
     // Dynamically import supabase to avoid SSR issues
     const initSupabase = async () => {
@@ -73,16 +91,13 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
         setIsReady(true);
 
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (_event: string, newSession: Session | null) => {
+        const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(
+          (_event, newSession) => {
             setSession(newSession);
             setUser(newSession?.user ?? null);
           }
         );
-
-        return () => {
-          subscription.unsubscribe();
-        };
+        subscription = sub;
       } catch (error) {
         console.warn('[Supabase] Initialization failed:', error);
         setLoading(false);
@@ -90,42 +105,121 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
     };
 
     initSupabase();
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    if (!supabaseClient) return { error: new Error('Supabase not initialized') };
+  const signIn = useCallback(async (email: string, password: string) => {
+    if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
     try {
       const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      return { error: error as Error | null };
-    } catch (error) {
-      return { error: error as Error };
+      return { error: error ? { message: error.message, status: error.status } : null };
+    } catch (error: any) {
+      return { error: { message: error?.message || 'Sign in failed' } };
     }
-  };
+  }, [supabaseClient]);
 
-  const signUp = async (email: string, password: string) => {
-    if (!supabaseClient) return { error: new Error('Supabase not initialized') };
+  const signUp = useCallback(async (email: string, password: string, metadata?: { full_name?: string }) => {
+    if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
     try {
-      const { error } = await supabaseClient.auth.signUp({ email, password });
-      return { error: error as Error | null };
-    } catch (error) {
-      return { error: error as Error };
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata,
+        },
+      });
+      
+      // Check if email confirmation is required
+      const needsConfirmation = !error && data?.user && !data?.session;
+      
+      return {
+        error: error ? { message: error.message, status: error.status } : null,
+        needsConfirmation,
+      };
+    } catch (error: any) {
+      return { error: { message: error?.message || 'Sign up failed' } };
     }
-  };
+  }, [supabaseClient]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     if (!supabaseClient) return;
     await supabaseClient.auth.signOut();
-  };
+  }, [supabaseClient]);
 
-  const signInWithOAuth = async (provider: 'google' | 'github' | 'apple') => {
-    if (!supabaseClient) return { error: new Error('Supabase not initialized') };
+  const signInWithOAuth = useCallback(async (provider: 'google' | 'github' | 'apple') => {
+    if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
     try {
-      const { error } = await supabaseClient.auth.signInWithOAuth({ provider });
-      return { error: error as Error | null };
-    } catch (error) {
-      return { error: error as Error };
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: Platform.OS === 'web' ? window.location.origin : undefined,
+        },
+      });
+      return { error: error ? { message: error.message, status: error.status } : null };
+    } catch (error: any) {
+      return { error: { message: error?.message || 'OAuth sign in failed' } };
     }
-  };
+  }, [supabaseClient]);
+
+  const resetPassword = useCallback(async (email: string) => {
+    if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
+    try {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: Platform.OS === 'web' ? `${window.location.origin}/reset-password` : undefined,
+      });
+      return { error: error ? { message: error.message, status: error.status } : null };
+    } catch (error: any) {
+      return { error: { message: error?.message || 'Password reset failed' } };
+    }
+  }, [supabaseClient]);
+
+  const updatePassword = useCallback(async (newPassword: string) => {
+    if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
+    try {
+      const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+      return { error: error ? { message: error.message, status: error.status } : null };
+    } catch (error: any) {
+      return { error: { message: error?.message || 'Password update failed' } };
+    }
+  }, [supabaseClient]);
+
+  const signInWithMagicLink = useCallback(async (email: string) => {
+    if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
+    try {
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: Platform.OS === 'web' ? window.location.origin : undefined,
+        },
+      });
+      return { error: error ? { message: error.message, status: error.status } : null };
+    } catch (error: any) {
+      return { error: { message: error?.message || 'Magic link failed' } };
+    }
+  }, [supabaseClient]);
+
+  const refreshSession = useCallback(async () => {
+    if (!supabaseClient) return { error: { message: 'Supabase not initialized' } };
+    try {
+      const { error } = await supabaseClient.auth.refreshSession();
+      return { error: error ? { message: error.message, status: error.status } : null };
+    } catch (error: any) {
+      return { error: { message: error?.message || 'Session refresh failed' } };
+    }
+  }, [supabaseClient]);
+
+  const getAccessToken = useCallback(async () => {
+    if (!supabaseClient) return null;
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      return session?.access_token || null;
+    } catch {
+      return null;
+    }
+  }, [supabaseClient]);
 
   return (
     <SupabaseContext.Provider
@@ -138,6 +232,11 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
         signUp,
         signOut,
         signInWithOAuth,
+        resetPassword,
+        updatePassword,
+        signInWithMagicLink,
+        refreshSession,
+        getAccessToken,
       }}
     >
       {children}
