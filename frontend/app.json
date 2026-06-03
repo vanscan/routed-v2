@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "RouTeD",
-    "slug": "vanscan",
+    "name": "Routr",
+    "slug": "routr",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "vanscan",
+    "scheme": "routr",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -78,7 +78,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "RouTeD needs camera access to scan parcel barcodes when loading the van."
+          "cameraPermission": "Routr needs camera access to scan parcel barcodes when loading the van."
         }
       ],
       [
@@ -86,7 +86,7 @@
         {
           "isAndroidForegroundServiceEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
-          "locationAlwaysAndWhenInUsePermission": "RouTeD tracks your location during active delivery shifts to optimize routes, calculate accurate ETAs, and record delivery completion points for the ML learning system."
+          "locationAlwaysAndWhenInUsePermission": "Routr tracks your location during active delivery shifts to optimize routes, calculate accurate ETAs, and record delivery completion points for the ML learning system."
         }
       ],
       "@maplibre/maplibre-react-native"

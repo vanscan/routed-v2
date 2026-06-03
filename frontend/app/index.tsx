@@ -436,7 +436,7 @@ export default function LoginScreen() {
           style={styles.brandRow}
         >
           <View style={styles.brandDot} />
-          <Text style={styles.brandKicker}>PATHPILOT · ROUTING OS</Text>
+          <Text style={styles.brandKicker}>ROUTR · ROUTING OS</Text>
         </Animated.View>
 
         <Animated.Text

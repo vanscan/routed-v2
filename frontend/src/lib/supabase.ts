@@ -30,7 +30,7 @@ export const getSupabase = (): SupabaseClient => {
 
   supabaseInstance = createClient(
     process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-    process.env.EXPO_PUBLIC_SUPABASE_KEY || '',
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
     {
       auth: {
         storage: AsyncStorage,
