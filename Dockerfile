@@ -69,6 +69,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /usr/local/bin/LKH /usr/local/bin/LKH
 COPY backend/ ./
 # server.py resolves _TILE_DB_PATH as Path(server.py).parent.parent / 'tiles' / 'buildings.db'.
 # Inside the container, server.py lives at /app/server.py, so its parent.parent is '/'.
