@@ -34,6 +34,7 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 import { useOfflineCache } from '../../src/hooks/useOfflineCache';
 import { useAuth } from '../../src/context/AuthContext';
 import { useSupabase } from '../../src/contexts/SupabaseContext';
+import { getAuthToken } from '../../src/utils/authTokenBridge';
 import { isRouteConfirmed as computeRouteConfirmed } from '../../src/utils/stopPinNumber';
 import { useStopsStore, Stop } from '../../src/store/stopsStore';
 import { stopPinNumber } from '../../src/utils/stopPinNumber';
@@ -730,7 +731,8 @@ export default function RouteScreen() {
   };
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
-    const token = await AsyncStorage.getItem('session_token');
+    // Use unified auth token bridge (supports both Supabase JWT and legacy sessions)
+    const token = await getAuthToken();
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
 
@@ -893,7 +895,8 @@ export default function RouteScreen() {
   const handleExportXlsx = async () => {
     try {
       const API = process.env.EXPO_PUBLIC_BACKEND_URL;
-      const sessionToken = await AsyncStorage.getItem('session_token');
+      // Use unified auth token bridge (supports both Supabase JWT and legacy sessions)
+      const sessionToken = await getAuthToken();
       if (!API || !sessionToken) {
         Alert.alert('Export Failed', 'Not signed in. Please re-authenticate via the Profile tab.');
         return;
@@ -2883,7 +2886,8 @@ export default function RouteScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const token = await AsyncStorage.getItem('session_token');
+        // Use unified auth token bridge (supports both Supabase JWT and legacy sessions)
+        const token = await getAuthToken();
         if (!token) return;
         const resp = await fetch(`${BACKEND_URL}/api/admin/ml/readiness`, {
           headers: { 'Authorization': `Bearer ${token}` },
@@ -4270,7 +4274,8 @@ export default function RouteScreen() {
         onClose={() => setShowHistoryModal(false)}
         onResume={async (routeId: string) => {
           try {
-            const token = await AsyncStorage.getItem('session_token');
+            // Use unified auth token bridge (supports both Supabase JWT and legacy sessions)
+            const token = await getAuthToken();
             const res = await fetch(`${BACKEND_URL}/api/routes/history/${routeId}/resume`, {
               method: 'POST',
               headers: {
