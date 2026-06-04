@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AuthProvider } from '../src/context/AuthContext';
 import { SupabaseProvider } from '../src/contexts/SupabaseContext';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import * as Updates from 'expo-updates';
@@ -139,33 +138,31 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.container}>
       <ErrorBoundary>
         <SupabaseProvider>
-          <AuthProvider>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: '#0f172a' },
-              }}
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: '#0f172a' },
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="add-stop" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="edit-stop" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="import" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="stop-detail" options={{ presentation: 'card' }} />
+            <Stack.Screen name="android-auto" options={{ presentation: 'card' }} />
+            <Stack.Screen name="privacy" options={{ presentation: 'card', headerShown: true }} />
+          </Stack>
+          {otaStatus && (
+            <View
+              style={styles.otaBanner}
+              pointerEvents="none"
+              data-testid="ota-status-banner"
             >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="add-stop" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="edit-stop" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="import" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="stop-detail" options={{ presentation: 'card' }} />
-              <Stack.Screen name="android-auto" options={{ presentation: 'card' }} />
-              <Stack.Screen name="privacy" options={{ presentation: 'card', headerShown: true }} />
-            </Stack>
-            {otaStatus && (
-              <View
-                style={styles.otaBanner}
-                pointerEvents="none"
-                data-testid="ota-status-banner"
-              >
-                <Text style={styles.otaBannerText}>{otaStatus}</Text>
-              </View>
-            )}
-          </AuthProvider>
+              <Text style={styles.otaBannerText}>{otaStatus}</Text>
+            </View>
+          )}
         </SupabaseProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>

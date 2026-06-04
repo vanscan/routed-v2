@@ -50,7 +50,8 @@ const FIELD_OPTIONS = [
 export default function ImportScreen() {
   const router = useRouter();
   const { fetchStops, stops } = useStopsStore();
-  const { reconnect } = useAuth();
+  const { refreshSession } = useSupabase();
+  const [reconnecting, setReconnecting] = useState(false);
   
   const [step, setStep] = useState<'upload' | 'mapping' | 'processing' | 'result' | 'done'>('upload');
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
@@ -346,14 +347,13 @@ export default function ImportScreen() {
       // fixed here.
       const fetchErr = useStopsStore.getState().lastFetchError;
       if (fetchErr && fetchErr.status === 401) {
-        // Best-effort silent recovery: kick off the OAuth re-auth flow
-        // immediately. WebBrowser opens a single tab; in 90% of cases
-        // the device's existing Google cookie redirects right back
-        // with a fresh session_id and login() exchanges it. If it
-        // works, refresh stops one more time so the Done screen can
+        // Best-effort silent recovery: kick off the Supabase session refresh.
+        // If it works, refresh stops one more time so the Done screen can
         // show the imported list once the user navigates back.
-        const ok = await reconnect();
-        if (ok) {
+        setReconnecting(true);
+        const { error } = await refreshSession();
+        setReconnecting(false);
+        if (!error) {
           try { await fetchStops(); } catch { /* swallow */ }
         } else {
           Alert.alert(
