@@ -1042,7 +1042,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* Direction arrow icon for route + teardrop marker icons */}
+          {/* Direction arrow icon for route + teardrop marker icons + navigation puck */}
           <Images
             images={{
               'route-arrow': require('../../../assets/images/route-arrow.png'),
@@ -1050,6 +1050,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               'marker-green': require('../../../assets/images/marker-green.png'),
               'marker-navy': require('../../../assets/images/marker-navy.png'),
               'marker-purple': require('../../../assets/images/marker-purple.png'),
+              'nav-puck': require('../../../assets/images/nav-puck.png'),
             }}
           />
 
@@ -1236,34 +1237,27 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             </GeoJSONSource>
           )}
 
-          {/* Native location puck (device GPS + heading arrow) - CUSTOM LARGER SIZE */}
+          {/* Native location puck - Waze-style navigation arrow */}
           <UserLocation 
             animated
-            heading
+            renderMode="custom"
             minDisplacement={3}
           >
-            {/* Custom larger puck - white outer ring */}
+            {/* Waze-style navigation arrow that rotates with heading */}
             <Layer
-              type="circle"
-              id="mlrn-user-location-puck-white-custom"
+              type="symbol"
+              id="mlrn-user-location-puck-arrow"
               source="mlrn-user-location"
-              paint={{
-                'circle-radius': 18,
-                'circle-color': '#fff',
-                'circle-pitch-alignment': 'map',
-                'circle-stroke-width': 2,
-                'circle-stroke-color': '#0088FF',
+              layout={{
+                'icon-image': 'nav-puck',
+                'icon-size': 0.7,
+                'icon-allow-overlap': true,
+                'icon-ignore-placement': true,
+                'icon-rotation-alignment': 'map',
+                'icon-pitch-alignment': 'map',
               }}
-            />
-            {/* Custom larger puck - blue inner circle */}
-            <Layer
-              type="circle"
-              id="mlrn-user-location-puck-blue-custom"
-              source="mlrn-user-location"
               paint={{
-                'circle-radius': 12,
-                'circle-color': '#0088FF',
-                'circle-pitch-alignment': 'map',
+                'icon-opacity': 1,
               }}
             />
           </UserLocation>
