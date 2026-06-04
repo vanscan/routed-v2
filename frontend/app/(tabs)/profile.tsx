@@ -377,6 +377,12 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
