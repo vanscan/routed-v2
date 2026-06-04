@@ -119,7 +119,7 @@ function stopLngLat(stop: DeliveryStop): [number, number] {
 }
 
 /**
- * Build the stop pins FeatureCollection with per-feature `label` + `color`,
+ * Build the stop pins FeatureCollection with per-feature `label` + `color` + `marker`,
  * matching the WebView painter:
  *   - completed → green
  *   - locked stop (has original_sequence) → navy, shows its sequence number
@@ -144,23 +144,27 @@ function stopsToFeatureCollection(
 
         let label: string;
         let color: string;
+        let marker: string;
         if (hasSeq) {
           label = String(anyStop.original_sequence);
           color = completed ? PIN_COMPLETED : PIN_LOCKED;
+          marker = completed ? 'marker-green' : 'marker-navy';
         } else if (routeConfirmed) {
           // Late freight on a locked route.
           label = (s.id && lateLabels[s.id]) || '★';
           color = completed ? PIN_COMPLETED : PIN_LATE;
+          marker = completed ? 'marker-green' : 'marker-purple';
         } else {
           // Planning mode — proposed drive order.
           label = String((s.order ?? 0) + 1);
           color = completed ? PIN_COMPLETED : PIN_PLANNING;
+          marker = completed ? 'marker-green' : 'marker-blue';
         }
 
         return {
           type: 'Feature' as const,
           id: s.id,
-          properties: { id: s.id, label, color, completed },
+          properties: { id: s.id, label, color, marker, completed },
           geometry: { type: 'Point' as const, coordinates: [lng, lat] },
         };
       }),
@@ -1038,10 +1042,14 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* Direction arrow icon for route */}
+          {/* Direction arrow icon for route + teardrop marker icons */}
           <Images
             images={{
               'route-arrow': require('../../../assets/images/route-arrow.png'),
+              'marker-blue': require('../../../assets/images/marker-blue.png'),
+              'marker-green': require('../../../assets/images/marker-green.png'),
+              'marker-navy': require('../../../assets/images/marker-navy.png'),
+              'marker-purple': require('../../../assets/images/marker-purple.png'),
             }}
           />
 
@@ -1143,32 +1151,32 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             </GeoJSONSource>
           ))}
 
-          {/* Delivery stops: numbered pins. When cluster data is present they
+          {/* Delivery stops: teardrop marker pins. When cluster data is present they
               hide below the swap zoom so the cluster bubbles take over. */}
           <GeoJSONSource id="stops-src" data={stopsFC} onPress={handleStopsPress}>
+            {/* Teardrop marker icons */}
             <Layer
-              id="stops-circle"
-              type="circle"
-              minzoom={hasClusterData ? CLUSTER_SWAP_ZOOM : undefined}
-              paint={{
-                'circle-radius': 14,
-                'circle-color': ['get', 'color'],
-                'circle-stroke-width': 2,
-                'circle-stroke-color': '#ffffff',
-              }}
-            />
-            <Layer
-              id="stops-label"
+              id="stops-marker"
               type="symbol"
               minzoom={hasClusterData ? CLUSTER_SWAP_ZOOM : undefined}
               layout={{
+                'icon-image': ['get', 'marker'],
+                'icon-size': 0.8,
+                'icon-anchor': 'bottom',
+                'icon-allow-overlap': true,
+                'icon-ignore-placement': true,
                 'text-field': ['get', 'label'],
-                'text-font': ['Noto Sans Regular'],
-                'text-size': 12,
+                'text-font': ['Noto Sans Bold'],
+                'text-size': 11,
+                'text-offset': [0, -2.2],
                 'text-allow-overlap': true,
                 'text-ignore-placement': true,
               }}
-              paint={{ 'text-color': '#ffffff' }}
+              paint={{
+                'text-color': '#ffffff',
+                'text-halo-color': 'rgba(0,0,0,0.3)',
+                'text-halo-width': 0.5,
+              }}
             />
           </GeoJSONSource>
 
