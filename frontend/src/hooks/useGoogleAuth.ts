@@ -139,23 +139,23 @@ export function useGoogleAuth() {
         console.log('[GoogleAuth]   - Access token algorithm:', supabaseTokenAlg); // Should be HS256
         console.log('[GoogleAuth]   - Access token preview:', authData.session.access_token.substring(0, 50) + '...');
         
-        // CRITICAL VALIDATION: Ensure we got an HS256 token, not ES256
-        if (supabaseTokenAlg !== 'HS256') {
-          console.error('[GoogleAuth] CRITICAL ERROR: Expected HS256 Supabase token, got:', supabaseTokenAlg);
-          if (supabaseTokenAlg === 'ES256') {
-            throw new Error('Token exchange failed: Supabase returned Google ID token instead of Supabase JWT');
-          }
+        // Validate we got a valid Supabase JWT (accepts both HS256 and ES256)
+        // Note: Supabase now uses ES256 by default (2026 security update)
+        if (supabaseTokenAlg !== 'HS256' && supabaseTokenAlg !== 'ES256') {
+          console.error('[GoogleAuth] CRITICAL ERROR: Unexpected Supabase token algorithm:', supabaseTokenAlg);
+          throw new Error(`Token exchange failed: Unexpected algorithm ${supabaseTokenAlg}`);
         }
         
-        console.log('[GoogleAuth] ✓ Token exchange successful - HS256 Supabase JWT received');
+        console.log('[GoogleAuth] ✓ Token exchange successful - Supabase JWT received (alg:', supabaseTokenAlg + ')');
         
         // Double-check: Verify the session is actually stored
         const { data: verifySession } = await supabase.auth.getSession();
         if (verifySession.session?.access_token) {
           const verifyAlg = getJwtAlgorithm(verifySession.session.access_token);
           console.log('[GoogleAuth] Session verification - stored token alg:', verifyAlg);
-          if (verifyAlg !== 'HS256') {
-            console.error('[GoogleAuth] CRITICAL: Stored session has wrong algorithm!');
+          // Both HS256 and ES256 are valid Supabase JWT algorithms
+          if (verifyAlg !== 'HS256' && verifyAlg !== 'ES256') {
+            console.error('[GoogleAuth] CRITICAL: Stored session has unexpected algorithm:', verifyAlg);
           }
         } else {
           console.warn('[GoogleAuth] WARNING: Could not verify stored session');

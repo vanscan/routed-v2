@@ -5,13 +5,11 @@
  * whether the user logged in via Supabase or legacy auth.
  * 
  * Priority:
- * 1. Supabase session access_token (if available) - MUST be HS256 signed
+ * 1. Supabase session access_token (if available) - accepts both HS256 and ES256
  * 2. Legacy session_token from AsyncStorage (only as fallback)
  * 
- * CRITICAL: The Supabase access_token is signed with HS256.
- * The Google ID token is signed with ES256 - these MUST NOT be confused.
- * 
- * This module WILL NEVER return an ES256 token to prevent 401 errors.
+ * NOTE (2026 Update): Supabase now uses ES256 by default for JWTs.
+ * Both HS256 and ES256 are valid Supabase token algorithms.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -55,8 +53,8 @@ function getJwtAlgorithm(token: string): string | null {
 }
 
 /**
- * CRITICAL VALIDATION: Check if a token is a valid HS256 JWT (Supabase token).
- * Returns false for ES256 (Google ID tokens) or any invalid format.
+ * VALIDATION: Check if a token is a valid JWT (Supabase token).
+ * Accepts both HS256 and ES256 algorithms (Supabase uses ES256 by default since 2026).
  */
 function isValidSupabaseToken(token: string | null | undefined): boolean {
   if (!token || typeof token !== 'string') return false;
@@ -64,27 +62,25 @@ function isValidSupabaseToken(token: string | null | undefined): boolean {
   
   const alg = getJwtAlgorithm(token);
   
-  // ONLY accept HS256 tokens - these are Supabase JWTs
-  // REJECT ES256 tokens - these are Google ID tokens
-  if (alg === 'ES256') {
-    console.error('[authTokenBridge] REJECTED ES256 token (Google ID token)');
-    return false;
+  // Accept both HS256 and ES256 - both are valid Supabase JWT algorithms
+  if (alg === 'HS256' || alg === 'ES256') {
+    return true;
   }
   
-  if (alg !== 'HS256') {
+  if (alg) {
     console.warn('[authTokenBridge] Unexpected algorithm:', alg);
-    // Still allow non-ES256 tokens as they might be valid
+    // Still allow tokens with other algorithms in case Supabase changes again
+    return true;
   }
   
-  return true;
+  return false;
 }
 
 /**
  * Get the current auth token (Supabase JWT or legacy session token).
  * This is the main function used by stopsStore and other API callers.
  * 
- * CRITICAL: Only returns tokens that are HS256 signed (Supabase JWTs).
- * ES256 signed tokens (Google ID tokens) will be REJECTED and cleared.
+ * Accepts both HS256 and ES256 Supabase JWTs.
  */
 export async function getAuthToken(): Promise<string | null> {
   // Method 1: Try cached Supabase client (fastest path)
@@ -93,16 +89,14 @@ export async function getAuthToken(): Promise<string | null> {
       const { data: { session }, error } = await cachedSupabaseClient.auth.getSession();
       
       if (session?.access_token && isValidSupabaseToken(session.access_token)) {
-        console.log('[authTokenBridge] ✓ Got valid HS256 token from cached Supabase client');
+        console.log('[authTokenBridge] ✓ Got valid token from cached Supabase client');
         return session.access_token;
       }
       
       if (session?.access_token) {
-        // Token exists but is invalid (likely ES256) - this is a critical error
-        console.error('[authTokenBridge] CRITICAL: Cached Supabase has invalid token, algorithm:', 
+        // Token exists but is invalid format
+        console.error('[authTokenBridge] Invalid token format, algorithm:', 
           getJwtAlgorithm(session.access_token));
-        // Sign out to clear the corrupted session
-        await cachedSupabaseClient.auth.signOut().catch(() => {});
       }
     } catch (error) {
       console.warn('[authTokenBridge] Cached client getSession failed:', error);
@@ -119,14 +113,13 @@ export async function getAuthToken(): Promise<string | null> {
         if (session?.access_token && isValidSupabaseToken(session.access_token)) {
           // Cache the client for future calls
           cachedSupabaseClient = client;
-          console.log('[authTokenBridge] ✓ Got valid HS256 token from getter, caching client');
+          console.log('[authTokenBridge] ✓ Got valid token from getter, caching client');
           return session.access_token;
         }
         
         if (session?.access_token) {
-          console.error('[authTokenBridge] CRITICAL: Getter returned invalid token, algorithm:', 
+          console.error('[authTokenBridge] Invalid token from getter, algorithm:', 
             getJwtAlgorithm(session.access_token));
-          await client.auth.signOut().catch(() => {});
         }
       }
     } catch (error) {
@@ -143,14 +136,13 @@ export async function getAuthToken(): Promise<string | null> {
     if (session?.access_token && isValidSupabaseToken(session.access_token)) {
       // Cache the client for future calls
       cachedSupabaseClient = client;
-      console.log('[authTokenBridge] ✓ Got valid HS256 token from direct import');
+      console.log('[authTokenBridge] ✓ Got valid token from direct import');
       return session.access_token;
     }
     
     if (session?.access_token) {
-      console.error('[authTokenBridge] CRITICAL: Direct import has invalid token, algorithm:', 
+      console.error('[authTokenBridge] Invalid token from direct import, algorithm:', 
         getJwtAlgorithm(session.access_token));
-      await client.auth.signOut().catch(() => {});
     }
   } catch (importError) {
     console.warn('[authTokenBridge] Direct Supabase import failed:', importError);
@@ -199,41 +191,22 @@ export async function clearAuthTokens(): Promise<void> {
 }
 
 /**
- * Clear any corrupted ES256 tokens from all storage locations.
- * Call this on app startup to ensure clean state.
+ * Clear any truly corrupted tokens from all storage locations.
+ * Note: ES256 tokens are now valid since Supabase uses ES256 by default.
+ * Only clears tokens that don't match known valid formats.
  */
 export async function clearCorruptedTokens(): Promise<void> {
   console.log('[authTokenBridge] Checking for corrupted tokens...');
   
-  // Check and clear legacy session_token if it's ES256
+  // Check and clear legacy session_token if it's not a valid JWT
   try {
     const legacyToken = await AsyncStorage.getItem('session_token');
-    if (legacyToken) {
-      const alg = getJwtAlgorithm(legacyToken);
-      if (alg === 'ES256') {
-        console.warn('[authTokenBridge] Clearing corrupted ES256 legacy token');
-        await AsyncStorage.removeItem('session_token');
-      }
+    if (legacyToken && !isValidSupabaseToken(legacyToken)) {
+      console.warn('[authTokenBridge] Clearing corrupted legacy token');
+      await AsyncStorage.removeItem('session_token');
     }
   } catch (e) {
     console.warn('[authTokenBridge] Error checking legacy token:', e);
-  }
-  
-  // Check Supabase session
-  try {
-    const { getSupabase } = await import('../lib/supabase');
-    const client = getSupabase();
-    const { data: { session } } = await client.auth.getSession();
-    
-    if (session?.access_token) {
-      const alg = getJwtAlgorithm(session.access_token);
-      if (alg === 'ES256') {
-        console.warn('[authTokenBridge] Clearing corrupted ES256 Supabase session');
-        await client.auth.signOut();
-      }
-    }
-  } catch (e) {
-    console.warn('[authTokenBridge] Error checking Supabase session:', e);
   }
   
   console.log('[authTokenBridge] Corruption check complete');
