@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '@/utils/authTokenBridge';
 import { useStopsStore } from '../src/store/stopsStore';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -67,7 +67,7 @@ export default function ImportScreen() {
   } | null>(null);
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
-    const token = await AsyncStorage.getItem('session_token');
+    const token = await getAuthToken();
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
 

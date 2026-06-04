@@ -60,7 +60,7 @@ export const TelepathyCard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = await AsyncStorage.getItem('session_token');
+      const token = await getAuthToken();
       if (!token) { setError('Sign in to view Telepathy'); return; }
 
       // Pull both stat endpoints + the toggle in parallel — none of them
@@ -113,7 +113,7 @@ export const TelepathyCard: React.FC = () => {
           onPress: async () => {
             setResetting(true);
             try {
-              const token = await AsyncStorage.getItem('session_token');
+              const token = await getAuthToken();
               if (!token) return;
               await fetch(`${BACKEND_URL}/api/learn/${kind}-reset`, {
                 method: 'POST',

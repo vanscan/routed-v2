@@ -19,6 +19,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '@/utils/authTokenBridge';
 import Animated, {
   Easing,
   FadeIn,
@@ -325,7 +326,7 @@ export default function LoginScreen() {
       if (user) return;
       // Tiny grace window: setUser() from the sibling call may not have
       // flushed into this closure yet. Re-check AsyncStorage after a tick.
-      const token = await AsyncStorage.getItem('session_token').catch(() => null);
+      const token = await getAuthToken().catch(() => null);
       if (token) return;
       // ── Diagnostic message ───────────────────────────────────────────
       // AuthContext.login now attaches `.status` and `.detail` to the
