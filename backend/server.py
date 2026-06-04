@@ -10126,6 +10126,35 @@ async def save_van_layout(
     return {"rows": layout.rows, "cols": layout.cols, "is_default": False}
 
 
+@api_router.get("/auth/debug")
+async def auth_debug(request: Request):
+    """Debug endpoint to check auth configuration and token status."""
+    auth_header = request.headers.get("Authorization", "")
+    has_token = auth_header.startswith("Bearer ") and len(auth_header) > 10
+    
+    result = {
+        "supabase_configured": bool(SUPABASE_JWT_SECRET),
+        "supabase_jwt_secret_length": len(SUPABASE_JWT_SECRET) if SUPABASE_JWT_SECRET else 0,
+        "has_auth_header": has_token,
+    }
+    
+    if has_token:
+        token = auth_header.split(" ")[1]
+        result["token_prefix"] = token[:20] + "..." if len(token) > 20 else token
+        result["token_length"] = len(token)
+        
+        # Try to decode
+        payload = _decode_supabase_jwt(token)
+        if payload:
+            result["jwt_valid"] = True
+            result["jwt_email"] = payload.get("email")
+            result["jwt_sub"] = payload.get("sub")
+        else:
+            result["jwt_valid"] = False
+            result["jwt_error"] = "Failed to decode - check SUPABASE_JWT_SECRET"
+    
+    return result
+
 @api_router.get("/health")
 @api_router.head("/health")
 async def health_check():
@@ -10137,7 +10166,8 @@ async def health_check():
         return {
             "status": "healthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "database": "connected"
+            "database": "connected",
+            "supabase_configured": bool(SUPABASE_JWT_SECRET),
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
