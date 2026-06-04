@@ -430,6 +430,7 @@ from models import (  # noqa: F401  (re-exports for backward compat)
 
 # Supabase JWT validation
 import jwt as pyjwt  # PyJWT
+from jwt import PyJWKClient  # For JWKS-based ES256 verification
 
 # Google ID Token verification
 from google.oauth2 import id_token as google_id_token
@@ -437,6 +438,80 @@ from google.auth.transport import requests as google_auth_requests
 
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+
+# Supabase JWKS endpoint for ES256 token verification
+# Supabase issues ES256 tokens that need to be verified against their public keys
+# Note: The .well-known/jwks.json endpoint requires the apikey header
+_SUPABASE_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else None
+_supabase_jwks_cache: Optional[dict] = None
+_supabase_jwks_cache_time: float = 0
+_JWKS_CACHE_TTL = 3600  # Cache JWKS for 1 hour
+
+def _fetch_supabase_jwks() -> Optional[dict]:
+    """Fetch and cache Supabase JWKS (public keys for ES256 verification)."""
+    global _supabase_jwks_cache, _supabase_jwks_cache_time
+    import time
+    import urllib.request
+    import json
+    
+    now = time.time()
+    if _supabase_jwks_cache and (now - _supabase_jwks_cache_time) < _JWKS_CACHE_TTL:
+        return _supabase_jwks_cache
+    
+    if not _SUPABASE_JWKS_URL or not SUPABASE_ANON_KEY:
+        logger.warning("[auth] Cannot fetch JWKS: SUPABASE_URL=%s, ANON_KEY=%s", 
+                      'SET' if SUPABASE_URL else 'NOT SET',
+                      'SET' if SUPABASE_ANON_KEY else 'NOT SET')
+        return None
+    
+    try:
+        req = urllib.request.Request(_SUPABASE_JWKS_URL)
+        req.add_header('apikey', SUPABASE_ANON_KEY)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            _supabase_jwks_cache = json.loads(resp.read().decode())
+            _supabase_jwks_cache_time = now
+            logger.info("[auth] Supabase JWKS fetched successfully, keys=%d", 
+                       len(_supabase_jwks_cache.get('keys', [])))
+            return _supabase_jwks_cache
+    except Exception as e:
+        logger.warning("[auth] Failed to fetch Supabase JWKS: %s", e)
+        return _supabase_jwks_cache  # Return stale cache if available
+
+
+def _get_supabase_signing_key(kid: str) -> Optional[bytes]:
+    """Get the Supabase public key for ES256 verification by key ID."""
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.backends import default_backend
+    import base64
+    
+    jwks = _fetch_supabase_jwks()
+    if not jwks:
+        return None
+    
+    for key_data in jwks.get('keys', []):
+        if key_data.get('kid') == kid and key_data.get('alg') == 'ES256':
+            try:
+                # Convert JWK to PEM format for PyJWT
+                x = base64.urlsafe_b64decode(key_data['x'] + '==')
+                y = base64.urlsafe_b64decode(key_data['y'] + '==')
+                
+                # Create EC public key from x,y coordinates
+                from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicNumbers, SECP256R1
+                public_numbers = EllipticCurvePublicNumbers(
+                    x=int.from_bytes(x, 'big'),
+                    y=int.from_bytes(y, 'big'),
+                    curve=SECP256R1()
+                )
+                public_key = public_numbers.public_key(default_backend())
+                logger.debug("[auth] Successfully loaded Supabase public key for kid=%s", kid)
+                return public_key
+            except Exception as e:
+                logger.warning("[auth] Failed to parse Supabase public key: %s", e)
+                return None
+    
+    logger.warning("[auth] Key ID %s not found in Supabase JWKS", kid)
+    return None
 
 # Google OAuth Client IDs (needed to verify the audience claim)
 GOOGLE_WEB_CLIENT_ID = os.environ.get("GOOGLE_WEB_CLIENT_ID", "")
@@ -526,37 +601,79 @@ def _decode_google_id_token(token: str) -> Optional[dict]:
 def _decode_supabase_jwt(token: str) -> Optional[dict]:
     """Decode and validate a Supabase JWT access token.
     
+    Supports both:
+    - HS256 tokens (legacy, using SUPABASE_JWT_SECRET)
+    - ES256 tokens (newer, using Supabase JWKS public keys)
+    
     Returns the decoded payload if valid, None otherwise.
-    Supabase JWTs use HS256 with the project's JWT secret.
     """
+    if not token:
+        return None
+    
+    logger.info("[auth] Attempting to decode Supabase JWT, token_length=%d, secret_length=%d, token_preview=%s...",
+               len(token), len(SUPABASE_JWT_SECRET), token[:20] if len(token) > 20 else token)
+    
+    # First, peek at the token header to determine algorithm
+    try:
+        header = pyjwt.get_unverified_header(token)
+        alg = header.get('alg', 'unknown')
+        kid = header.get('kid', 'none')
+        logger.debug("[auth] Token header: alg=%s, kid=%s", alg, kid)
+    except Exception as e:
+        logger.warning("[auth] Failed to read token header: %s", e)
+        return None
+    
+    # Try ES256 with JWKS (for newer Supabase projects)
+    if alg == 'ES256':
+        jwk_client = _get_supabase_jwk_client()
+        if jwk_client:
+            try:
+                signing_key = jwk_client.get_signing_key_from_jwt(token)
+                payload = pyjwt.decode(
+                    token,
+                    signing_key.key,
+                    algorithms=["ES256"],
+                    audience="authenticated",
+                )
+                logger.info("[auth] Supabase ES256 JWT verified successfully, sub=%s, email=%s",
+                           payload.get("sub"), payload.get("email"))
+                return payload
+            except pyjwt.ExpiredSignatureError:
+                logger.warning("[auth] Supabase ES256 JWT expired")
+                return None
+            except pyjwt.InvalidAudienceError:
+                logger.warning("[auth] Supabase ES256 JWT invalid audience")
+                return None
+            except Exception as e:
+                logger.warning("[auth] Supabase ES256 JWT verification failed: %s", e)
+                return None
+        else:
+            logger.warning("[auth] No JWKS client available for ES256 verification, SUPABASE_URL=%s", SUPABASE_URL[:30] if SUPABASE_URL else 'NOT SET')
+            return None
+    
+    # Try HS256 with shared secret (for older Supabase projects)
     if not SUPABASE_JWT_SECRET:
-        logger.warning("[auth] SUPABASE_JWT_SECRET not configured")
+        logger.warning("[auth] SUPABASE_JWT_SECRET not configured for HS256 verification")
         return None
     
     try:
-        # Log token info for debugging (first 20 chars only for security)
-        logger.info("[auth] Attempting to decode Supabase JWT, token_length=%d, secret_length=%d, token_preview=%s...",
-                   len(token), len(SUPABASE_JWT_SECRET), token[:20] if len(token) > 20 else token)
-        
-        # Supabase JWTs are signed with HS256
-        # The `aud` claim is "authenticated" for logged-in users
         payload = pyjwt.decode(
             token,
             SUPABASE_JWT_SECRET,
             algorithms=["HS256"],
             audience="authenticated",
         )
-        logger.info("[auth] Supabase JWT decoded successfully, sub=%s, email=%s", 
+        logger.info("[auth] Supabase HS256 JWT verified successfully, sub=%s, email=%s",
                    payload.get("sub"), payload.get("email"))
         return payload
     except pyjwt.ExpiredSignatureError:
-        logger.warning("[auth] Supabase JWT expired")
+        logger.warning("[auth] Supabase HS256 JWT expired")
         return None
     except pyjwt.InvalidAudienceError:
-        logger.warning("[auth] Supabase JWT invalid audience")
+        logger.warning("[auth] Supabase HS256 JWT invalid audience")
         return None
     except pyjwt.InvalidTokenError as e:
-        logger.warning("[auth] Supabase JWT invalid: %s", e)
+        logger.warning("[auth] Supabase HS256 JWT invalid: %s", e)
         return None
 
 

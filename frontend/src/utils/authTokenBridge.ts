@@ -66,7 +66,13 @@ export async function getAuthToken(): Promise<string | null> {
       tokenLength: legacyToken?.length || 0,
     });
     if (legacyToken) {
-      return legacyToken;
+      // Only return if it looks like a JWT (starts with 'eyJ')
+      if (legacyToken.startsWith('eyJ')) {
+        return legacyToken;
+      } else {
+        console.warn('[authTokenBridge] Legacy token is not a JWT (length=' + legacyToken.length + '), clearing it');
+        await AsyncStorage.removeItem('session_token').catch(() => {});
+      }
     }
   } catch (error) {
     console.warn('[authTokenBridge] Legacy token fetch failed:', error);
