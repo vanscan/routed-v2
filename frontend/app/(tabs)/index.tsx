@@ -4276,6 +4276,12 @@ export default function RouteScreen() {
           try {
             // Use unified auth token bridge (supports both Supabase JWT and legacy sessions)
             const token = await getAuthToken();
+            console.log('[HistoryModal] Resume route - token info:', {
+              hasToken: !!token,
+              tokenLength: token?.length || 0,
+              tokenPreview: token ? `${token.substring(0, 20)}...` : 'none',
+              backendUrl: BACKEND_URL,
+            });
             const res = await fetch(`${BACKEND_URL}/api/routes/history/${routeId}/resume`, {
               method: 'POST',
               headers: {
@@ -4284,6 +4290,7 @@ export default function RouteScreen() {
               },
               credentials: 'include',
             });
+            console.log('[HistoryModal] Resume response:', res.status, res.statusText);
             if (res.ok) {
               setShowHistoryModal(false);
               setRouteGeometry(null);

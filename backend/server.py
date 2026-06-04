@@ -446,6 +446,10 @@ def _decode_supabase_jwt(token: str) -> Optional[dict]:
         return None
     
     try:
+        # Log token info for debugging (first 20 chars only for security)
+        logger.info("[auth] Attempting to decode Supabase JWT, token_length=%d, secret_length=%d, token_preview=%s...",
+                   len(token), len(SUPABASE_JWT_SECRET), token[:20] if len(token) > 20 else token)
+        
         # Supabase JWTs are signed with HS256
         # The `aud` claim is "authenticated" for logged-in users
         payload = pyjwt.decode(
@@ -454,15 +458,17 @@ def _decode_supabase_jwt(token: str) -> Optional[dict]:
             algorithms=["HS256"],
             audience="authenticated",
         )
+        logger.info("[auth] Supabase JWT decoded successfully, sub=%s, email=%s", 
+                   payload.get("sub"), payload.get("email"))
         return payload
     except pyjwt.ExpiredSignatureError:
-        logger.debug("[auth] Supabase JWT expired")
+        logger.warning("[auth] Supabase JWT expired")
         return None
     except pyjwt.InvalidAudienceError:
-        logger.debug("[auth] Supabase JWT invalid audience")
+        logger.warning("[auth] Supabase JWT invalid audience")
         return None
     except pyjwt.InvalidTokenError as e:
-        logger.debug("[auth] Supabase JWT invalid: %s", e)
+        logger.warning("[auth] Supabase JWT invalid: %s", e)
         return None
 
 
