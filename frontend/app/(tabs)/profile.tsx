@@ -10,11 +10,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '../../src/context/AuthContext';
 import { useSupabase } from '../../src/contexts/SupabaseContext';
 import { useStopsStore } from '../../src/store/stopsStore';
 import { TelemetryCard } from '../../src/components/TelemetryCard';
+import { TelepathyCard } from '../../src/components/TelepathyCard';
 import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
 import { MLBuildingSideCard } from '../../src/components/MLBuildingSideCard';
 import { getAuthToken } from '../../src/utils/authTokenBridge';
@@ -23,20 +22,19 @@ import { BundleDebugLine } from '../../src/components/BundleDebugLine';
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
-  const { signOut: supabaseSignOut, user: supabaseUser } = useSupabase();
+  const { signOut, user: supabaseUser } = useSupabase();
   const router = useRouter();
   const { stops, clearStops, archiveRoute } = useStopsStore();
   const [archiving, setArchiving] = React.useState(false);
   const [saveResult, setSaveResult] = React.useState<{ ok: boolean; message: string } | null>(null);
 
-  // Combined user from either auth system
-  const activeUser = user || (supabaseUser ? {
+  // User from Supabase auth system
+  const activeUser = supabaseUser ? {
     user_id: supabaseUser.id,
     email: supabaseUser.email || '',
     name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'User',
     picture: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
-  } : null);
+  } : null;
 
   // Stale-session auto-recovery — when the app's stored session_token was
   // minted against a DB the backend no longer uses (e.g., after the
@@ -59,10 +57,7 @@ export default function ProfileScreen() {
         if (cancelled) return;
         if (r.status === 401) {
           // Token is corrupt for this backend. Clear & bounce.
-          await logout();
-          if (supabaseUser) {
-            await supabaseSignOut();
-          }
+          await signOut();
           clearStops();
           Alert.alert(
             'Session expired',
@@ -139,11 +134,8 @@ export default function ProfileScreen() {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          // Sign out from both auth systems
-          await logout();
-          if (supabaseUser) {
-            await supabaseSignOut();
-          }
+          // Sign out from Supabase
+          await signOut();
           clearStops();
           router.replace('/');
         },
