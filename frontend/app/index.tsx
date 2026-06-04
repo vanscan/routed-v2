@@ -10,7 +10,6 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../src/context/AuthContext';
 import { useSupabase } from '../src/contexts/SupabaseContext';
 import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,12 +52,9 @@ const COLOR = {
 };
 
 export default function LoginScreen() {
-  // Legacy auth context (for backwards compatibility with existing sessions)
-  const { user: legacyUser, loading: legacyLoading, login, loginAsReviewer, loginWithEmail, registerWithEmail, forceSetPassword } = useAuth();
-  
-  // New Supabase auth context
+  // Supabase auth context (primary auth)
   const { 
-    user: supabaseUser, 
+    user, 
     session: supabaseSession,
     loading: supabaseLoading, 
     isReady: supabaseReady,
@@ -76,9 +72,8 @@ export default function LoginScreen() {
     isReady: googleAuthReady,
   } = useGoogleAuth();
   
-  // Unified user state - prefer Supabase user, fall back to legacy
-  const user = supabaseUser || legacyUser;
-  const loading = !supabaseReady || supabaseLoading || legacyLoading;
+  // Loading state
+  const loading = !supabaseReady || supabaseLoading;
   
   const router = useRouter();
   const [authLoading, setAuthLoading] = useState(false);
@@ -145,8 +140,17 @@ export default function LoginScreen() {
       
       // Use Supabase for email/password auth
       if (isSettingPassword) {
-        // Setting password for existing account - use legacy method
-        await forceSetPassword(emailInput.trim(), passwordInput);
+        // Setting password for existing account - use Supabase updatePassword
+        // First sign in, then update password
+        console.log('[AUTH] Attempting to set password for existing user:', emailInput.trim());
+        const { error: signInError } = await supabaseSignIn(emailInput.trim(), passwordInput);
+        if (signInError) {
+          // Try registering if login fails (new user setting up)
+          const result = await supabaseSignUp(emailInput.trim(), passwordInput);
+          if (result.error) {
+            throw new Error(result.error.message || 'Failed to set password');
+          }
+        }
       } else if (isRegistering) {
         // Register new user with Supabase
         console.log('[AUTH] Attempting Supabase signup for:', emailInput.trim());
@@ -202,7 +206,11 @@ export default function LoginScreen() {
     if (!code) return;
     try {
       setAuthLoading(true);
-      await loginAsReviewer('routedreviewer@gmail.com', code);
+      // Use Supabase email/password sign-in for reviewer
+      const { error } = await supabaseSignIn('routedreviewer@gmail.com', code);
+      if (error) {
+        throw new Error(error.message || 'Invalid passcode');
+      }
       // success → useEffect router.replace('/(tabs)') kicks in
     } catch (e: any) {
       Alert.alert(
@@ -416,9 +424,12 @@ export default function LoginScreen() {
       const { error } = await supabaseSignInWithOAuth('google');
       
       if (error) {
-        console.log('[AUTH] Supabase OAuth error, falling back to Emergent Auth:', error.message);
-        // Fall back to legacy Emergent auth if Supabase fails
-        await handleLegacyGoogleLogin();
+        console.error('[AUTH] Supabase OAuth error:', error.message);
+        Alert.alert(
+          'Sign-in Error',
+          'Could not complete Google sign-in. Please try again.',
+          [{ text: 'OK' }]
+        );
         return;
       }
       
@@ -426,8 +437,11 @@ export default function LoginScreen() {
       
     } catch (error: any) {
       console.error('Google login error:', error);
-      // Fallback to legacy auth on any error
-      await handleLegacyGoogleLogin();
+      Alert.alert(
+        'Sign-in Error',
+        error?.message || 'An unexpected error occurred. Please try again.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setAuthLoading(false);
     }
