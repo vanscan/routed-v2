@@ -7,12 +7,12 @@
 6 silly config load:file:/usr/etc/npmrc
 7 verbose title npm exec expo install --check
 8 verbose argv "exec" "--yes" "false" "--" "expo" "install" "--check"
-9 verbose logfile logs-max:10 dir:/app/.npm/_logs/2026-05-19T11_18_38_245Z-
-10 verbose logfile /app/.npm/_logs/2026-05-19T11_18_38_245Z-debug-0.log
+9 verbose logfile logs-max:10 dir:/app/.npm/_logs/2026-06-02T05_07_44_099Z-
+10 verbose logfile /app/.npm/_logs/2026-06-02T05_07_44_099Z-debug-0.log
 11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 verbose cwd /app/frontend
-14 verbose os Linux 6.12.55+
+14 verbose os Linux 6.12.68+
 15 verbose node v20.20.2
 16 verbose npm  v10.8.2
 17 verbose exit 0
