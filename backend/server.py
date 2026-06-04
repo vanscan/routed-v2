@@ -449,6 +449,12 @@ _GOOGLE_CLIENT_IDS = [
     if cid
 ]
 
+logger.info("[auth] Google Client IDs loaded: %d IDs configured (WEB=%s, ANDROID=%s, IOS=%s)", 
+           len(_GOOGLE_CLIENT_IDS),
+           'YES' if GOOGLE_WEB_CLIENT_ID else 'NO',
+           'YES' if GOOGLE_ANDROID_CLIENT_ID else 'NO',
+           'YES' if GOOGLE_IOS_CLIENT_ID else 'NO')
+
 
 def _decode_google_id_token(token: str) -> Optional[dict]:
     """Decode and validate a Google ID token (ES256 signed).
@@ -457,12 +463,15 @@ def _decode_google_id_token(token: str) -> Optional[dict]:
     Google ID tokens use ES256 and need to be verified against Google's public keys.
     """
     if not _GOOGLE_CLIENT_IDS:
-        logger.warning("[auth] No Google Client IDs configured for ID token verification")
+        logger.warning("[auth] No Google Client IDs configured for ID token verification. Available IDs: WEB=%s, ANDROID=%s, IOS=%s",
+                      GOOGLE_WEB_CLIENT_ID[:20] + '...' if GOOGLE_WEB_CLIENT_ID else 'NONE',
+                      GOOGLE_ANDROID_CLIENT_ID[:20] + '...' if GOOGLE_ANDROID_CLIENT_ID else 'NONE',
+                      GOOGLE_IOS_CLIENT_ID[:20] + '...' if GOOGLE_IOS_CLIENT_ID else 'NONE')
         return None
     
     try:
-        logger.info("[auth] Attempting to verify Google ID token, token_length=%d, token_preview=%s...",
-                   len(token), token[:20] if len(token) > 20 else token)
+        logger.info("[auth] Attempting to verify Google ID token, token_length=%d, token_preview=%s..., num_client_ids=%d",
+                   len(token), token[:20] if len(token) > 20 else token, len(_GOOGLE_CLIENT_IDS))
         
         # Verify the token against Google's public keys
         # This checks signature, expiration, and issuer
@@ -471,6 +480,7 @@ def _decode_google_id_token(token: str) -> Optional[dict]:
         # Try each client ID as the audience
         for client_id in _GOOGLE_CLIENT_IDS:
             try:
+                logger.debug("[auth] Trying client_id: %s...", client_id[:30])
                 payload = google_id_token.verify_oauth2_token(
                     token, 
                     request, 
