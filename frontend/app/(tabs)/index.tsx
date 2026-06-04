@@ -32,7 +32,6 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { useOfflineCache } from '../../src/hooks/useOfflineCache';
-import { useAuth } from '../../src/context/AuthContext';
 import { useSupabase } from '../../src/contexts/SupabaseContext';
 import { getAuthToken } from '../../src/utils/authTokenBridge';
 import { isRouteConfirmed as computeRouteConfirmed } from '../../src/utils/stopPinNumber';
@@ -84,10 +83,9 @@ function formatRelativeTime(ts: number): string {
 }
 
 export default function RouteScreen() {
-  const { user: legacyUser } = useAuth();
   const { user: supabaseUser } = useSupabase();
-  // Unified user - prefer Supabase, fall back to legacy
-  const user = supabaseUser || legacyUser;
+  // Use Supabase user only
+  const user = supabaseUser;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { stops, loading, fetchStops, optimizeRoute, optimizing, completeStop, uncompleteStop, arriveAtStop, deleteAllStops, archiveRoute, updateStop, deleteStop, reorderStops, fetchRecommendation, recommendation, flushSyncQueue, dismissQueuedAction, restoreQueuedAction, confirmRoute } = useStopsStore();
