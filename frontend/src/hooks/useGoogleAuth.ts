@@ -7,6 +7,7 @@ import {
   isSuccessResponse,
   isErrorWithCode,
 } from '@react-native-google-signin/google-signin';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabase } from '../lib/supabase';
 
 // Google OAuth Client IDs from environment
@@ -20,6 +21,20 @@ GoogleSignin.configure({
   offlineAccess: false,
   scopes: ['profile', 'email'],
 });
+
+/**
+ * Helper to decode JWT header and extract algorithm
+ */
+function getJwtAlgorithm(token: string): string | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const header = JSON.parse(atob(parts[0]));
+    return header.alg || null;
+  } catch {
+    return null;
+  }
+}
 
 interface GoogleAuthState {
   loading: boolean;
@@ -61,6 +76,15 @@ export function useGoogleAuth() {
       console.log('[GoogleAuth] Platform:', Platform.OS);
       console.log('[GoogleAuth] Web Client ID:', GOOGLE_WEB_CLIENT_ID ? 'Set' : 'Missing');
       
+      // CRITICAL: Clear any legacy session_token BEFORE signing in
+      // This prevents stale ES256 tokens from being used
+      try {
+        await AsyncStorage.removeItem('session_token');
+        console.log('[GoogleAuth] Cleared legacy session_token');
+      } catch (e) {
+        console.warn('[GoogleAuth] Failed to clear legacy token:', e);
+      }
+      
       // Check Play Services
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       
@@ -77,11 +101,18 @@ export function useGoogleAuth() {
           throw new Error('No ID token received from Google');
         }
         
-        console.log('[GoogleAuth] ID token received, authenticating with Supabase...');
-        console.log('[GoogleAuth] Google ID token preview:', idToken.substring(0, 50) + '...');
-        console.log('[GoogleAuth] Google ID token alg:', JSON.parse(atob(idToken.split('.')[0])));
+        const idTokenAlg = getJwtAlgorithm(idToken);
+        console.log('[GoogleAuth] Google ID token received:');
+        console.log('[GoogleAuth]   - Algorithm:', idTokenAlg); // Should be ES256
+        console.log('[GoogleAuth]   - Preview:', idToken.substring(0, 50) + '...');
+        
+        if (idTokenAlg !== 'ES256') {
+          console.warn('[GoogleAuth] WARNING: Expected ES256 for Google ID token, got:', idTokenAlg);
+        }
         
         // Get Supabase client and sign in with the ID token
+        // This exchanges the ES256 Google ID token for an HS256 Supabase JWT
+        console.log('[GoogleAuth] Exchanging Google ID token for Supabase session...');
         const supabase = getSupabase();
         const { data: authData, error: supabaseError } = await supabase.auth.signInWithIdToken({
           provider: 'google',
@@ -93,21 +124,41 @@ export function useGoogleAuth() {
           throw supabaseError;
         }
         
-        console.log('[GoogleAuth] Successfully authenticated with Supabase');
-        console.log('[GoogleAuth] User:', authData.user?.email);
-        console.log('[GoogleAuth] Session exists:', !!authData.session);
-        console.log('[GoogleAuth] Session access_token exists:', !!authData.session?.access_token);
+        // CRITICAL: Verify we got a valid Supabase session with HS256 token
+        if (!authData.session?.access_token) {
+          console.error('[GoogleAuth] CRITICAL: No access_token in Supabase session!');
+          throw new Error('Supabase did not return a valid session');
+        }
         
-        if (authData.session?.access_token) {
-          console.log('[GoogleAuth] Supabase access_token preview:', authData.session.access_token.substring(0, 50) + '...');
-          try {
-            const header = JSON.parse(atob(authData.session.access_token.split('.')[0]));
-            console.log('[GoogleAuth] Supabase access_token alg header:', header);
-          } catch (e) {
-            console.log('[GoogleAuth] Could not parse access_token header');
+        const supabaseTokenAlg = getJwtAlgorithm(authData.session.access_token);
+        
+        console.log('[GoogleAuth] Supabase authentication successful:');
+        console.log('[GoogleAuth]   - User:', authData.user?.email);
+        console.log('[GoogleAuth]   - User ID:', authData.user?.id);
+        console.log('[GoogleAuth]   - Session exists:', true);
+        console.log('[GoogleAuth]   - Access token algorithm:', supabaseTokenAlg); // Should be HS256
+        console.log('[GoogleAuth]   - Access token preview:', authData.session.access_token.substring(0, 50) + '...');
+        
+        // CRITICAL VALIDATION: Ensure we got an HS256 token, not ES256
+        if (supabaseTokenAlg !== 'HS256') {
+          console.error('[GoogleAuth] CRITICAL ERROR: Expected HS256 Supabase token, got:', supabaseTokenAlg);
+          if (supabaseTokenAlg === 'ES256') {
+            throw new Error('Token exchange failed: Supabase returned Google ID token instead of Supabase JWT');
+          }
+        }
+        
+        console.log('[GoogleAuth] ✓ Token exchange successful - HS256 Supabase JWT received');
+        
+        // Double-check: Verify the session is actually stored
+        const { data: verifySession } = await supabase.auth.getSession();
+        if (verifySession.session?.access_token) {
+          const verifyAlg = getJwtAlgorithm(verifySession.session.access_token);
+          console.log('[GoogleAuth] Session verification - stored token alg:', verifyAlg);
+          if (verifyAlg !== 'HS256') {
+            console.error('[GoogleAuth] CRITICAL: Stored session has wrong algorithm!');
           }
         } else {
-          console.warn('[GoogleAuth] WARNING: No access_token in Supabase session!');
+          console.warn('[GoogleAuth] WARNING: Could not verify stored session');
         }
         
         setState({ loading: false, error: null });
