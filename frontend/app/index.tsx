@@ -19,7 +19,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAuthToken } from '@/utils/authTokenBridge';
+import { getAuthToken } from '../src/utils/authTokenBridge';
 import Animated, {
   Easing,
   FadeIn,

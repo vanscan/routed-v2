@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
-import { getAuthToken } from '@/utils/authTokenBridge';
+import { getAuthToken } from '../src/utils/authTokenBridge';
 import { useStopsStore } from '../src/store/stopsStore';
 import { useAuth } from '../src/context/AuthContext';
 

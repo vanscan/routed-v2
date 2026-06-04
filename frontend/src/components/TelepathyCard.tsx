@@ -28,7 +28,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAuthToken } from '@/utils/authTokenBridge';
+import { getAuthToken } from '../utils/authTokenBridge';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 // Single source of truth for the toggle key — read at runtime by

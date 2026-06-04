@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getAuthToken } from '@/utils/authTokenBridge';
+import { getAuthToken } from '../utils/authTokenBridge';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
