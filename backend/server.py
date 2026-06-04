@@ -431,8 +431,73 @@ from models import (  # noqa: F401  (re-exports for backward compat)
 # Supabase JWT validation
 import jwt as pyjwt  # PyJWT
 
+# Google ID Token verification
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_auth_requests
+
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+
+# Google OAuth Client IDs (needed to verify the audience claim)
+GOOGLE_WEB_CLIENT_ID = os.environ.get("GOOGLE_WEB_CLIENT_ID", "")
+GOOGLE_ANDROID_CLIENT_ID = os.environ.get("GOOGLE_ANDROID_CLIENT_ID", "")
+GOOGLE_IOS_CLIENT_ID = os.environ.get("GOOGLE_IOS_CLIENT_ID", "")
+
+# All valid Google client IDs for audience verification
+_GOOGLE_CLIENT_IDS = [
+    cid for cid in [GOOGLE_WEB_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID, GOOGLE_IOS_CLIENT_ID] 
+    if cid
+]
+
+
+def _decode_google_id_token(token: str) -> Optional[dict]:
+    """Decode and validate a Google ID token (ES256 signed).
+    
+    Returns the decoded payload if valid, None otherwise.
+    Google ID tokens use ES256 and need to be verified against Google's public keys.
+    """
+    if not _GOOGLE_CLIENT_IDS:
+        logger.warning("[auth] No Google Client IDs configured for ID token verification")
+        return None
+    
+    try:
+        logger.info("[auth] Attempting to verify Google ID token, token_length=%d, token_preview=%s...",
+                   len(token), token[:20] if len(token) > 20 else token)
+        
+        # Verify the token against Google's public keys
+        # This checks signature, expiration, and issuer
+        request = google_auth_requests.Request()
+        
+        # Try each client ID as the audience
+        for client_id in _GOOGLE_CLIENT_IDS:
+            try:
+                payload = google_id_token.verify_oauth2_token(
+                    token, 
+                    request, 
+                    audience=client_id
+                )
+                
+                # Verify the issuer is Google
+                issuer = payload.get('iss', '')
+                if issuer not in ['accounts.google.com', 'https://accounts.google.com']:
+                    logger.warning("[auth] Google ID token has invalid issuer: %s", issuer)
+                    continue
+                
+                logger.info("[auth] Google ID token verified successfully, email=%s, sub=%s", 
+                           payload.get("email"), payload.get("sub"))
+                return payload
+            except ValueError as e:
+                # This audience didn't match, try the next one
+                logger.debug("[auth] Google token verification failed for client_id %s: %s", 
+                           client_id[:20] + '...', e)
+                continue
+        
+        logger.warning("[auth] Google ID token failed verification against all configured client IDs")
+        return None
+        
+    except Exception as e:
+        logger.warning("[auth] Google ID token verification failed: %s", e)
+        return None
 
 
 def _decode_supabase_jwt(token: str) -> Optional[dict]:
@@ -473,18 +538,24 @@ def _decode_supabase_jwt(token: str) -> Optional[dict]:
 
 
 async def _get_or_create_user_from_supabase(payload: dict) -> Optional[User]:
-    """Find or create a MongoDB user record from Supabase JWT payload.
+    """Find or create a MongoDB user record from Supabase JWT or Google ID token payload.
     
     Supabase JWT payload contains:
     - sub: Supabase user UUID
     - email: User's email
     - user_metadata: { full_name, avatar_url, ... }
+    
+    Google ID token payload contains:
+    - sub: Google user ID
+    - email: User's email
+    - name: Full name
+    - picture: Profile picture URL
     """
     supabase_uid = payload.get("sub")
     email = payload.get("email")
     
     if not supabase_uid or not email:
-        logger.warning("[auth] Supabase JWT missing sub or email")
+        logger.warning("[auth] JWT payload missing sub or email")
         return None
     
     email = email.lower()
@@ -501,13 +572,27 @@ async def _get_or_create_user_from_supabase(payload: dict) -> Optional[User]:
             )
         return User(**existing)
     
-    # Create new user from Supabase data
+    # Create new user from JWT data
+    # Try Supabase format first (user_metadata), then Google format (top-level)
     user_metadata = payload.get("user_metadata", {})
-    name = user_metadata.get("full_name") or user_metadata.get("name") or email.split("@")[0]
-    picture = user_metadata.get("avatar_url") or user_metadata.get("picture")
+    name = (
+        user_metadata.get("full_name") or 
+        user_metadata.get("name") or 
+        payload.get("name") or  # Google ID token format
+        email.split("@")[0]
+    )
+    picture = (
+        user_metadata.get("avatar_url") or 
+        user_metadata.get("picture") or
+        payload.get("picture")  # Google ID token format
+    )
     
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
+    
+    # Determine provider based on token issuer
+    issuer = payload.get("iss", "")
+    provider = "google" if "accounts.google.com" in issuer else "supabase"
     
     user_doc = {
         "user_id": user_id,
@@ -515,12 +600,12 @@ async def _get_or_create_user_from_supabase(payload: dict) -> Optional[User]:
         "name": name,
         "picture": picture,
         "supabase_uid": supabase_uid,
-        "provider": "supabase",
+        "provider": provider,
         "created_at": now,
     }
     
     await db.users.insert_one(user_doc)
-    logger.info("[auth] Created user from Supabase: email=%s, user_id=%s", email, user_id)
+    logger.info("[auth] Created user from %s: email=%s, user_id=%s", provider, email, user_id)
     
     return User(**user_doc)
 
@@ -529,7 +614,7 @@ async def get_session_from_request(request: Request) -> Optional[UserSession]:
     """Get session from request - supports both legacy sessions and Supabase JWTs.
     
     Priority:
-    1. Authorization: Bearer <token> header (Supabase JWT or legacy session token)
+    1. Authorization: Bearer <token> header (Supabase JWT, Google ID token, or legacy session token)
     2. session_token cookie (legacy)
     """
     auth_header = request.headers.get("Authorization")
@@ -553,6 +638,20 @@ async def get_session_from_request(request: Request) -> Optional[UserSession]:
                     session_token=session_token,
                     expires_at=datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc),
                     created_at=datetime.fromtimestamp(payload.get("iat", 0), tz=timezone.utc),
+                )
+            
+            # If Supabase JWT failed, try Google ID token (ES256)
+            google_payload = _decode_google_id_token(session_token)
+            if google_payload:
+                # Valid Google ID token - store in request state
+                request.state.supabase_payload = google_payload  # Reuse same attr for compatibility
+                request.state.is_google_token = True
+                google_sub = google_payload.get("sub")
+                return UserSession(
+                    user_id=f"supabase:{google_sub}",  # Use same prefix for compatibility
+                    session_token=session_token,
+                    expires_at=datetime.fromtimestamp(google_payload.get("exp", 0), tz=timezone.utc),
+                    created_at=datetime.fromtimestamp(google_payload.get("iat", 0), tz=timezone.utc),
                 )
     
     # Fallback to cookie

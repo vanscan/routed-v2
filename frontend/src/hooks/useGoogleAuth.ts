@@ -78,6 +78,8 @@ export function useGoogleAuth() {
         }
         
         console.log('[GoogleAuth] ID token received, authenticating with Supabase...');
+        console.log('[GoogleAuth] Google ID token preview:', idToken.substring(0, 50) + '...');
+        console.log('[GoogleAuth] Google ID token alg:', JSON.parse(atob(idToken.split('.')[0])));
         
         // Get Supabase client and sign in with the ID token
         const supabase = getSupabase();
@@ -93,6 +95,20 @@ export function useGoogleAuth() {
         
         console.log('[GoogleAuth] Successfully authenticated with Supabase');
         console.log('[GoogleAuth] User:', authData.user?.email);
+        console.log('[GoogleAuth] Session exists:', !!authData.session);
+        console.log('[GoogleAuth] Session access_token exists:', !!authData.session?.access_token);
+        
+        if (authData.session?.access_token) {
+          console.log('[GoogleAuth] Supabase access_token preview:', authData.session.access_token.substring(0, 50) + '...');
+          try {
+            const header = JSON.parse(atob(authData.session.access_token.split('.')[0]));
+            console.log('[GoogleAuth] Supabase access_token alg header:', header);
+          } catch (e) {
+            console.log('[GoogleAuth] Could not parse access_token header');
+          }
+        } else {
+          console.warn('[GoogleAuth] WARNING: No access_token in Supabase session!');
+        }
         
         setState({ loading: false, error: null });
         return { success: true, user: authData.user };
