@@ -33,25 +33,40 @@ export async function getAuthToken(): Promise<string | null> {
       const client = await supabaseClientGetter();
       if (client?.auth) {
         const { data: { session } } = await client.auth.getSession();
+        console.log('[authTokenBridge] Supabase session check:', {
+          hasSession: !!session,
+          hasAccessToken: !!session?.access_token,
+          tokenLength: session?.access_token?.length || 0,
+          userEmail: session?.user?.email || 'none',
+        });
         if (session?.access_token) {
           return session.access_token;
         }
+      } else {
+        console.log('[authTokenBridge] Supabase client has no auth property');
       }
     } catch (error) {
-      console.debug('[authTokenBridge] Supabase token fetch failed, trying legacy:', error);
+      console.warn('[authTokenBridge] Supabase token fetch failed, trying legacy:', error);
     }
+  } else {
+    console.log('[authTokenBridge] No supabaseClientGetter registered');
   }
 
   // Fallback to legacy session_token
   try {
     const legacyToken = await AsyncStorage.getItem('session_token');
+    console.log('[authTokenBridge] Legacy token check:', {
+      hasLegacyToken: !!legacyToken,
+      tokenLength: legacyToken?.length || 0,
+    });
     if (legacyToken) {
       return legacyToken;
     }
   } catch (error) {
-    console.debug('[authTokenBridge] Legacy token fetch failed:', error);
+    console.warn('[authTokenBridge] Legacy token fetch failed:', error);
   }
 
+  console.log('[authTokenBridge] No auth token found');
   return null;
 }
 

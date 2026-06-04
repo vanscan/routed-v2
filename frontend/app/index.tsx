@@ -70,7 +70,7 @@ export default function LoginScreen() {
   // Native Google OAuth hook (expo-auth-session + Supabase signInWithIdToken)
   const { 
     signInWithGoogle: nativeGoogleSignIn, 
-    isLoading: googleAuthLoading, 
+    loading: googleAuthLoading, 
     error: googleAuthError,
     isReady: googleAuthReady,
   } = useGoogleAuth();
