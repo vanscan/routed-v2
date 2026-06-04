@@ -1,134 +1,152 @@
-// Google OAuth hook using expo-auth-session with Supabase signInWithIdToken
+// Google OAuth hook using native @react-native-google-signin/google-signin with Supabase
 import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session';
+import {
+  GoogleSignin,
+  statusCodes,
+  isSuccessResponse,
+  isErrorWithCode,
+} from '@react-native-google-signin/google-signin';
 import { getSupabase } from '../lib/supabase';
-
-// Required for web browser auth session completion
-WebBrowser.maybeCompleteAuthSession();
 
 // Google OAuth Client IDs from environment
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
-const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
 
-// Generate the correct redirect URI for each platform
-// For standalone Android/iOS builds, we MUST use the Expo auth proxy
-// because Google blocks custom scheme redirects (routr://)
-const redirectUri = AuthSession.makeRedirectUri({
-  // Use Expo's auth proxy for production builds - this provides HTTPS redirect
-  useProxy: true,
+// Configure Google Sign-In on module load
+GoogleSignin.configure({
+  webClientId: GOOGLE_WEB_CLIENT_ID, // Required for getting ID token
+  iosClientId: GOOGLE_IOS_CLIENT_ID, // iOS client ID
+  offlineAccess: false,
+  scopes: ['profile', 'email'],
 });
 
-console.log('[GoogleAuth] Configured redirect URI:', redirectUri);
-
-export interface GoogleAuthResult {
-  success: boolean;
-  error?: string;
-}
-
-export interface UseGoogleAuthReturn {
-  signInWithGoogle: () => Promise<void>;
-  isLoading: boolean;
+interface GoogleAuthState {
+  loading: boolean;
   error: string | null;
-  isReady: boolean;
 }
 
-export function useGoogleAuth(): UseGoogleAuthReturn {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Configure Google OAuth request
-  // useIdTokenAuthRequest returns an ID token that Supabase can verify directly
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    redirectUri: redirectUri,
+export function useGoogleAuth() {
+  const [state, setState] = useState<GoogleAuthState>({
+    loading: false,
+    error: null,
   });
+  const [isConfigured, setIsConfigured] = useState(false);
 
-  // Handle the OAuth response
   useEffect(() => {
-    const handleGoogleResponse = async () => {
-      if (response?.type === 'success') {
-        setIsLoading(true);
-        setError(null);
-        
-        try {
-          const idToken = response.params.id_token;
-          
-          if (!idToken) {
-            throw new Error('No ID token received from Google');
-          }
-
-          console.log('[GoogleAuth] Received ID token, signing in with Supabase...');
-          
-          // Use Supabase's signInWithIdToken - this verifies the Google token server-side
-          const supabase = getSupabase();
-          const { data, error: supabaseError } = await supabase.auth.signInWithIdToken({
-            provider: 'google',
-            token: idToken,
-          });
-
-          if (supabaseError) {
-            console.error('[GoogleAuth] Supabase signInWithIdToken error:', supabaseError);
-            throw new Error(supabaseError.message || 'Failed to sign in with Google');
-          }
-
-          console.log('[GoogleAuth] Successfully signed in:', data.user?.email);
-          // Session will be picked up by SupabaseContext's onAuthStateChange listener
-          
-        } catch (err: any) {
-          console.error('[GoogleAuth] Error:', err);
-          setError(err.message || 'Google sign-in failed');
-        } finally {
-          setIsLoading(false);
-        }
-      } else if (response?.type === 'error') {
-        console.error('[GoogleAuth] OAuth error:', response.error);
-        setError(response.error?.message || 'Google sign-in was cancelled or failed');
-      } else if (response?.type === 'dismiss' || response?.type === 'cancel') {
-        console.log('[GoogleAuth] User cancelled sign-in');
-        // Don't set error for user cancellation
+    // Check if Google Sign-In is available
+    const checkConfiguration = async () => {
+      try {
+        const hasPlayServices = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+        console.log('[GoogleAuth] Play Services available:', hasPlayServices);
+        setIsConfigured(hasPlayServices);
+      } catch (error) {
+        console.log('[GoogleAuth] Play Services check failed:', error);
+        setIsConfigured(false);
       }
     };
+    
+    if (Platform.OS === 'android') {
+      checkConfiguration();
+    } else {
+      setIsConfigured(true);
+    }
+  }, []);
 
-    handleGoogleResponse();
-  }, [response]);
-
-  // Trigger the Google sign-in flow
   const signInWithGoogle = useCallback(async () => {
-    if (!request) {
-      setError('Google sign-in is not ready yet');
-      return;
-    }
-
-    setError(null);
-    setIsLoading(true);
-
+    setState({ loading: true, error: null });
+    
     try {
-      console.log('[GoogleAuth] Starting Google sign-in flow...');
+      console.log('[GoogleAuth] Starting native Google sign-in flow...');
       console.log('[GoogleAuth] Platform:', Platform.OS);
-      console.log('[GoogleAuth] Redirect URI:', redirectUri);
       console.log('[GoogleAuth] Web Client ID:', GOOGLE_WEB_CLIENT_ID ? 'Set' : 'Missing');
-      console.log('[GoogleAuth] iOS Client ID:', GOOGLE_IOS_CLIENT_ID ? 'Set' : 'Missing');
-      console.log('[GoogleAuth] Android Client ID:', GOOGLE_ANDROID_CLIENT_ID ? 'Set' : 'Missing');
       
-      await promptAsync();
-      // Response will be handled in the useEffect above
-    } catch (err: any) {
-      console.error('[GoogleAuth] promptAsync error:', err);
-      setError(err.message || 'Failed to start Google sign-in');
-      setIsLoading(false);
+      // Check Play Services
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      // Sign in with Google
+      const response = await GoogleSignin.signIn();
+      
+      console.log('[GoogleAuth] Sign-in response received');
+      
+      if (isSuccessResponse(response)) {
+        const { data } = response;
+        const idToken = data.idToken;
+        
+        if (!idToken) {
+          throw new Error('No ID token received from Google');
+        }
+        
+        console.log('[GoogleAuth] ID token received, authenticating with Supabase...');
+        
+        // Get Supabase client and sign in with the ID token
+        const supabase = getSupabase();
+        const { data: authData, error: supabaseError } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: idToken,
+        });
+        
+        if (supabaseError) {
+          console.error('[GoogleAuth] Supabase auth error:', supabaseError);
+          throw supabaseError;
+        }
+        
+        console.log('[GoogleAuth] Successfully authenticated with Supabase');
+        console.log('[GoogleAuth] User:', authData.user?.email);
+        
+        setState({ loading: false, error: null });
+        return { success: true, user: authData.user };
+      } else {
+        throw new Error('Google sign-in was not successful');
+      }
+    } catch (error: any) {
+      console.error('[GoogleAuth] Error:', error);
+      
+      let errorMessage = 'Google sign-in failed';
+      
+      if (isErrorWithCode(error)) {
+        switch (error.code) {
+          case statusCodes.SIGN_IN_CANCELLED:
+            errorMessage = 'Sign-in was cancelled';
+            break;
+          case statusCodes.IN_PROGRESS:
+            errorMessage = 'Sign-in is already in progress';
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            errorMessage = 'Google Play Services not available';
+            break;
+          default:
+            errorMessage = error.message || 'Unknown error occurred';
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setState({ loading: false, error: errorMessage });
+      return { success: false, error: errorMessage };
     }
-  }, [request, promptAsync]);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      // Sign out from Google
+      await GoogleSignin.signOut();
+      
+      // Also sign out from Supabase
+      const supabase = getSupabase();
+      await supabase.auth.signOut();
+      
+      console.log('[GoogleAuth] Signed out successfully');
+    } catch (error) {
+      console.error('[GoogleAuth] Sign out error:', error);
+    }
+  }, []);
 
   return {
     signInWithGoogle,
-    isLoading,
-    error,
-    isReady: !!request,
+    signOut,
+    loading: state.loading,
+    error: state.error,
+    isReady: isConfigured,
   };
 }

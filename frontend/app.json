@@ -34,7 +34,7 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.routedopt.app",
-      "versionCode": 103,
+      "versionCode": 104,
       "runtimeVersion": {
         "policy": "appVersion"
       }
@@ -50,6 +50,7 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
+      "@react-native-google-signin/google-signin",
       [
         "expo-build-properties",
         {
