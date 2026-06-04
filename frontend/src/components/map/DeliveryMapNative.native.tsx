@@ -1250,9 +1250,10 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               source="mlrn-user-location"
               layout={{
                 'icon-image': 'nav-puck',
-                'icon-size': 0.7,
+                'icon-size': 1.2,
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
+                'icon-rotate': ['get', 'heading'],
                 'icon-rotation-alignment': 'map',
                 'icon-pitch-alignment': 'map',
               }}
