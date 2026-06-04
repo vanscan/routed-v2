@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../src/utils/authTokenBridge';
 import { useStopsStore } from '../src/store/stopsStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -96,7 +96,7 @@ export default function AddStopScreen() {
       // (same scheme as the app-wide authFetch). Without this the request
       // 401s, `searchResults` stays empty, and no location can be selected,
       // which makes the whole Add-Stop screen appear "broken".
-      const token = await AsyncStorage.getItem('session_token');
+      const token = await getAuthToken();
       const response = await fetch(
         `${BACKEND_URL}/api/geocode?query=${encodeURIComponent(searchQuery)}`,
         token ? { headers: { Authorization: `Bearer ${token}` } } : undefined

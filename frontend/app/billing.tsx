@@ -37,12 +37,12 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../src/utils/authTokenBridge';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 async function authHeaders(): Promise<Record<string, string>> {
-  const token = await AsyncStorage.getItem('session_token');
+  const token = await getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
