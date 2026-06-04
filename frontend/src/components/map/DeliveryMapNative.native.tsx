@@ -1168,7 +1168,8 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 'text-field': ['get', 'label'],
                 'text-font': ['Noto Sans Bold'],
                 'text-size': 11,
-                'text-offset': [0, -2.2],
+                'text-anchor': 'center',
+                'text-offset': [0, -3.0],
                 'text-allow-overlap': true,
                 'text-ignore-placement': true,
               }}
