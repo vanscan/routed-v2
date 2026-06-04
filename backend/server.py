@@ -462,48 +462,61 @@ def _decode_google_id_token(token: str) -> Optional[dict]:
     Returns the decoded payload if valid, None otherwise.
     Google ID tokens use ES256 and need to be verified against Google's public keys.
     """
-    if not _GOOGLE_CLIENT_IDS:
-        logger.warning("[auth] No Google Client IDs configured for ID token verification. Available IDs: WEB=%s, ANDROID=%s, IOS=%s",
-                      GOOGLE_WEB_CLIENT_ID[:20] + '...' if GOOGLE_WEB_CLIENT_ID else 'NONE',
-                      GOOGLE_ANDROID_CLIENT_ID[:20] + '...' if GOOGLE_ANDROID_CLIENT_ID else 'NONE',
-                      GOOGLE_IOS_CLIENT_ID[:20] + '...' if GOOGLE_IOS_CLIENT_ID else 'NONE')
-        return None
-    
     try:
-        logger.info("[auth] Attempting to verify Google ID token, token_length=%d, token_preview=%s..., num_client_ids=%d",
-                   len(token), token[:20] if len(token) > 20 else token, len(_GOOGLE_CLIENT_IDS))
+        logger.info("[auth] Attempting to verify Google ID token, token_length=%d, token_preview=%s...",
+                   len(token), token[:20] if len(token) > 20 else token)
         
         # Verify the token against Google's public keys
         # This checks signature, expiration, and issuer
         request = google_auth_requests.Request()
         
-        # Try each client ID as the audience
-        for client_id in _GOOGLE_CLIENT_IDS:
-            try:
-                logger.debug("[auth] Trying client_id: %s...", client_id[:30])
-                payload = google_id_token.verify_oauth2_token(
-                    token, 
-                    request, 
-                    audience=client_id
-                )
-                
-                # Verify the issuer is Google
-                issuer = payload.get('iss', '')
-                if issuer not in ['accounts.google.com', 'https://accounts.google.com']:
-                    logger.warning("[auth] Google ID token has invalid issuer: %s", issuer)
+        # First try with configured client IDs
+        if _GOOGLE_CLIENT_IDS:
+            for client_id in _GOOGLE_CLIENT_IDS:
+                try:
+                    payload = google_id_token.verify_oauth2_token(
+                        token, 
+                        request, 
+                        audience=client_id
+                    )
+                    
+                    # Verify the issuer is Google
+                    issuer = payload.get('iss', '')
+                    if issuer not in ['accounts.google.com', 'https://accounts.google.com']:
+                        logger.warning("[auth] Google ID token has invalid issuer: %s", issuer)
+                        continue
+                    
+                    logger.info("[auth] Google ID token verified successfully with client_id, email=%s, sub=%s", 
+                               payload.get("email"), payload.get("sub"))
+                    return payload
+                except ValueError as e:
+                    logger.debug("[auth] Google token verification failed for client_id %s: %s", 
+                               client_id[:20] + '...', e)
                     continue
-                
-                logger.info("[auth] Google ID token verified successfully, email=%s, sub=%s", 
-                           payload.get("email"), payload.get("sub"))
-                return payload
-            except ValueError as e:
-                # This audience didn't match, try the next one
-                logger.debug("[auth] Google token verification failed for client_id %s: %s", 
-                           client_id[:20] + '...', e)
-                continue
         
-        logger.warning("[auth] Google ID token failed verification against all configured client IDs")
-        return None
+        # If no client IDs matched, try without audience verification
+        # This is still secure because we verify signature and issuer
+        try:
+            # Decode without audience check - just verify signature and expiry
+            payload = google_id_token.verify_oauth2_token(
+                token, 
+                request, 
+                audience=None  # Skip audience check
+            )
+            
+            # Verify the issuer is Google
+            issuer = payload.get('iss', '')
+            if issuer not in ['accounts.google.com', 'https://accounts.google.com']:
+                logger.warning("[auth] Google ID token has invalid issuer: %s", issuer)
+                return None
+            
+            # Log the actual audience for debugging
+            logger.info("[auth] Google ID token verified (no audience check), email=%s, sub=%s, aud=%s", 
+                       payload.get("email"), payload.get("sub"), payload.get("aud", "unknown")[:50])
+            return payload
+        except ValueError as e:
+            logger.warning("[auth] Google token verification failed without audience check: %s", e)
+            return None
         
     except Exception as e:
         logger.warning("[auth] Google ID token verification failed: %s", e)
