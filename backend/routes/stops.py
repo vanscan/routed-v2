@@ -58,7 +58,7 @@ async def debug_stops_coords(current_user=Depends(_current_user)):
 
 
 @router.get("/stops")
-async def get_stops(current_user=Depends(_current_user)):
+async def get_stops(request: Request, current_user=Depends(_current_user)):
     """Return all stops for the current user.
 
     Ordering contract (the "immutable fetch" safety net):
@@ -74,8 +74,14 @@ async def get_stops(current_user=Depends(_current_user)):
     legitimate sequence so a single `$sort` stage does both halves of the
     contract in one pass.
     """
-    from server import db, Stop  # noqa: WPS433
+    from server import db, Stop, logger  # noqa: WPS433
+    
+    # Debug logging
+    auth_header = request.headers.get("Authorization", "")
+    logger.info(f"[GET /stops] user_id={current_user.user_id}, email={current_user.email}, has_auth_header={bool(auth_header)}")
+    
     cursor = db.stops.aggregate([
+        {"$match": {"user_id": current_user.user_id}},
         {"$match": {"user_id": current_user.user_id}},
         {"$project": {"_id": 0}},
         {"$addFields": {
