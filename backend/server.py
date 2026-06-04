@@ -598,6 +598,31 @@ def _decode_google_id_token(token: str) -> Optional[dict]:
         return None
 
 
+# Cache the Supabase JWKS client to avoid repeated HTTP calls
+_supabase_jwk_client: Optional[PyJWKClient] = None
+
+def _get_supabase_jwk_client() -> Optional[PyJWKClient]:
+    """Get or create a cached PyJWKClient for Supabase ES256 token verification."""
+    global _supabase_jwk_client
+    
+    if _supabase_jwk_client is not None:
+        return _supabase_jwk_client
+    
+    if not SUPABASE_URL:
+        logger.warning("[auth] SUPABASE_URL not configured, cannot create JWKS client")
+        return None
+    
+    try:
+        # Supabase JWKS endpoint
+        jwks_url = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+        _supabase_jwk_client = PyJWKClient(jwks_url)
+        logger.info("[auth] Created Supabase JWKS client for URL: %s", jwks_url)
+        return _supabase_jwk_client
+    except Exception as e:
+        logger.warning("[auth] Failed to create Supabase JWKS client: %s", e)
+        return None
+
+
 def _decode_supabase_jwt(token: str) -> Optional[dict]:
     """Decode and validate a Supabase JWT access token.
     

@@ -7,6 +7,7 @@ import {
   Image,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,11 +23,20 @@ import { BundleDebugLine } from '../../src/components/BundleDebugLine';
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function ProfileScreen() {
-  const { signOut, user: supabaseUser } = useSupabase();
+  const { signOut, user: supabaseUser, loading, isReady } = useSupabase();
   const router = useRouter();
   const { stops, clearStops, archiveRoute } = useStopsStore();
   const [archiving, setArchiving] = React.useState(false);
   const [saveResult, setSaveResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+
+  // Wait for Supabase to initialize
+  if (loading || !isReady) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
 
   // User from Supabase auth system
   const activeUser = supabaseUser ? {
