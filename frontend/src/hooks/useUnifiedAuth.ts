@@ -1,26 +1,18 @@
 /**
- * Unified Auth Hook - Bridges existing AuthContext with Supabase Auth
+ * Unified Auth Hook - Now fully powered by Supabase Auth
  * 
- * This hook provides a unified interface to access both auth systems:
- * - Primary: Existing AuthContext (Emergent Google OAuth, Email/Password)
- * - Secondary: Supabase Auth (for additional features like magic link, OAuth providers)
+ * This hook provides a unified interface for authentication using Supabase:
+ * - Google OAuth (Native SDK)
+ * - Email/Password
+ * - Magic Link
  * 
  * Usage:
  * ```tsx
  * const { user, isAuthenticated, signOut } = useUnifiedAuth();
  * ```
  */
-import { useAuth } from '../context/AuthContext';
 import { useSupabase, SupabaseUser } from '../contexts/SupabaseContext';
 import { useCallback, useMemo } from 'react';
-
-// Primary auth user type (from existing AuthContext)
-interface PrimaryUser {
-  user_id: string;
-  email: string;
-  name: string;
-  picture?: string;
-}
 
 export interface UnifiedUser {
   // Common fields
@@ -29,12 +21,11 @@ export interface UnifiedUser {
   name?: string;
   picture?: string;
   
-  // Source info
-  source: 'primary' | 'supabase';
+  // Source info (always 'supabase' now)
+  source: 'supabase';
   
-  // Raw user objects for advanced use
-  primaryUser?: PrimaryUser | null;
-  supabaseUser?: SupabaseUser | null;
+  // Raw user object for advanced use
+  supabaseUser: SupabaseUser | null;
 }
 
 export interface UnifiedAuthState {
@@ -43,18 +34,7 @@ export interface UnifiedAuthState {
   isAuthenticated: boolean;
   loading: boolean;
   
-  // Primary auth methods (existing system)
-  primaryAuth: {
-    login: (sessionId: string) => Promise<void>;
-    loginWithEmail: (email: string, password: string) => Promise<void>;
-    registerWithEmail: (email: string, password: string, name: string) => Promise<void>;
-    loginAsReviewer: (email: string, passcode: string) => Promise<void>;
-    logout: () => Promise<void>;
-    reconnect: () => Promise<boolean>;
-    reconnecting: boolean;
-  };
-  
-  // Supabase auth methods (additional features)
+  // Supabase auth methods
   supabaseAuth: {
     signIn: (email: string, password: string) => Promise<{ error: { message: string } | null }>;
     signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: { message: string } | null; needsConfirmation?: boolean }>;
@@ -64,6 +44,7 @@ export interface UnifiedAuthState {
     resetPassword: (email: string) => Promise<{ error: { message: string } | null }>;
     updatePassword: (newPassword: string) => Promise<{ error: { message: string } | null }>;
     getAccessToken: () => Promise<string | null>;
+    refreshSession: () => Promise<{ error: { message: string } | null }>;
     isReady: boolean;
   };
   
@@ -72,24 +53,10 @@ export interface UnifiedAuthState {
 }
 
 export function useUnifiedAuth(): UnifiedAuthState {
-  const primaryAuth = useAuth();
   const supabaseAuth = useSupabase();
   
-  // Determine the unified user state
-  // Primary auth takes precedence since it's the existing system
+  // Build unified user from Supabase user
   const user = useMemo<UnifiedUser | null>(() => {
-    if (primaryAuth.user) {
-      return {
-        id: primaryAuth.user.user_id,
-        email: primaryAuth.user.email,
-        name: primaryAuth.user.name,
-        picture: primaryAuth.user.picture,
-        source: 'primary',
-        primaryUser: primaryAuth.user,
-        supabaseUser: supabaseAuth.user,
-      };
-    }
-    
     if (supabaseAuth.user) {
       return {
         id: supabaseAuth.user.id,
@@ -99,51 +66,28 @@ export function useUnifiedAuth(): UnifiedAuthState {
         picture: supabaseAuth.user.user_metadata?.avatar_url as string ||
                 supabaseAuth.user.user_metadata?.picture as string,
         source: 'supabase',
-        primaryUser: null,
         supabaseUser: supabaseAuth.user,
       };
     }
     
     return null;
-  }, [primaryAuth.user, supabaseAuth.user]);
+  }, [supabaseAuth.user]);
   
   const isAuthenticated = useMemo(() => {
-    return !!primaryAuth.user || !!supabaseAuth.user;
-  }, [primaryAuth.user, supabaseAuth.user]);
+    return !!supabaseAuth.user;
+  }, [supabaseAuth.user]);
   
-  const loading = useMemo(() => {
-    return primaryAuth.loading || supabaseAuth.loading;
-  }, [primaryAuth.loading, supabaseAuth.loading]);
+  const loading = supabaseAuth.loading;
   
-  // Unified sign out - logs out from both systems
+  // Unified sign out
   const signOut = useCallback(async () => {
-    const promises: Promise<void>[] = [];
-    
-    if (primaryAuth.user) {
-      promises.push(primaryAuth.logout());
-    }
-    
-    if (supabaseAuth.user) {
-      promises.push(supabaseAuth.signOut());
-    }
-    
-    await Promise.all(promises);
-  }, [primaryAuth, supabaseAuth]);
+    await supabaseAuth.signOut();
+  }, [supabaseAuth]);
   
   return {
     user,
     isAuthenticated,
     loading,
-    
-    primaryAuth: {
-      login: primaryAuth.login,
-      loginWithEmail: primaryAuth.loginWithEmail,
-      registerWithEmail: primaryAuth.registerWithEmail,
-      loginAsReviewer: primaryAuth.loginAsReviewer,
-      logout: primaryAuth.logout,
-      reconnect: primaryAuth.reconnect,
-      reconnecting: primaryAuth.reconnecting,
-    },
     
     supabaseAuth: {
       signIn: supabaseAuth.signIn,
@@ -154,6 +98,7 @@ export function useUnifiedAuth(): UnifiedAuthState {
       resetPassword: supabaseAuth.resetPassword,
       updatePassword: supabaseAuth.updatePassword,
       getAccessToken: supabaseAuth.getAccessToken,
+      refreshSession: supabaseAuth.refreshSession,
       isReady: supabaseAuth.isReady,
     },
     
