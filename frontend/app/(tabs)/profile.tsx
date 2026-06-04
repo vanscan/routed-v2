@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSupabase } from '../../src/contexts/SupabaseContext';
 import { useStopsStore } from '../../src/store/stopsStore';
+import { useSupabaseStorage } from '../../src/hooks/useSupabaseStorage';
 import { TelemetryCard } from '../../src/components/TelemetryCard';
 import { TelepathyCard } from '../../src/components/TelepathyCard';
 import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
@@ -26,25 +27,23 @@ export default function ProfileScreen() {
   const { signOut, user: supabaseUser, loading, isReady } = useSupabase();
   const router = useRouter();
   const { stops, clearStops, archiveRoute } = useStopsStore();
+  const { uploadFile, uploading: exportUploading } = useSupabaseStorage('route-backups');
   const [archiving, setArchiving] = React.useState(false);
   const [saveResult, setSaveResult] = React.useState<{ ok: boolean; message: string } | null>(null);
-
-  // Wait for Supabase to initialize
-  if (loading || !isReady) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
-  }
+  const [exportResult, setExportResult] = React.useState<{ ok: boolean; message: string } | null>(null);
 
   // User from Supabase auth system
-  const activeUser = supabaseUser ? {
+  const activeUser = React.useMemo(() => supabaseUser ? {
     user_id: supabaseUser.id,
     email: supabaseUser.email || '',
     name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'User',
     picture: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
-  } : null;
+  } : null, [supabaseUser]);
+
+  const completedCount = React.useMemo(
+    () => stops.filter((s) => s.completed).length,
+    [stops],
+  );
 
   // Stale-session auto-recovery — when the app's stored session_token was
   // minted against a DB the backend no longer uses (e.g., after the
@@ -85,10 +84,14 @@ export default function ProfileScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUser?.user_id]);
 
-  const completedCount = React.useMemo(
-    () => stops.filter((s) => s.completed).length,
-    [stops],
-  );
+  // Wait for Supabase to initialize - must be after all hooks
+  if (loading || !isReady) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
 
   // Save the current shift's completed stops into route_history so
   // telemetry-rollup can include them. Auto-archive ALSO fires on the
@@ -134,6 +137,75 @@ export default function ProfileScreen() {
       });
     } finally {
       setArchiving(false);
+    }
+  };
+
+  // Export route data to Supabase Storage for cloud backup
+  const handleExportRoute = async () => {
+    if (stops.length === 0) {
+      Alert.alert(
+        'Nothing to export',
+        'You have no stops to export. Add some stops first, then come back.',
+      );
+      return;
+    }
+    
+    setExportResult(null);
+    
+    try {
+      // Prepare route data for export
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        stopsCount: stops.length,
+        completedCount: stops.filter(s => s.completed).length,
+        stops: stops.map(s => ({
+          id: s.id,
+          address: s.address,
+          name: s.name,
+          notes: s.notes,
+          priority: s.priority,
+          completed: s.completed,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          time_window: s.time_window,
+          sequence: s.sequence,
+        })),
+      };
+      
+      // Create a JSON blob for upload
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `route-backup-${timestamp}.json`;
+      
+      console.log('[profile] Exporting route data:', { stopsCount: stops.length, fileName });
+      
+      const result = await uploadFile(blob, {
+        folder: 'backups',
+        fileName,
+        contentType: 'application/json',
+        upsert: false,
+      });
+      
+      if (result.success) {
+        setExportResult({
+          ok: true,
+          message: `Successfully exported ${stops.length} stops to cloud storage. File: ${fileName}`,
+        });
+      } else {
+        setExportResult({
+          ok: false,
+          message: result.error || 'Export failed. Please try again.',
+        });
+      }
+    } catch (err: any) {
+      console.error('[profile] Export Route error:', err);
+      setExportResult({
+        ok: false,
+        message: `Export failed: ${err.message || 'Unknown error'}`,
+      });
     }
   };
 
@@ -281,6 +353,58 @@ export default function ProfileScreen() {
       {/* Menu Items */}
       <View style={styles.menuSection}>
         <Text style={styles.sectionTitle}>Route Management</Text>
+        
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={handleExportRoute}
+          disabled={exportUploading || stops.length === 0}
+          testID="profile-export-route-button"
+        >
+          <View style={[styles.menuIcon, { backgroundColor: '#eff6ff' }]}>
+            <Ionicons 
+              name={exportUploading ? 'hourglass-outline' : 'cloud-upload-outline'} 
+              size={20} 
+              color="#3b82f6" 
+            />
+          </View>
+          <View style={styles.menuContent}>
+            <Text style={styles.menuText}>
+              {exportUploading ? 'Exporting...' : 'Export Route Data'}
+            </Text>
+            <Text style={styles.menuSubtext}>
+              {stops.length === 0 
+                ? 'No stops to export' 
+                : `Backup ${stops.length} stops to cloud`}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748b" />
+        </TouchableOpacity>
+
+        {/* Export result panel */}
+        {exportResult ? (
+          <View
+            style={[
+              styles.saveResultPanel,
+              exportResult.ok ? styles.saveResultOk : styles.saveResultFail,
+              { marginBottom: 8 },
+            ]}
+            testID="profile-export-result"
+          >
+            <Ionicons
+              name={exportResult.ok ? 'checkmark-circle' : 'alert-circle'}
+              size={16}
+              color={exportResult.ok ? '#065f46' : '#991b1b'}
+            />
+            <Text
+              style={[
+                styles.saveResultText,
+                { color: exportResult.ok ? '#065f46' : '#991b1b' },
+              ]}
+            >
+              {exportResult.message}
+            </Text>
+          </View>
+        ) : null}
         
         <TouchableOpacity style={styles.menuItem} onPress={handleClearRoute}>
           <View style={[styles.menuIcon, { backgroundColor: '#fef2f2' }]}>
