@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '@/utils/authTokenBridge';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -35,7 +35,7 @@ interface VanLayoutStore {
 }
 
 const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  const token = await AsyncStorage.getItem('session_token');
+  const token = await getAuthToken();
   return fetch(url, {
     ...options,
     headers: {

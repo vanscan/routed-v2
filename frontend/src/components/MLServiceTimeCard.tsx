@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '@/utils/authTokenBridge';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -61,7 +61,7 @@ export const MLServiceTimeCard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = await AsyncStorage.getItem('session_token');
+      const token = await getAuthToken();
       if (!token) { setError('Sign in to view model'); return; }
       const r = await fetch(`${BACKEND_URL}/api/_meta/ml/model`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -82,7 +82,7 @@ export const MLServiceTimeCard: React.FC = () => {
     setTraining(true);
     setTrainResult(null);
     try {
-      const token = await AsyncStorage.getItem('session_token');
+      const token = await getAuthToken();
       if (!token) throw new Error('Not signed in');
       const r = await fetch(`${BACKEND_URL}/api/_meta/ml/train`, {
         method: 'POST',

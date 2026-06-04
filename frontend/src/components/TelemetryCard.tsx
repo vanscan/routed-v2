@@ -24,7 +24,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '@/utils/authTokenBridge';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -95,7 +95,7 @@ export const TelemetryCard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = await AsyncStorage.getItem('session_token');
+      const token = await getAuthToken();
       if (!token) {
         setError('Sign in to view telemetry');
         return;
