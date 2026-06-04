@@ -16,7 +16,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 // Swipeable disabled due to potential React 19 compatibility issues
-import { useAuth } from '../../src/context/AuthContext';
+import { useSupabase } from '../../src/contexts/SupabaseContext';
 import { useStopsStore, Stop } from '../../src/store/stopsStore';
 import { stopPinNumber } from '../../src/utils/stopPinNumber';
 import { stopDriveOrder } from '../../src/utils/stopDriveOrder';
@@ -28,7 +28,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 export default function StopsScreen() {
-  const { user, reconnect, reconnecting } = useAuth();
+  const { user, refreshSession, loading: authLoading } = useSupabase();
+  const [reconnecting, setReconnecting] = useState(false);
   const router = useRouter();
   const { stops, loading, fetchStops, deleteStop, reorderStops, completeStop, uncompleteStop, lastFetchError } = useStopsStore();
   // Loaded-set fed by the Van Loading Assistant scanner. We select it as
@@ -339,8 +340,7 @@ export default function StopsScreen() {
     <View style={styles.container}>
       {/* Auth-error banner — when GET /api/stops just came back 401 we
           render a clearly-actionable banner above whatever empty state
-          the user lands on. Tapping it re-runs the OAuth flow IN-PLACE
-          via AuthContext.reconnect(): the WebBrowser auth tab opens,
+          the user lands on. Tapping it refreshes the Supabase session,
           the device's existing Google session usually flashes a
           re-redirect, login() exchanges the new session_id, and on
           success fetchStops() refires — the driver never has to leave
@@ -351,8 +351,13 @@ export default function StopsScreen() {
           data-testid="stops-auth-error-banner"
           style={styles.authBanner}
           onPress={async () => {
-            const ok = await reconnect();
-            if (ok) await fetchStops();
+            setReconnecting(true);
+            try {
+              const { error } = await refreshSession();
+              if (!error) await fetchStops();
+            } finally {
+              setReconnecting(false);
+            }
           }}
           disabled={reconnecting}
           activeOpacity={0.8}
