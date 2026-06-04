@@ -17,7 +17,7 @@ import { useStopsStore } from '../../src/store/stopsStore';
 import { TelemetryCard } from '../../src/components/TelemetryCard';
 import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
 import { MLBuildingSideCard } from '../../src/components/MLBuildingSideCard';
-import { TelepathyCard } from '../../src/components/TelepathyCard';
+import { getAuthToken } from '../../src/utils/authTokenBridge';
 import { BundleDebugLine } from '../../src/components/BundleDebugLine';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -49,8 +49,9 @@ export default function ProfileScreen() {
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
-      const token = await AsyncStorage.getItem('session_token');
-      if (!token || !user) return; // nothing to recover from
+      // Use unified auth token bridge (supports both Supabase JWT and legacy sessions)
+      const token = await getAuthToken();
+      if (!token || !activeUser) return; // nothing to recover from
       try {
         const r = await fetch(`${BACKEND_URL}/api/stops`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -59,6 +60,9 @@ export default function ProfileScreen() {
         if (r.status === 401) {
           // Token is corrupt for this backend. Clear & bounce.
           await logout();
+          if (supabaseUser) {
+            await supabaseSignOut();
+          }
           clearStops();
           Alert.alert(
             'Session expired',
@@ -71,10 +75,10 @@ export default function ProfileScreen() {
       }
     })();
     return () => { cancelled = true; };
-    // user is the only thing that matters — we want one probe per real
+    // activeUser is the only thing that matters — we want one probe per real
     // login, not one per render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.user_id]);
+  }, [activeUser?.user_id]);
 
   const completedCount = React.useMemo(
     () => stops.filter((s) => s.completed).length,

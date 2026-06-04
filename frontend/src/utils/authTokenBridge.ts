@@ -32,14 +32,20 @@ export async function getAuthToken(): Promise<string | null> {
     try {
       const client = await supabaseClientGetter();
       if (client?.auth) {
-        const { data: { session } } = await client.auth.getSession();
+        const { data: { session }, error } = await client.auth.getSession();
         console.log('[authTokenBridge] Supabase session check:', {
           hasSession: !!session,
           hasAccessToken: !!session?.access_token,
           tokenLength: session?.access_token?.length || 0,
+          tokenPreview: session?.access_token ? session.access_token.substring(0, 30) + '...' : 'none',
           userEmail: session?.user?.email || 'none',
+          error: error?.message || 'none',
         });
         if (session?.access_token) {
+          // Supabase access tokens start with 'eyJ' (base64 encoded JSON)
+          if (!session.access_token.startsWith('eyJ')) {
+            console.warn('[authTokenBridge] WARNING: Supabase access_token does not look like a JWT');
+          }
           return session.access_token;
         }
       } else {
