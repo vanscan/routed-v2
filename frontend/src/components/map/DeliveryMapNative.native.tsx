@@ -1042,7 +1042,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* Direction arrow icon for route + teardrop marker icons + navigation puck */}
+          {/* Direction arrow icon for route + teardrop marker icons + Waze-style nav puck */}
           <Images
             images={{
               'route-arrow': require('../../../assets/images/route-arrow.png'),
@@ -1051,6 +1051,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               'marker-navy': require('../../../assets/images/marker-navy.png'),
               'marker-purple': require('../../../assets/images/marker-purple.png'),
               'nav-puck': require('../../../assets/images/nav-puck.png'),
+              'mlrn-user-location-puck-heading': require('../../../assets/images/nav-puck.png'),
             }}
           />
 
@@ -1237,10 +1238,10 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             </GeoJSONSource>
           )}
 
-          {/* Native location puck - larger blue dot with heading indicator */}
+          {/* Waze-style navigation puck with heading rotation */}
           <UserLocation 
             animated
-            showsUserHeadingIndicator={true}
+            heading={true}
             minDisplacement={3}
           />
         </MapLibreMap>
