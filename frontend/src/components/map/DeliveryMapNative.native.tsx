@@ -981,6 +981,11 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           attribution
           attributionPosition={{ bottom: 8, right: 8 }}
           onDidFinishLoadingMap={() => onMapReady?.()}
+          onDidFinishLoadingStyle={() => {
+            // Force a refresh of stops data when style changes to ensure images are loaded
+            if (__DEV__) console.log('[Map] Style finished loading, refreshing stops...');
+            setRefreshNonce((n) => n + 1);
+          }}
           onRegionDidChange={handleRegionDidChange}
           onRegionIsChanging={handleRegionIsChanging}
           onPress={handleMapPress}
@@ -1229,7 +1234,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           </GeoJSONSource>
 
           {/* Direction arrow icon for route + teardrop marker icons + Waze-style nav puck + turn indicators */}
+          {/* Key forces re-mount when style changes so images are re-registered with new style */}
           <Images
+            key={`images-${props.mapStyle || 'default'}`}
             images={{
               'route-arrow': require('../../../assets/images/route-arrow.png'),
               'marker-blue': require('../../../assets/images/marker-blue.png'),
@@ -1240,6 +1247,12 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               'mlrn-user-location-puck-heading': require('../../../assets/images/nav-puck.png'),
               'turn-left': require('../../../assets/images/turn-left.png'),
               'turn-right': require('../../../assets/images/turn-right.png'),
+            }}
+            onImageMissing={(imageName: string) => {
+              // Log missing images for debugging
+              if (__DEV__) {
+                console.log('[MapImages] Missing image requested:', imageName);
+              }
             }}
           />
 
