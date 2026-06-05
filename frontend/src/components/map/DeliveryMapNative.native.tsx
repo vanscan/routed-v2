@@ -200,6 +200,86 @@ const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', feature
 // min/maxzoom so no per-frame visibility toggling is needed.
 const CLUSTER_SWAP_ZOOM = 14;
 
+// ─── Turn detection for route arrows ─────────────────────────────────────────
+// Calculate bearing between two points
+function bearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const toDeg = (r: number) => (r * 180) / Math.PI;
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+// Extract significant turns from route coordinates
+function extractTurnPoints(coords: number[][] | null): GeoJSON.FeatureCollection {
+  if (!coords || coords.length < 3) return EMPTY_FC;
+  
+  const turns: GeoJSON.Feature[] = [];
+  const minTurnAngle = 35; // Minimum angle to consider a turn
+  const minDistance = 0.0003; // ~30m minimum distance between turn indicators
+  
+  let lastTurnCoord: number[] | null = null;
+  
+  for (let i = 1; i < coords.length - 1; i++) {
+    const [lon1, lat1] = coords[i - 1];
+    const [lon2, lat2] = coords[i];
+    const [lon3, lat3] = coords[i + 1];
+    
+    // Skip if too close to last turn
+    if (lastTurnCoord) {
+      const dist = Math.sqrt(
+        Math.pow(lon2 - lastTurnCoord[0], 2) + 
+        Math.pow(lat2 - lastTurnCoord[1], 2)
+      );
+      if (dist < minDistance) continue;
+    }
+    
+    const bearing1 = bearing(lat1, lon1, lat2, lon2);
+    const bearing2 = bearing(lat2, lon2, lat3, lon3);
+    
+    let turnAngle = bearing2 - bearing1;
+    // Normalize to -180 to 180
+    if (turnAngle > 180) turnAngle -= 360;
+    if (turnAngle < -180) turnAngle += 360;
+    
+    const absTurn = Math.abs(turnAngle);
+    
+    if (absTurn >= minTurnAngle) {
+      let turnType: string;
+      let rotation: number;
+      
+      if (turnAngle > 0) {
+        // Right turn
+        turnType = 'turn-right';
+        rotation = bearing2;
+      } else {
+        // Left turn
+        turnType = 'turn-left';
+        rotation = bearing2;
+      }
+      
+      turns.push({
+        type: 'Feature',
+        properties: { 
+          turnType,
+          rotation,
+          angle: Math.round(absTurn),
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [lon2, lat2],
+        },
+      });
+      
+      lastTurnCoord = [lon2, lat2];
+    }
+  }
+  
+  return { type: 'FeatureCollection', features: turns };
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps>(
@@ -1075,7 +1155,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* Direction arrow icon for route + teardrop marker icons + Waze-style nav puck */}
+          {/* Direction arrow icon for route + teardrop marker icons + Waze-style nav puck + turn indicators */}
           <Images
             images={{
               'route-arrow': require('../../../assets/images/route-arrow.png'),
@@ -1085,6 +1165,8 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               'marker-purple': require('../../../assets/images/marker-purple.png'),
               'nav-puck': require('../../../assets/images/nav-puck.png'),
               'mlrn-user-location-puck-heading': require('../../../assets/images/nav-puck.png'),
+              'turn-left': require('../../../assets/images/turn-left.png'),
+              'turn-right': require('../../../assets/images/turn-right.png'),
             }}
           />
 
