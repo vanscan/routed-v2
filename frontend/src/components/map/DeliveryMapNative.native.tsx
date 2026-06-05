@@ -92,11 +92,16 @@ try {
 
 import { BACKEND_URL } from '../../utils/config';
 
-// ─── Style source (mirrors DeliveryMap.native.tsx) ───────────────────────────
+// ─── Style source — VersaTiles (free FLOSS map stack) ────────────────────────
+// VersaTiles provides free vector tiles, styles, fonts and sprites
+// https://versatiles.org/ - completely free, no API keys needed
+const VERSATILES_STYLE = 'https://tiles.versatiles.org/assets/styles/colorful/style.json';
+
+// Fallback to backend proxy or VersaTiles
 const _BACKEND_FOR_STYLE = BACKEND_URL.replace(/\/$/, '');
 const MAP_STYLE = _BACKEND_FOR_STYLE
   ? `${_BACKEND_FOR_STYLE}/api/map/style`
-  : 'https://tiles.openfreemap.org/styles/liberty';
+  : VERSATILES_STYLE;
 
 const DEFAULT_CENTER: [number, number] = [153.0667, -26.65]; // Sunshine Coast, QLD
 const DEFAULT_ZOOM = 11;
