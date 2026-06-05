@@ -200,28 +200,6 @@ const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', feature
 // min/maxzoom so no per-frame visibility toggling is needed.
 const CLUSTER_SWAP_ZOOM = 14;
 
-// Helper to create user puck GeoJSON with heading for Waze-style rotation
-function userPuckFeature(
-  driverLocation: { latitude: number; longitude: number; heading?: number | null } | null
-): GeoJSON.FeatureCollection {
-  if (!driverLocation) return EMPTY_FC;
-  return {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: {
-          heading: driverLocation.heading ?? 0,
-        },
-        geometry: {
-          type: 'Point',
-          coordinates: [driverLocation.longitude, driverLocation.latitude],
-        },
-      },
-    ],
-  };
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps>(
@@ -1259,42 +1237,10 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             </GeoJSONSource>
           )}
 
-          {/* Waze-style navigation puck - separate GeoJSON source for heading rotation */}
-          {driverLocation && (
-            <GeoJSONSource
-              id="user-puck-source"
-              shape={userPuckFeature(driverLocation)}
-            >
-              {/* White glow/shadow ring behind the arrow */}
-              <Layer
-                type="circle"
-                id="user-puck-glow"
-                paint={{
-                  'circle-radius': 24,
-                  'circle-color': 'rgba(255, 255, 255, 0.9)',
-                  'circle-blur': 0.3,
-                }}
-              />
-              {/* Waze-style arrow that rotates with heading */}
-              <Layer
-                type="symbol"
-                id="user-puck-arrow"
-                layout={{
-                  'icon-image': 'nav-puck',
-                  'icon-size': 1.0,
-                  'icon-allow-overlap': true,
-                  'icon-ignore-placement': true,
-                  'icon-rotate': ['get', 'heading'],
-                  'icon-rotation-alignment': 'map',
-                  'icon-pitch-alignment': 'map',
-                }}
-              />
-            </GeoJSONSource>
-          )}
-
-          {/* Hidden UserLocation for location tracking (no visible puck) */}
+          {/* Native location puck - larger blue dot with heading indicator */}
           <UserLocation 
-            visible={false}
+            animated
+            showsUserHeadingIndicator={true}
             minDisplacement={3}
           />
         </MapLibreMap>
