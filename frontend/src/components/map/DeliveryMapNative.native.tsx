@@ -867,6 +867,24 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               ],
             }}
           />
+          
+          {/* ── OSM Building outlines for better visibility ── */}
+          <Layer
+            id="buildings-outline"
+            type="line"
+            source="openmaptiles"
+            source-layer="building"
+            minzoom={15}
+            layout={{
+              'line-join': 'round',
+              'line-cap': 'round',
+            }}
+            paint={{
+              'line-color': '#475569',
+              'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.5, 17, 1, 19, 1.5],
+              'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0.4, 17, 0.7, 19, 0.9],
+            }}
+          />
 
           {/* ── Self-hosted QLD buildings (cadastre-derived). Flat-fill safety
               net + 3D extrusion overlay, fed by /api/tiles/buildings. ── */}
@@ -899,6 +917,21 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 ],
                 'fill-extrusion-base': ['coalesce', ['to-number', ['get', 'render_min_height']], 0],
                 'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.35, 15, 0.65, 17, 0.8],
+              }}
+            />
+            {/* ── Self-hosted building outlines ── */}
+            <Layer
+              id="buildings-self-outline"
+              type="line"
+              minzoom={15}
+              layout={{
+                'line-join': 'round',
+                'line-cap': 'round',
+              }}
+              paint={{
+                'line-color': '#334155',
+                'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.8, 17, 1.2, 19, 2],
+                'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0.5, 17, 0.8, 19, 1],
               }}
             />
           </GeoJSONSource>
