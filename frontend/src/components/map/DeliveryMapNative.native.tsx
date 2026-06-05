@@ -1244,21 +1244,23 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 ...(routeIsPreview ? { 'line-dasharray': [2, 2] } : {}),
               }}
             />
-            {/* Directional arrows along the route line */}
+            {/* Directional arrows along the route line - vector-based with MapLibre */}
             <Layer
               id="route-arrows"
               type="symbol"
               layout={{
                 'symbol-placement': 'line',
-                'symbol-spacing': 80,
+                'symbol-spacing': 100,
                 'icon-image': 'route-arrow',
-                'icon-size': 0.5,
+                'icon-size': 0.6,
                 'icon-rotation-alignment': 'map',
+                'icon-keep-upright': true,
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
+                'icon-pitch-alignment': 'map',
               }}
               paint={{
-                'icon-opacity': 1,
+                'icon-opacity': 0.95,
               }}
             />
           </GeoJSONSource>
