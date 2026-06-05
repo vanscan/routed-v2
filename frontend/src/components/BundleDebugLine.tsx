@@ -16,7 +16,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ToastAndroid, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../utils/config';
 
 const BACKEND_URL_DISPLAY = BACKEND_URL || '(unset)';
 

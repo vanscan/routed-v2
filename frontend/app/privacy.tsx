@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../src/utils/config';
 
 // Privacy policy is now self-hosted by the backend (single source of truth:
 // /app/frontend/public/privacy-policy.html → served by FastAPI at

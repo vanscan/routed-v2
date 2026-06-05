@@ -16,7 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { getAuthToken } from '../src/utils/authTokenBridge';
 import { useStopsStore } from '../src/store/stopsStore';
 import { useSupabase } from '../src/contexts/SupabaseContext';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../src/utils/config';
 
 interface PreviewData {
   columns: string[];

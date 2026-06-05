@@ -90,7 +90,7 @@ try {
   // older/newer signature — non-fatal
 }
 
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../utils/config';
 
 // ─── Style source (mirrors DeliveryMap.native.tsx) ───────────────────────────
 const _BACKEND_FOR_STYLE = BACKEND_URL.replace(/\/$/, '');

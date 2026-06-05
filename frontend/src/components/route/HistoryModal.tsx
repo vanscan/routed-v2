@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuthToken } from '../../utils/authTokenBridge';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../../utils/config';
 
 interface RouteSummary {
   id: string;

@@ -38,7 +38,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Stack } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { DeliveryMap, DeliveryMapRef } from '../src/components/DeliveryMap';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../src/utils/config';
 
 interface Headline {
   stop_count: number;

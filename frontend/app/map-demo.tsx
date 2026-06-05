@@ -6,7 +6,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { DeliveryMap, DeliveryMapRef, DeliveryStop, DriverLocation } from '../src/components/DeliveryMap';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../src/utils/config';
 
 export default function MapDemoPage() {
   const mapRef = useRef<DeliveryMapRef>(null);

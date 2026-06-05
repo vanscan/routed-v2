@@ -28,7 +28,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import type { FeatureCollection, Point } from 'geojson';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../utils/config';
 
 interface HouseNumberFeatureProps {
   housenumber: string;

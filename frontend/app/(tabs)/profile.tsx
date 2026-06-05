@@ -20,7 +20,7 @@ import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
 import { MLBuildingSideCard } from '../../src/components/MLBuildingSideCard';
 import { getAuthToken } from '../../src/utils/authTokenBridge';
 import { BundleDebugLine } from '../../src/components/BundleDebugLine';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../../src/utils/config';
 
 export default function ProfileScreen() {
   const { signOut, user: supabaseUser, loading, isReady } = useSupabase();

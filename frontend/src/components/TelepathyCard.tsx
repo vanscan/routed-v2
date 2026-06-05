@@ -29,7 +29,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuthToken } from '../utils/authTokenBridge';
-import { BACKEND_URL } from '@/utils/config';
+import { BACKEND_URL } from '../utils/config';
 
 // Single source of truth for the toggle key — read at runtime by
 // startSingleStopNavigation in app/(tabs)/index.tsx so the cockpit
