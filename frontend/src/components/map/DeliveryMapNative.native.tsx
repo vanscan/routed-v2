@@ -319,11 +319,15 @@ function extractTurnPoints(coords: number[][] | null): GeoJSON.FeatureCollection
       if (turnAngle > 0) {
         // Right turn
         turnType = 'turn-right';
-        rotation = bearing2;
+        // Rotation should point in the exit direction (bearing2)
+        // Subtract 90 because icon base orientation points right, not up
+        rotation = bearing2 - 90;
       } else {
         // Left turn
         turnType = 'turn-left';
-        rotation = bearing2;
+        // Rotation should point in the exit direction (bearing2)
+        // Subtract 90 because icon base orientation points right, not up
+        rotation = bearing2 - 90;
       }
       
       turns.push({
@@ -1281,6 +1285,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 'icon-size': 1.2,
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
+                'icon-rotate': ['get', 'rotation'],
                 'icon-rotation-alignment': 'map',
                 'icon-pitch-alignment': 'map',
               }}
