@@ -61,6 +61,7 @@ import { useNavigationTTS } from '../../src/hooks/useNavigationTTS';
 import { useNavigationCamera } from '../../src/hooks/useNavigationCamera';
 import { useGeofenceArrival, GeofenceStop } from '../../src/hooks/useGeofenceArrival';
 import { LastMilePrecisionHUD } from '../../src/components/LastMilePrecisionHUD';
+import { MapStyleSwitcher, MAP_STYLES, MapStyleKey } from '../../src/components/map/MapStyleSwitcher';
 
 import { BACKEND_URL } from '../../src/utils/config';
 
@@ -217,7 +218,7 @@ export default function RouteScreen() {
     status: 'insufficient' | 'trainable' | 'ready';
   } | null>(null);
   const [immersiveMode, setImmersiveMode] = useState(true); // Start collapsed; auto-expands at 50m proximity
-  const [mapStyle, setMapStyle] = useState<'streets' | 'satellite' | 'hybrid'>('streets');
+  const [mapStyle, setMapStyle] = useState<MapStyleKey>('colorful');
   const [routeLineMode, setRouteLineMode] = useState<'full' | 'leg' | 'remaining'>('full');
   
   // Optimization Hubs State - Sequential waypoints for segmented optimization
@@ -3794,6 +3795,7 @@ export default function RouteScreen() {
           driverLocation={mapDriverLocation}
           traveledPath={mapTraveledPath}
           followDriver={mapFollowDriver}
+          mapStyle={MAP_STYLES[mapStyle]?.url}
           // When the 250 ms `useNavigationCamera` hook is enabled (driving
           // mode) we must tell the WebView NOT to also fire its own React-
           // driven `drivingCamera` writes — both writers racing produces the
@@ -3902,6 +3904,20 @@ export default function RouteScreen() {
           </Text>
         </TouchableOpacity>
 
+        {/* Map Style Switcher - positioned above Block road button */}
+        {viewMode === 'planning' && (
+          <View style={{ position: 'absolute', right: 12, bottom: 148 }}>
+            <MapStyleSwitcher
+              currentStyle={mapStyle}
+              onStyleChange={(key, url) => {
+                setMapStyle(key);
+                // The map will pick up the style from state
+              }}
+              compact={true}
+            />
+          </View>
+        )}
+
         {/* Last-mile precision HUD — appears at top-centre of the map when
             the driver enters the 150 m approach radius of the upcoming
             stop. Read-only chip showing "X m · Y o'clock" so the driver
@@ -3935,9 +3951,10 @@ export default function RouteScreen() {
           setIsVoiceEnabled={setVoiceEnabled}
           currentMapStyle={mapStyle}
           cycleMapStyle={() => {
-            const styleList: ('streets' | 'satellite' | 'hybrid')[] = ['streets', 'satellite', 'hybrid'];
-            const idx = styleList.indexOf(mapStyle);
-            setMapStyle(styleList[(idx + 1) % styleList.length]);
+            const styleKeys: MapStyleKey[] = ['colorful', 'eclipse', 'graybeard', 'neutrino'];
+            const idx = styleKeys.indexOf(mapStyle);
+            const nextStyle = styleKeys[(idx + 1) % styleKeys.length];
+            setMapStyle(nextStyle);
           }}
           speedKmh={currentSpeed}
           distanceToNextStop={liveRoute ? formatDistance(liveRoute.distance) : '--'}

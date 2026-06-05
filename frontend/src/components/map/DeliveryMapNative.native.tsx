@@ -195,6 +195,13 @@ function stopsToFeatureCollection(
   routeConfirmed: boolean,
 ): GeoJSON.FeatureCollection {
   const lateLabels = buildLateFreightLabels(stops as any);
+  
+  // Debug logging for late freight labels
+  if (__DEV__ && Object.keys(lateLabels).length > 0) {
+    console.log('[stopsToFeatureCollection] Late freight labels:', lateLabels);
+    console.log('[stopsToFeatureCollection] routeConfirmed:', routeConfirmed);
+  }
+  
   const validStops = (stops || []).filter(
     (s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude)
   );
