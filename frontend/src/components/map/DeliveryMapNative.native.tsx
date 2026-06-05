@@ -126,113 +126,48 @@ function stopLngLat(stop: DeliveryStop): [number, number] {
  *   - late freight (no original_sequence):
  *       · planning mode  → blue, shows `order + 1`
  *       · locked mode    → purple, shows its slot label (e.g. "45A")
- * 
- * Multi-stop locations (same coordinates) get a special amber marker with list icon.
  */
 function stopsToFeatureCollection(
   stops: DeliveryStop[],
   routeConfirmed: boolean,
 ): GeoJSON.FeatureCollection {
   const lateLabels = buildLateFreightLabels(stops as any);
-  
-  // Group stops by location (round to ~1 meter precision)
-  const locationKey = (lat: number, lng: number) => `${lat.toFixed(5)},${lng.toFixed(5)}`;
-  const locationGroups: Map<string, DeliveryStop[]> = new Map();
-  
-  (stops || [])
-    .filter((s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
-    .forEach((s) => {
-      const [lng, lat] = stopLngLat(s);
-      const key = locationKey(lat, lng);
-      if (!locationGroups.has(key)) {
-        locationGroups.set(key, []);
-      }
-      locationGroups.get(key)!.push(s);
-    });
-  
-  const features: GeoJSON.Feature[] = [];
-  
-  locationGroups.forEach((groupStops, key) => {
-    const [lng, lat] = stopLngLat(groupStops[0]);
-    
-    if (groupStops.length === 1) {
-      // Single stop - use regular marker
-      const s = groupStops[0];
-      const anyStop = s as DeliveryStop & { original_sequence?: number | null };
-      const hasSeq = anyStop.original_sequence != null;
-      const completed = !!s.completed;
-
-      let label: string;
-      let marker: string;
-      if (hasSeq) {
-        label = String(anyStop.original_sequence);
-        marker = completed ? 'marker-green' : 'marker-navy';
-      } else if (routeConfirmed) {
-        label = (s.id && lateLabels[s.id]) || '★';
-        marker = completed ? 'marker-green' : 'marker-purple';
-      } else {
-        label = String((s.order ?? 0) + 1);
-        marker = completed ? 'marker-green' : 'marker-blue';
-      }
-
-      features.push({
-        type: 'Feature' as const,
-        id: s.id,
-        properties: { 
-          id: s.id, 
-          label, 
-          marker, 
-          completed,
-          isMultiStop: false,
-          stopIds: [s.id],
-        },
-        geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-      });
-    } else {
-      // Multi-stop location - use special marker
-      const allCompleted = groupStops.every(s => !!s.completed);
-      const stopIds = groupStops.map(s => s.id).filter(Boolean);
-      
-      // Build label showing all stop numbers
-      const labels = groupStops.map(s => {
-        const anyStop = s as DeliveryStop & { original_sequence?: number | null };
-        if (anyStop.original_sequence != null) {
-          return String(anyStop.original_sequence);
-        } else if (routeConfirmed) {
-          return (s.id && lateLabels[s.id]) || '★';
-        } else {
-          return String((s.order ?? 0) + 1);
-        }
-      }).sort((a, b) => {
-        const numA = parseInt(a) || 999;
-        const numB = parseInt(b) || 999;
-        return numA - numB;
-      });
-      
-      // Show count for multi-stop marker
-      const label = `×${groupStops.length}`;
-      
-      features.push({
-        type: 'Feature' as const,
-        id: `multi-${key}`,
-        properties: { 
-          id: `multi-${key}`,
-          label, 
-          marker: allCompleted ? 'marker-green' : 'marker-multi',
-          completed: allCompleted,
-          isMultiStop: true,
-          stopIds,
-          stopLabels: labels.join(', '),
-          stopCount: groupStops.length,
-        },
-        geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-      });
-    }
-  });
-
   return {
     type: 'FeatureCollection',
-    features,
+    features: (stops || [])
+      .filter((s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
+      .map((s) => {
+        const [lng, lat] = stopLngLat(s);
+        const anyStop = s as DeliveryStop & { original_sequence?: number | null };
+        const hasSeq = anyStop.original_sequence != null;
+        const completed = !!s.completed;
+
+        let label: string;
+        let color: string;
+        let marker: string;
+        if (hasSeq) {
+          label = String(anyStop.original_sequence);
+          color = completed ? PIN_COMPLETED : PIN_LOCKED;
+          marker = completed ? 'marker-green' : 'marker-navy';
+        } else if (routeConfirmed) {
+          // Late freight on a locked route.
+          label = (s.id && lateLabels[s.id]) || '★';
+          color = completed ? PIN_COMPLETED : PIN_LATE;
+          marker = completed ? 'marker-green' : 'marker-purple';
+        } else {
+          // Planning mode — proposed drive order.
+          label = String((s.order ?? 0) + 1);
+          color = completed ? PIN_COMPLETED : PIN_PLANNING;
+          marker = completed ? 'marker-green' : 'marker-blue';
+        }
+
+        return {
+          type: 'Feature' as const,
+          id: s.id,
+          properties: { id: s.id, label, color, marker, completed },
+          geometry: { type: 'Point' as const, coordinates: [lng, lat] },
+        };
+      }),
   };
 }
 
@@ -1222,15 +1157,14 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* Direction arrow icon for route + LARGER teardrop marker icons + Waze-style nav puck + turn indicators */}
+          {/* Direction arrow icon for route + teardrop marker icons + Waze-style nav puck + turn indicators */}
           <Images
             images={{
               'route-arrow': require('../../../assets/images/route-arrow.png'),
-              'marker-blue': require('../../../assets/images/marker-blue-lg.png'),
-              'marker-green': require('../../../assets/images/marker-green-lg.png'),
-              'marker-navy': require('../../../assets/images/marker-navy-lg.png'),
-              'marker-purple': require('../../../assets/images/marker-purple-lg.png'),
-              'marker-multi': require('../../../assets/images/marker-multi.png'),
+              'marker-blue': require('../../../assets/images/marker-blue.png'),
+              'marker-green': require('../../../assets/images/marker-green.png'),
+              'marker-navy': require('../../../assets/images/marker-navy.png'),
+              'marker-purple': require('../../../assets/images/marker-purple.png'),
               'nav-puck': require('../../../assets/images/nav-puck.png'),
               'mlrn-user-location-puck-heading': require('../../../assets/images/nav-puck.png'),
               'turn-left': require('../../../assets/images/turn-left.png'),
@@ -1357,29 +1291,29 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           {/* Delivery stops: teardrop marker pins. When cluster data is present they
               hide below the swap zoom so the cluster bubbles take over. */}
           <GeoJSONSource id="stops-src" data={stopsFC} onPress={handleStopsPress}>
-            {/* Teardrop marker icons - LARGER SIZE with dark text for contrast */}
+            {/* Teardrop marker icons - slightly bigger with dark text for contrast */}
             <Layer
               id="stops-marker"
               type="symbol"
               minzoom={hasClusterData ? CLUSTER_SWAP_ZOOM : undefined}
               layout={{
                 'icon-image': ['get', 'marker'],
-                'icon-size': 1.0,
+                'icon-size': 0.9,
                 'icon-anchor': 'bottom',
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
                 'text-field': ['get', 'label'],
                 'text-font': ['Noto Sans Bold'],
-                'text-size': 15,
+                'text-size': 13,
                 'text-anchor': 'center',
-                'text-offset': [0, -2.5],
+                'text-offset': [0, -3.0],
                 'text-allow-overlap': true,
                 'text-ignore-placement': true,
               }}
               paint={{
                 'text-color': '#1e293b',
                 'text-halo-color': '#ffffff',
-                'text-halo-width': 0.5,
+                'text-halo-width': 1,
               }}
             />
           </GeoJSONSource>
