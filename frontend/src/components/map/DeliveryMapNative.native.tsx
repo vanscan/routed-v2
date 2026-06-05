@@ -1074,15 +1074,15 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               type="symbol"
               layout={{
                 'symbol-placement': 'line',
-                'symbol-spacing': 100,
+                'symbol-spacing': 80,
                 'icon-image': 'route-arrow',
-                'icon-size': 0.7,
+                'icon-size': 0.5,
                 'icon-rotation-alignment': 'map',
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
               }}
               paint={{
-                'icon-opacity': 0.9,
+                'icon-opacity': 1,
               }}
             />
           </GeoJSONSource>
