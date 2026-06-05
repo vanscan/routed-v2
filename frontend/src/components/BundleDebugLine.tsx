@@ -16,8 +16,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ToastAndroid, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
+import { BACKEND_URL } from '@/utils/config';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '(unset)';
+const BACKEND_URL_DISPLAY = BACKEND_URL || '(unset)';
 
 // Detect whether the configured URL points at the canonical prod host so
 // we can flag misconfigurations visually instead of forcing the user to
@@ -36,7 +37,7 @@ export const BundleDebugLine: React.FC = () => {
       ? Updates.updateId.slice(0, 8) + '…'
       : 'embedded';
     const runtime = Updates.runtimeVersion || '—';
-    const isProd = BACKEND_URL.includes(PROD_HOST);
+    const isProd = BACKEND_URL_DISPLAY.includes(PROD_HOST);
     return { channel, updateId, runtime, isProd };
   }, []);
 
@@ -66,7 +67,7 @@ export const BundleDebugLine: React.FC = () => {
         ellipsizeMode="middle"
       >
         {info.isProd ? '🟢 ' : '🟠 '}
-        {BACKEND_URL.replace(/^https?:\/\//, '')}
+        {BACKEND_URL_DISPLAY.replace(/^https?:\/\//, '')}
       </Text>
       <Text style={styles.meta}>
         {info.channel} · {info.updateId} · rt {info.runtime}

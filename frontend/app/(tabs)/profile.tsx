@@ -20,8 +20,7 @@ import { MLServiceTimeCard } from '../../src/components/MLServiceTimeCard';
 import { MLBuildingSideCard } from '../../src/components/MLBuildingSideCard';
 import { getAuthToken } from '../../src/utils/authTokenBridge';
 import { BundleDebugLine } from '../../src/components/BundleDebugLine';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { BACKEND_URL } from '@/utils/config';
 
 export default function ProfileScreen() {
   const { signOut, user: supabaseUser, loading, isReady } = useSupabase();

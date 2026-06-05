@@ -7,14 +7,14 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import * as Updates from 'expo-updates';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { hydrateFeatureFlags } from '../src/utils/featureFlags';
+import { BACKEND_URL } from '@/utils/config';
 
-// Boot-time invariant: every API call in the app reads
-// `process.env.EXPO_PUBLIC_BACKEND_URL`, replaced inline at bundle time
-// by Metro. If somebody ships a build with the env var unset, every
-// fetch silently hits a relative path (like `/api/auth/me`) and the app
-// quietly degrades — exactly the failure mode the deploy readiness
-// check flagged. Crash early and loud instead.
-if (!process.env.EXPO_PUBLIC_BACKEND_URL) {
+// Boot-time invariant: every API call in the app reads BACKEND_URL from
+// config.ts (which wraps process.env.EXPO_PUBLIC_BACKEND_URL). If somebody
+// ships a build with the env var unset, every fetch silently hits a relative
+// path (like `/api/auth/me`) and the app quietly degrades — exactly the
+// failure mode the deploy readiness check flagged. Crash early and loud instead.
+if (!BACKEND_URL) {
   throw new Error(
     'EXPO_PUBLIC_BACKEND_URL is not set. Configure it in eas.json (preview/production env block) and frontend/.env, then rebuild the bundle.',
   );

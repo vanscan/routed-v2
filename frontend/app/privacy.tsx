@@ -23,15 +23,15 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BACKEND_URL } from '@/utils/config';
 
 // Privacy policy is now self-hosted by the backend (single source of truth:
 // /app/frontend/public/privacy-policy.html → served by FastAPI at
 // /privacy on the backend's public URL). Override via .env if you ever move
 // it (e.g. to a custom marketing domain).
-const _BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 export const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ||
-  (_BACKEND_URL ? `${_BACKEND_URL.replace(/\/$/, '')}/privacy` : 'https://floating-map-ui.emergent.host/privacy');
+  (BACKEND_URL ? `${BACKEND_URL.replace(/\/$/, '')}/privacy` : 'https://floating-map-ui.emergent.host/privacy');
 export const SUPPORT_EMAIL = 'xmltvg@gmail.com';
 
 export default function PrivacyTermsScreen() {

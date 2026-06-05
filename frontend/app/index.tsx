@@ -31,8 +31,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { hasConsumedSessionId, markSessionIdConsumed } from '../src/utils/consumedSessionIds';
 import { RouteTraceBackground } from '../src/components/RouteTraceBackground';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { BACKEND_URL } from '@/utils/config';
 
 // Brand palette — kept here (not in styles) so the rest of the
 // file reads as a stylesheet rather than a colour theory essay.

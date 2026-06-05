@@ -28,12 +28,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import type { FeatureCollection, Point } from 'geojson';
+import { BACKEND_URL } from '@/utils/config';
 
 interface HouseNumberFeatureProps {
   housenumber: string;
 }
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 const EMPTY_FC: FeatureCollection<Point, HouseNumberFeatureProps> = {
   type: 'FeatureCollection',

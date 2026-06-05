@@ -90,8 +90,10 @@ try {
   // older/newer signature — non-fatal
 }
 
+import { BACKEND_URL } from '@/utils/config';
+
 // ─── Style source (mirrors DeliveryMap.native.tsx) ───────────────────────────
-const _BACKEND_FOR_STYLE = (process.env.EXPO_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
+const _BACKEND_FOR_STYLE = BACKEND_URL.replace(/\/$/, '');
 const MAP_STYLE = _BACKEND_FOR_STYLE
   ? `${_BACKEND_FOR_STYLE}/api/map/style`
   : 'https://tiles.openfreemap.org/styles/liberty';

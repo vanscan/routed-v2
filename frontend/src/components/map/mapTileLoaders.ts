@@ -17,7 +17,9 @@
  * (mirrors the WebView's flicker-avoidance short-circuit).
  */
 
-const BACKEND = (process.env.EXPO_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
+import { BACKEND_URL } from '@/utils/config';
+
+const BACKEND = BACKEND_URL.replace(/\/$/, '');
 
 /** [west, south, east, north] — matches maplibre-react-native `getBounds()`. */
 export type Bounds = [west: number, south: number, east: number, north: number];

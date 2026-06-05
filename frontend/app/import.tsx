@@ -16,8 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { getAuthToken } from '../src/utils/authTokenBridge';
 import { useStopsStore } from '../src/store/stopsStore';
 import { useSupabase } from '../src/contexts/SupabaseContext';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { BACKEND_URL } from '@/utils/config';
 
 interface PreviewData {
   columns: string[];
