@@ -6,8 +6,7 @@
 
 import { useRef, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { BACKEND_URL } from '../utils/config';
 
 interface UseTTSOptions {
   enabled: boolean;

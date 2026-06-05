@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { enqueue, flush, getQueuedIds, removeById as removeQueuedById, getQueuedActions, type QueueAction } from '../utils/syncQueue';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { BACKEND_URL } from '../utils/config';
 
 export interface TimeWindow {
   start?: string;

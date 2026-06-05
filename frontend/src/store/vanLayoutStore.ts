@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { getAuthToken } from '../utils/authTokenBridge';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { BACKEND_URL } from '../utils/config';
 
 /**
  * Per-driver van bin grid configuration. Drivers pick a shape once

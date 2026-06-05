@@ -112,8 +112,9 @@ interface DeliveryMapProps {
 
 // ─── Map Styles ───────────────────────────────────────────────────────────────
 
+import { BACKEND_URL } from '../utils/config';
+
 const OPENFREEMAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 // ─── Layer Styles (static objects — never recreated) ──────────────────────────
 
