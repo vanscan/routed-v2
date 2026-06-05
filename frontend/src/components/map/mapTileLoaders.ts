@@ -17,7 +17,7 @@
  * (mirrors the WebView's flicker-avoidance short-circuit).
  */
 
-import { BACKEND_URL } from '../utils/config';
+import { BACKEND_URL } from '../../utils/config';
 
 const BACKEND = BACKEND_URL.replace(/\/$/, '');
 
