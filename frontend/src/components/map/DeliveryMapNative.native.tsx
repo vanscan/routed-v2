@@ -121,6 +121,59 @@ function stopLngLat(stop: DeliveryStop): [number, number] {
 }
 
 /**
+ * Offset radius in degrees (~15 meters at equator) for spreading overlapping
+ * stops in a circle around their shared coordinate. Small enough to keep pins
+ * visually grouped but large enough to allow individual tap targets.
+ */
+const OVERLAP_OFFSET_DEG = 0.00015;
+
+/**
+ * Apply circular offset to overlapping stops so they spread out and become
+ * individually clickable. Stops at the exact same coordinate are arranged in
+ * a circle around that point.
+ * 
+ * Returns a Map from stop.id → offset [lng, lat] for rendering.
+ */
+function computeOverlapOffsets(stops: DeliveryStop[]): Map<string | number, [number, number]> {
+  const offsets = new Map<string | number, [number, number]>();
+  
+  // Group stops by their coordinate key (rounded to ~1m precision)
+  const coordGroups = new Map<string, DeliveryStop[]>();
+  for (const s of stops) {
+    if (!Number.isFinite(s.latitude) || !Number.isFinite(s.longitude)) continue;
+    const [lng, lat] = stopLngLat(s);
+    // Round to 5 decimal places (~1.1m precision) for grouping
+    const key = `${lng.toFixed(5)},${lat.toFixed(5)}`;
+    const group = coordGroups.get(key) || [];
+    group.push(s);
+    coordGroups.set(key, group);
+  }
+  
+  // For each group with multiple stops, spread them in a circle
+  for (const [, group] of coordGroups) {
+    if (group.length === 1) {
+      // Single stop — no offset needed
+      const s = group[0];
+      offsets.set(s.id, stopLngLat(s));
+    } else {
+      // Multiple stops at same location — spread in circle
+      const [baseLng, baseLat] = stopLngLat(group[0]);
+      const count = group.length;
+      const angleStep = (2 * Math.PI) / count;
+      
+      group.forEach((s, i) => {
+        const angle = i * angleStep - Math.PI / 2; // Start from top
+        const offsetLng = baseLng + OVERLAP_OFFSET_DEG * Math.cos(angle);
+        const offsetLat = baseLat + OVERLAP_OFFSET_DEG * Math.sin(angle);
+        offsets.set(s.id, [offsetLng, offsetLat]);
+      });
+    }
+  }
+  
+  return offsets;
+}
+
+/**
  * Build the stop pins FeatureCollection with per-feature `label` + `color` + `marker`,
  * matching the WebView painter:
  *   - completed → green
@@ -128,48 +181,59 @@ function stopLngLat(stop: DeliveryStop): [number, number] {
  *   - late freight (no original_sequence):
  *       · planning mode  → blue, shows `order + 1`
  *       · locked mode    → purple, shows its slot label (e.g. "45A")
+ * 
+ * Overlapping stops at the same coordinate are spread in a small circle so each
+ * pin is individually clickable.
  */
 function stopsToFeatureCollection(
   stops: DeliveryStop[],
   routeConfirmed: boolean,
 ): GeoJSON.FeatureCollection {
   const lateLabels = buildLateFreightLabels(stops as any);
+  const validStops = (stops || []).filter(
+    (s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude)
+  );
+  
+  // Compute offset coordinates for overlapping stops
+  const offsetCoords = computeOverlapOffsets(validStops);
+  
   return {
     type: 'FeatureCollection',
-    features: (stops || [])
-      .filter((s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
-      .map((s) => {
-        const [lng, lat] = stopLngLat(s);
-        const anyStop = s as DeliveryStop & { original_sequence?: number | null };
-        const hasSeq = anyStop.original_sequence != null;
-        const completed = !!s.completed;
+    features: validStops.map((s) => {
+      // Use offset coordinates if computed, otherwise fall back to original
+      const coords = offsetCoords.get(s.id) || stopLngLat(s);
+      const [lng, lat] = coords;
+      
+      const anyStop = s as DeliveryStop & { original_sequence?: number | null };
+      const hasSeq = anyStop.original_sequence != null;
+      const completed = !!s.completed;
 
-        let label: string;
-        let color: string;
-        let marker: string;
-        if (hasSeq) {
-          label = String(anyStop.original_sequence);
-          color = completed ? PIN_COMPLETED : PIN_LOCKED;
-          marker = completed ? 'marker-green' : 'marker-navy';
-        } else if (routeConfirmed) {
-          // Late freight on a locked route.
-          label = (s.id && lateLabels[s.id]) || '★';
-          color = completed ? PIN_COMPLETED : PIN_LATE;
-          marker = completed ? 'marker-green' : 'marker-purple';
-        } else {
-          // Planning mode — proposed drive order.
-          label = String((s.order ?? 0) + 1);
-          color = completed ? PIN_COMPLETED : PIN_PLANNING;
-          marker = completed ? 'marker-green' : 'marker-blue';
-        }
+      let label: string;
+      let color: string;
+      let marker: string;
+      if (hasSeq) {
+        label = String(anyStop.original_sequence);
+        color = completed ? PIN_COMPLETED : PIN_LOCKED;
+        marker = completed ? 'marker-green' : 'marker-navy';
+      } else if (routeConfirmed) {
+        // Late freight on a locked route.
+        label = (s.id && lateLabels[s.id]) || '★';
+        color = completed ? PIN_COMPLETED : PIN_LATE;
+        marker = completed ? 'marker-green' : 'marker-purple';
+      } else {
+        // Planning mode — proposed drive order.
+        label = String((s.order ?? 0) + 1);
+        color = completed ? PIN_COMPLETED : PIN_PLANNING;
+        marker = completed ? 'marker-green' : 'marker-blue';
+      }
 
-        return {
-          type: 'Feature' as const,
-          id: s.id,
-          properties: { id: s.id, label, color, marker, completed },
-          geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-        };
-      }),
+      return {
+        type: 'Feature' as const,
+        id: s.id,
+        properties: { id: s.id, label, color, marker, completed },
+        geometry: { type: 'Point' as const, coordinates: [lng, lat] },
+      };
+    }),
   };
 }
 
