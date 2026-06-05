@@ -62,10 +62,11 @@ import { useNavigationCamera } from '../../src/hooks/useNavigationCamera';
 import { useGeofenceArrival, GeofenceStop } from '../../src/hooks/useGeofenceArrival';
 import { LastMilePrecisionHUD } from '../../src/components/LastMilePrecisionHUD';
 
+import { BACKEND_URL } from '../../src/utils/config';
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SIDEBAR_WIDTH = Math.min(320, SCREEN_WIDTH * 0.85);
 const COLLAPSED_WIDTH = 56;
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 const AUTO_REROUTE_DEVIATION_METERS = 40;
 const AUTO_REROUTE_COOLDOWN_MS = 12000;
 

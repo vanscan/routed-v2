@@ -19,9 +19,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics';
 import { getAuthToken } from '../src/utils/authTokenBridge';
 import { useStopsStore } from '../src/store/stopsStore';
+import { BACKEND_URL } from '../src/utils/config';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 interface GeocodingResult {
   id: string;

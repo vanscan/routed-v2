@@ -38,8 +38,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { getAuthToken } from '../src/utils/authTokenBridge';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { BACKEND_URL } from '../src/utils/config';
 
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await getAuthToken();
