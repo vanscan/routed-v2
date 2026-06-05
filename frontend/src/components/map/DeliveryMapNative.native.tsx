@@ -971,7 +971,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           if (typeof h === 'number' && h > 0) mapHeightRef.current = h;
         }}
       >
+        {/* Key forces full map remount when style URL changes - ensures images are re-registered */}
         <MapLibreMap
+          key={`map-${props.mapStyle || 'default'}`}
           ref={mapRef}
           style={styles.map}
           mapStyle={props.mapStyle || MAP_STYLE}
@@ -1129,7 +1131,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 layout={{
                   'text-field': ['get', 'street_number'],
                   'text-size': ['interpolate', ['linear'], ['zoom'], 15.5, 11, 17, 13, 19, 15],
-                  'text-font': ['Noto Sans Bold'],
+                  'text-font': ['Noto Sans Bold', 'noto_sans_bold', 'Arial Unicode MS Bold'],
                   'text-allow-overlap': true,
                   'text-ignore-placement': true,
                   'text-offset': [0, 0.3],
@@ -1149,7 +1151,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 layout={{
                   'text-field': ['get', 'street_number'],
                   'text-size': ['interpolate', ['linear'], ['zoom'], 15, 13, 17, 17, 19, 20],
-                  'text-font': ['Noto Sans Bold'],
+                  'text-font': ['Noto Sans Bold', 'noto_sans_bold', 'Arial Unicode MS Bold'],
                   'text-allow-overlap': true,
                   'text-ignore-placement': true,
                   'text-offset': [0, 0.3],
@@ -1174,7 +1176,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               minzoom={17.5}
               layout={{
                 'text-field': ['get', 'housenumber'],
-                'text-font': ['Noto Sans Bold'],
+                'text-font': ['Noto Sans Bold', 'noto_sans_bold', 'Arial Unicode MS Bold'],
                 'text-size': ['interpolate', ['linear'], ['zoom'], 17, 12, 20, 16],
                 'text-padding': 2,
                 'text-allow-overlap': false,
@@ -1366,7 +1368,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 layout={{
                   'text-field': ['get', 'label'],
                   'text-size': 13,
-                  'text-font': ['Noto Sans Bold'],
+                  'text-font': ['Noto Sans Bold', 'noto_sans_bold', 'Arial Unicode MS Bold'],
                   'text-allow-overlap': true,
                 }}
                 paint={{ 'text-color': s.color, 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
@@ -1389,7 +1391,8 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
                 'text-field': ['get', 'label'],
-                'text-font': ['Noto Sans Bold'],
+                // Font stack: try OpenFreeMap format first, then VersaTiles format
+                'text-font': ['Noto Sans Bold', 'noto_sans_bold', 'Arial Unicode MS Bold'],
                 'text-size': 15,
                 'text-anchor': 'center',
                 'text-offset': [0, -3.0],
@@ -1438,7 +1441,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 filter={['has', 'point_count']}
                 layout={{
                   'text-field': ['get', 'point_count_abbreviated'],
-                  'text-font': ['Noto Sans Bold'],
+                  'text-font': ['Noto Sans Bold', 'noto_sans_bold', 'Arial Unicode MS Bold'],
                   'text-size': 14,
                   'text-allow-overlap': true,
                 }}
