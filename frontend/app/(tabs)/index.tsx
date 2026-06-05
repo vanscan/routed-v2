@@ -853,7 +853,7 @@ export default function RouteScreen() {
       // (prod URL) or they're still on the old bundle (preview URL).
       let host = '';
       try {
-        host = new URL(process.env.EXPO_PUBLIC_BACKEND_URL!).hostname;
+        host = new URL(BACKEND_URL).hostname;
       } catch { /* ignore */ }
       const hostLine = host ? `\n\nAPI: ${host}` : '';
       Alert.alert(
@@ -893,7 +893,7 @@ export default function RouteScreen() {
 
   const handleExportXlsx = async () => {
     try {
-      const API = process.env.EXPO_PUBLIC_BACKEND_URL;
+      const API = BACKEND_URL;
       // Use unified auth token bridge (supports both Supabase JWT and legacy sessions)
       const sessionToken = await getAuthToken();
       if (!API || !sessionToken) {
