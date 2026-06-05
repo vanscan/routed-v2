@@ -1720,6 +1720,27 @@ export default function RouteScreen() {
     
     startLiveTracking();
 
+    // Auto-launch external navigation to first stop when route starts
+    // This opens Google Maps/Waze with turn-by-turn for Android Auto
+    try {
+      const firstUncompletedStop = stops.find((s: Stop) => !s.completed);
+      if (firstUncompletedStop && 
+          typeof firstUncompletedStop.latitude === 'number' && 
+          typeof firstUncompletedStop.longitude === 'number') {
+        // Small delay to let the UI settle before launching external app
+        setTimeout(() => {
+          launchExternalNavigation(
+            firstUncompletedStop.latitude,
+            firstUncompletedStop.longitude,
+            firstUncompletedStop.name || firstUncompletedStop.address || 'Stop 1'
+          );
+        }, 500);
+      }
+    } catch (navError) {
+      console.warn('[startNavigation] Auto-launch external nav failed:', navError);
+      // Non-blocking — in-app navigation still works
+    }
+
     // Start foreground service for persistent background tracking
     // (Android: non-dismissible notification while driving)
     import('../../src/tracking/BackgroundRouteTracking').then(({ startRouteTracking }) => {
@@ -3139,6 +3160,61 @@ export default function RouteScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   }, [navigationData?.stops, stops]);
+
+  /**
+   * Launch external navigation app (Google Maps, Waze, or system default)
+   * to guide the driver to the specified stop coordinates.
+   */
+  const launchExternalNavigation = useCallback(async (
+    latitude: number,
+    longitude: number,
+    label?: string
+  ) => {
+    const encodedLabel = encodeURIComponent(label || 'Destination');
+    
+    // Try Google Maps first (most drivers have it)
+    const googleMapsUrl = Platform.select({
+      ios: `comgooglemaps://?daddr=${latitude},${longitude}&directionsmode=driving`,
+      android: `google.navigation:q=${latitude},${longitude}`,
+    });
+    
+    // Fallback to Waze
+    const wazeUrl = `waze://?ll=${latitude},${longitude}&navigate=yes`;
+    
+    // Universal fallback (opens in browser or default maps app)
+    const webMapsUrl = Platform.select({
+      ios: `maps://app?daddr=${latitude},${longitude}&dirflg=d`,
+      android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodedLabel})`,
+    });
+
+    try {
+      // Try Google Maps
+      if (googleMapsUrl && await Linking.canOpenURL(googleMapsUrl)) {
+        await Linking.openURL(googleMapsUrl);
+        return true;
+      }
+      
+      // Try Waze
+      if (await Linking.canOpenURL(wazeUrl)) {
+        await Linking.openURL(wazeUrl);
+        return true;
+      }
+      
+      // Fallback to system maps
+      if (webMapsUrl && await Linking.canOpenURL(webMapsUrl)) {
+        await Linking.openURL(webMapsUrl);
+        return true;
+      }
+      
+      // Last resort: open in browser
+      const browserUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+      await Linking.openURL(browserUrl);
+      return true;
+    } catch (error) {
+      console.warn('[launchExternalNavigation] Failed to open maps app:', error);
+      return false;
+    }
+  }, []);
 
   // Reusable single-stop in-app nav launcher. Used by both:
   //   1. The on-map marker modal's "Navigate" button (driver tapped a pin).
