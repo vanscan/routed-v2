@@ -20,7 +20,7 @@
       "distribution": "internal",
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://delivery-maplibre.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.getrouted.xyz"
       },
       "android": {
         "buildType": "apk"

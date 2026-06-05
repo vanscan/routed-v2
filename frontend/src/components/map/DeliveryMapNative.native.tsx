@@ -217,8 +217,8 @@ function extractTurnPoints(coords: number[][] | null): GeoJSON.FeatureCollection
   if (!coords || coords.length < 3) return EMPTY_FC;
   
   const turns: GeoJSON.Feature[] = [];
-  const minTurnAngle = 35; // Minimum angle to consider a turn
-  const minDistance = 0.0003; // ~30m minimum distance between turn indicators
+  const minTurnAngle = 25; // Minimum angle to consider a turn (lowered to catch more turns)
+  const minDistance = 0.0002; // ~20m minimum distance between turn indicators
   
   let lastTurnCoord: number[] | null = null;
   
@@ -1204,20 +1204,22 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* Turn indicators at corners */}
+          {/* Turn indicators at corners - red arrows showing turn direction */}
           <GeoJSONSource id="turn-points-src" data={turnPointsFC}>
             <Layer
               id="turn-indicators"
               type="symbol"
-              minzoom={14}
+              minzoom={12}
               layout={{
                 'icon-image': ['get', 'turnType'],
-                'icon-size': 0.8,
+                'icon-size': 1.2,
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
+                'icon-rotation-alignment': 'map',
+                'icon-pitch-alignment': 'map',
               }}
               paint={{
-                'icon-opacity': 0.95,
+                'icon-opacity': 1,
               }}
             />
           </GeoJSONSource>
