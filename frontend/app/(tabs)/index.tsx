@@ -1720,27 +1720,6 @@ export default function RouteScreen() {
     
     startLiveTracking();
 
-    // Auto-launch external navigation to first stop when route starts
-    // This opens Google Maps/Waze with turn-by-turn for Android Auto
-    try {
-      const firstUncompletedStop = stops.find((s: Stop) => !s.completed);
-      if (firstUncompletedStop && 
-          typeof firstUncompletedStop.latitude === 'number' && 
-          typeof firstUncompletedStop.longitude === 'number') {
-        // Small delay to let the UI settle before launching external app
-        setTimeout(() => {
-          launchExternalNavigation(
-            firstUncompletedStop.latitude,
-            firstUncompletedStop.longitude,
-            firstUncompletedStop.name || firstUncompletedStop.address || 'Stop 1'
-          );
-        }, 500);
-      }
-    } catch (navError) {
-      console.warn('[startNavigation] Auto-launch external nav failed:', navError);
-      // Non-blocking — in-app navigation still works
-    }
-
     // Start foreground service for persistent background tracking
     // (Android: non-dismissible notification while driving)
     import('../../src/tracking/BackgroundRouteTracking').then(({ startRouteTracking }) => {
