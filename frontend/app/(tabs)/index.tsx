@@ -3795,7 +3795,9 @@ export default function RouteScreen() {
           driverLocation={mapDriverLocation}
           traveledPath={mapTraveledPath}
           followDriver={mapFollowDriver}
-          mapStyle={MAP_STYLES[mapStyle]?.url}
+          // Always use backend proxy for map style - ensures sprites/fonts are served correctly
+          // VersaTiles URLs would bypass the proxy and break custom marker icons
+          mapStyle={undefined}
           // When the 250 ms `useNavigationCamera` hook is enabled (driving
           // mode) we must tell the WebView NOT to also fire its own React-
           // driven `drivingCamera` writes — both writers racing produces the
@@ -3903,20 +3905,6 @@ export default function RouteScreen() {
             {blockRoadMode ? 'Tap road to block' : `Block road${nogoZones.length ? ' · ' + nogoZones.length : ''}`}
           </Text>
         </TouchableOpacity>
-
-        {/* Map Style Switcher - positioned above Block road button */}
-        {viewMode === 'planning' && (
-          <View style={{ position: 'absolute', right: 12, bottom: 148 }}>
-            <MapStyleSwitcher
-              currentStyle={mapStyle}
-              onStyleChange={(key, url) => {
-                setMapStyle(key);
-                // The map will pick up the style from state
-              }}
-              compact={true}
-            />
-          </View>
-        )}
 
         {/* Last-mile precision HUD — appears at top-centre of the map when
             the driver enters the 150 m approach radius of the upcoming
