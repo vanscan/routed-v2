@@ -1169,16 +1169,16 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 'icon-ignore-placement': true,
                 'text-field': ['get', 'label'],
                 'text-font': ['Noto Sans Bold'],
-                'text-size': 11,
+                'text-size': 13,
                 'text-anchor': 'center',
                 'text-offset': [0, -3.0],
                 'text-allow-overlap': true,
                 'text-ignore-placement': true,
               }}
               paint={{
-                'text-color': '#ffffff',
-                'text-halo-color': 'rgba(0,0,0,0.3)',
-                'text-halo-width': 0.5,
+                'text-color': '#b91c1c',
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 2,
               }}
             />
           </GeoJSONSource>
