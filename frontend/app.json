@@ -73,6 +73,7 @@
       ],
       "expo-font",
       "./plugins/withHardwareAcceleration.js",
+      "./plugins/withMapLibreVulkan.js",
       "./plugins/withAdiRegistration.js",
       [
         "expo-camera",
