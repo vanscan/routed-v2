@@ -313,28 +313,17 @@ function extractTurnPoints(coords: number[][] | null): GeoJSON.FeatureCollection
     const absTurn = Math.abs(turnAngle);
     
     if (absTurn >= minTurnAngle) {
-      let turnType: string;
-      let rotation: number;
-      
-      if (turnAngle > 0) {
-        // Right turn
-        turnType = 'turn-right';
-        // Rotation should point in the exit direction (bearing2)
-        // Subtract 90 because icon base orientation points right, not up
-        rotation = bearing2 - 90;
-      } else {
-        // Left turn
-        turnType = 'turn-left';
-        // Rotation should point in the exit direction (bearing2)
-        // Subtract 90 because icon base orientation points right, not up
-        rotation = bearing2 - 90;
-      }
+      // Use the bearing of the outgoing segment (direction of travel after the turn)
+      // This tells the driver which way they'll be heading
+      const exitBearing = bearing2;
       
       turns.push({
         type: 'Feature',
         properties: { 
-          turnType,
-          rotation,
+          turnType: turnAngle > 0 ? 'turn-right' : 'turn-left',
+          // Rotation for the icon - bearing2 points in direction of travel after turn
+          // Icon base orientation is 0° = pointing right, so subtract 90 for north-up
+          rotation: exitBearing,
           angle: Math.round(absTurn),
         },
         geometry: {
@@ -1274,26 +1263,23 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* Turn indicators at corners - red arrows showing turn direction */}
-          <GeoJSONSource id="turn-points-src" data={turnPointsFC}>
+          {/* Turn indicators disabled - route-arrows along the line are sufficient */}
+          {/* <GeoJSONSource id="turn-points-src" data={turnPointsFC}>
             <Layer
               id="turn-indicators"
               type="symbol"
               minzoom={12}
               layout={{
                 'icon-image': ['get', 'turnType'],
-                'icon-size': 1.2,
+                'icon-size': 1.0,
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
-                'icon-rotate': ['get', 'rotation'],
-                'icon-rotation-alignment': 'map',
-                'icon-pitch-alignment': 'map',
               }}
               paint={{
                 'icon-opacity': 1,
               }}
             />
-          </GeoJSONSource>
+          </GeoJSONSource> */}
 
           {/* Next-stop pulse ring */}
           <GeoJSONSource id="next-ring-src" data={nextRingFC}>
