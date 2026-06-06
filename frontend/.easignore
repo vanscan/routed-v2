@@ -70,3 +70,6 @@ app-example/
 
 # Google Play service account key (credential — never upload to EAS servers)
 play-service-account.json
+
+# npm lock file — project uses yarn; including both confuses yarn --frozen-lockfile
+package-lock.json
