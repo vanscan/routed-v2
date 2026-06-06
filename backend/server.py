@@ -9649,7 +9649,7 @@ def _round_coord(c: str, precision: int = 4) -> str:
     return ",".join(f"{float(p):.{precision}f}" for p in parts)
 
 @api_router.get("/directions")
-async def get_directions(coordinates: str, response: Response):
+async def get_directions(coordinates: str, response: Response, current_user: User = Depends(get_current_user)):
     """Get route directions from local OSRM Route API (zero-cost, no API key).
     coordinates format: lng1,lat1;lng2,lat2;lng3,lat3
     No waypoint limits — OSRM handles hundreds of waypoints natively.
@@ -10234,16 +10234,9 @@ async def get_alerts(
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/alerts")
-async def create_alert(alert_data: AlertCreate, request: Request):
+async def create_alert(alert_data: AlertCreate, request: Request, current_user: User = Depends(get_current_user)):
     """Report a new alert"""
     try:
-        # Get current user if authenticated
-        user = None
-        try:
-            user = await get_current_user(request)
-        except Exception:
-            pass
-        
         # Check for duplicate alerts nearby (within 100 meters)
         now = datetime.now(timezone.utc)
         cursor = db.map_alerts.find({
@@ -10279,7 +10272,7 @@ async def create_alert(alert_data: AlertCreate, request: Request):
             type=alert_data.type,
             latitude=alert_data.latitude,
             longitude=alert_data.longitude,
-            reported_by=user.user_id if user else None,
+            reported_by=current_user.user_id,
             description=alert_data.description,
             speed_limit=alert_data.speed_limit,
             direction=alert_data.direction,
@@ -10296,7 +10289,7 @@ async def create_alert(alert_data: AlertCreate, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/alerts/{alert_id}/confirm")
-async def confirm_alert(alert_id: str, request: Request):
+async def confirm_alert(alert_id: str, request: Request, current_user: User = Depends(get_current_user)):
     """Confirm an alert still exists (extends its lifetime)"""
     try:
         now = datetime.now(timezone.utc)
@@ -10327,7 +10320,7 @@ async def confirm_alert(alert_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/alerts/{alert_id}/dismiss")
-async def dismiss_alert(alert_id: str, request: Request):
+async def dismiss_alert(alert_id: str, request: Request, current_user: User = Depends(get_current_user)):
     """Mark an alert as no longer valid"""
     try:
         alert = await db.map_alerts.find_one({"id": alert_id}, {"_id": 0})

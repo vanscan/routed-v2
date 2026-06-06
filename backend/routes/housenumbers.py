@@ -17,7 +17,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 
 from ._constants import QLD_ADDRESS_ARCGIS_URL
@@ -306,8 +306,10 @@ def _sample_polyline(coords: List[List[float]], spacing_m: float) -> List[List[f
 
 
 @router.post("/housenumbers/prewarm")
-async def prewarm_housenumbers(req: HouseNumberPrewarmReq):
+async def prewarm_housenumbers(req: HouseNumberPrewarmReq, request: Request):
     """Concurrently warm the cache for each stop + sampled route points."""
+    from server import get_current_user  # noqa: WPS433
+    await get_current_user(request)
     stops = [c for c in (req.coordinates or []) if isinstance(c, list) and len(c) >= 2]
     stops = stops[:80]
     radius = max(0.0005, min(req.radius, 0.01))
