@@ -64,6 +64,14 @@ async def _current_user(request: Request):
     return await get_current_user(request)
 
 
+async def _require_pro(request: Request):
+    """Pro paywall gate for no-go zone write operations. Defers the
+    billing import to request time to avoid circular imports at startup
+    (same pattern as `_current_user` above)."""
+    from routes.billing import require_pro  # noqa: WPS433
+    return await require_pro(request)
+
+
 _LNG_BOUNDS = (-180.0, 180.0)
 _LAT_BOUNDS = (-90.0, 90.0)
 
@@ -107,6 +115,7 @@ async def list_nogo_zones(current_user=Depends(_current_user)):
 async def create_nogo_zone(
     payload: NoGoZoneCreate,
     current_user=Depends(_current_user),
+    _pro=Depends(_require_pro),
 ):
     from server import db  # noqa: WPS433
     doc = {
@@ -153,6 +162,7 @@ class NoGoZoneFromPoint(BaseModel):
 async def create_nogo_zone_from_point(
     payload: NoGoZoneFromPoint,
     current_user=Depends(_current_user),
+    _pro=Depends(_require_pro),
 ):
     """Create a no-go zone from a single tap.
 
@@ -230,6 +240,7 @@ async def create_nogo_zone_from_point(
 async def delete_nogo_zone(
     zone_id: str,
     current_user=Depends(_current_user),
+    _pro=Depends(_require_pro),
 ):
     from server import db  # noqa: WPS433
     result = await db.nogo_zones.delete_one(
@@ -245,7 +256,10 @@ async def delete_nogo_zone(
 
 
 @router.delete("/nogo-zones")
-async def delete_all_nogo_zones(current_user=Depends(_current_user)):
+async def delete_all_nogo_zones(
+    current_user=Depends(_current_user),
+    _pro=Depends(_require_pro),
+):
     """Nuke every no-go zone owned by the current user.
 
     Useful when:

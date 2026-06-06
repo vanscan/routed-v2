@@ -6018,10 +6018,18 @@ def optimize_segment(stops: List[dict], algorithm: str, start_point: dict = None
     return result
 
 
+# Pro paywall gate for the synchronous optimize endpoint. Imported here
+# (not at module top) for the same circular-import reason documented near
+# the /optimize/jobs endpoint below — the symbol must be bound at
+# decorator-evaluation time, but billing.require_pro defers its server
+# imports to request time so there is no import-order issue.
+from routes.billing import require_pro as _billing_require_pro  # noqa: E402
+
 @api_router.post("/optimize")
 async def optimize_route(
     request: OptimizationRequest = OptimizationRequest(),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _pro=Depends(_billing_require_pro),
 ):
     """Optimize route order using various algorithms
     
@@ -7948,12 +7956,6 @@ async def _run_optimize_job(job_id: str, request: OptimizationRequest, current_u
         )
 
 
-# Pro paywall gate for the heavy optimisation pipeline. Imported here
-# (not at module top) because routes.billing.require_pro defers its
-# `from server import db, get_current_user` to request time, but we
-# still need the symbol bound at decorator-evaluation time.
-from routes.billing import require_pro as _billing_require_pro
-
 @api_router.post("/optimize/jobs", status_code=202)
 async def create_optimize_job(
     request: OptimizationRequest = OptimizationRequest(),
@@ -8625,6 +8627,7 @@ async def get_ml_building_side_model(
 async def tighten_cluster(
     request: TightenClusterRequest,
     current_user: User = Depends(get_current_user),
+    _pro=Depends(_billing_require_pro),
 ):
     """One-tap "fix this zig-zag" handler.
 
@@ -8702,6 +8705,7 @@ async def tighten_cluster(
 @api_router.post("/optimize/tighten-clusters")
 async def tighten_all_clusters(
     current_user: User = Depends(get_current_user),
+    _pro=Depends(_billing_require_pro),
 ):
     """Iteratively tighten every detected spike in the current pending route.
 
@@ -9438,6 +9442,7 @@ def _run_algorithm_benchmark(algo_id: str, stops: List[dict], distance_matrix: L
 async def benchmark_algorithms(
     request: BenchmarkRequest = BenchmarkRequest(),
     current_user: User = Depends(get_current_user),
+    _pro=Depends(_billing_require_pro),
 ):
     """Run all (or selected) algorithms on the current route and return comparison metrics."""
     all_user_stops = await db.stops.find({"user_id": current_user.user_id}, {"_id": 0}).sort("order", 1).to_list(1000)
