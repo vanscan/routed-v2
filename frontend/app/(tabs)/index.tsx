@@ -4468,8 +4468,9 @@ export default function RouteScreen() {
               
               console.log('[Recovery] Complete - added:', addedCount, 'failed:', failedCount);
               
-              setShowHistoryModal(false);
+              // Fetch stops FIRST before closing modal to ensure UI updates
               await fetchStops();
+              setShowHistoryModal(false);
               try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
               
               if (addedCount === 0) {
