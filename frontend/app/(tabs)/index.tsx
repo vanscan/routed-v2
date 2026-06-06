@@ -4406,27 +4406,58 @@ export default function RouteScreen() {
                 return;
               }
               
-              // Add recovered stops to current stops (merge, not replace)
-              // Using the bulk import endpoint to add them
-              const addRes = await fetch(`${BACKEND_URL}/api/stops/batch`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                credentials: 'include',
-                body: JSON.stringify({ stops: archivedStops }),
-              });
+              // Add recovered stops to current stops one by one
+              let addedCount = 0;
+              let failedCount = 0;
               
-              if (addRes.ok) {
-                const addData = await addRes.json();
-                setShowHistoryModal(false);
-                await fetchStops();
-                try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-                Alert.alert('Stops recovered', `Added ${addData.added || archivedStops.length} stops from archived route.`);
+              for (const stop of archivedStops) {
+                try {
+                  // Create stop payload matching StopCreate model
+                  const stopPayload = {
+                    address: stop.address,
+                    name: stop.name || '',
+                    suburb: stop.suburb || '',
+                    latitude: stop.latitude,
+                    longitude: stop.longitude,
+                    priority: stop.priority || 0,
+                    time_window: stop.time_window || null,
+                    notes: stop.notes || '',
+                    weight: stop.weight || 0,
+                    quantity: stop.quantity || 1,
+                    tracking_number: stop.tracking_number || '',
+                    delivery_status: 'pending', // Reset status for recovered stops
+                  };
+                  
+                  const addRes = await fetch(`${BACKEND_URL}/api/stops`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(stopPayload),
+                  });
+                  
+                  if (addRes.ok) {
+                    addedCount++;
+                  } else {
+                    failedCount++;
+                    console.warn('[Recovery] Failed to add stop:', stop.address);
+                  }
+                } catch (e) {
+                  failedCount++;
+                  console.error('[Recovery] Error adding stop:', e);
+                }
+              }
+              
+              setShowHistoryModal(false);
+              await fetchStops();
+              try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+              
+              if (failedCount > 0) {
+                Alert.alert('Stops recovered', `Added ${addedCount} stops (${failedCount} failed).`);
               } else {
-                const errBody = await addRes.json().catch(() => ({}));
-                Alert.alert('Recovery failed', errBody?.detail || 'Could not add stops to current route.');
+                Alert.alert('Stops recovered', `Added ${addedCount} stops from archived route.`);
               }
             } else if (res.status === 404) {
               Alert.alert('Route not found', 'This archived route no longer exists.');
