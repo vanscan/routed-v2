@@ -268,7 +268,7 @@ function lineFeature(coords: number[][] | null): GeoJSON.FeatureCollection {
 // ─── Driving-camera tuning (parity with WebView 3D driving mode) ─────────────
 const DRIVING_PITCH = 60; // degrees — 3D look-ahead tilt
 const DRIVING_ZOOM = 18.5; // street-level, close to driver
-const DRIVING_EASE_MS = 250; // matches the 250 ms useNavigationCamera cadence
+const DRIVING_EASE_MS = 200; // finish before next 250 ms GPS tick — no skipped frames
 const DRIVING_BOTTOM_PAD_RATIO = 0.45; // push driver toward bottom of screen
 
 // ─── Phase 2 overlay tuning ──────────────────────────────────────────────────
@@ -381,7 +381,6 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const [refreshNonce, setRefreshNonce] = useState(0);
 
     // Driving-camera bookkeeping.
-    const easeInFlightRef = useRef(false);
     const userInteractingRef = useRef(false);
     const userInteractTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mapHeightRef = useRef<number>(Dimensions.get('window').height);
@@ -533,13 +532,13 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       (lng: number, lat: number, bearing?: number, _speedMps?: number) => {
         const cam = cameraRef.current;
         if (!cam) return;
-        // Re-entrancy + user-pan guards (parity with the WebView path).
-        if (easeInFlightRef.current) return;
         if (userInteractingRef.current) return;
         // TOP padding pushes the center DOWN on screen, placing puck in lower third
         const topPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
-        easeInFlightRef.current = true;
         try {
+          // MapLibre handles overlapping easeTo calls by smoothly interrupting the
+          // previous animation — no in-flight guard needed. Calling every 250 ms
+          // at a 200 ms duration gives continuous, gap-free camera motion.
           cam.easeTo({
             center: [lng, lat],
             zoom: DRIVING_ZOOM,
@@ -551,9 +550,6 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         } catch {
           // ignore transient native camera errors
         }
-        setTimeout(() => {
-          easeInFlightRef.current = false;
-        }, DRIVING_EASE_MS + 20);
       },
       [],
     );

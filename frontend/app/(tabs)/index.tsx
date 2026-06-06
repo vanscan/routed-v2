@@ -1687,6 +1687,19 @@ export default function RouteScreen() {
     setViewMode('navigating');
     setSidebarExpanded(false);
 
+    // Cinematic fly-in to 3D driving POV. Runs before the camera hook's first
+    // GPS tick (~300-500 ms away) so the driver sees a smooth sweep into
+    // street-level rather than an abrupt jump.
+    setTimeout(() => {
+      const loc = currentLocationRef.current;
+      if (mapRef.current && loc) {
+        mapRef.current.flyTo(
+          [loc.longitude, loc.latitude],
+          { zoom: 18.5, bearing: loc.heading ?? 0, pitch: 60, duration: 1200 },
+        );
+      }
+    }, 80);
+
     // Fire-and-forget: pre-warm the housenumbers cache for every stop so the
     // property-number overlay appears instantly at each curb without waiting
     // for an on-device moveend → backend fetch roundtrip. Runs in parallel
@@ -2402,8 +2415,21 @@ export default function RouteScreen() {
           setLiveRoute(resetPayload.liveRoute);
         }
         
-        // Camera target: the next stop
+        // Brief fly-to overview: show driver → next stop, then driving cam resumes.
         const nextLeg = nav.legs[nextIndex];
+        if (nextLeg?.to_stop && mapRef.current) {
+          const dLng = nextLeg.to_stop.longitude;
+          const dLat = nextLeg.to_stop.latitude;
+          const cLng = currentLocation.longitude;
+          const cLat = currentLocation.latitude;
+          // fitBounds to frame driver + next stop so driver knows where they're headed
+          mapRef.current.fitBounds(
+            [[Math.min(cLng, dLng), Math.min(cLat, dLat)],
+             [Math.max(cLng, dLng), Math.max(cLat, dLat)]],
+            72,
+          );
+          // After 2 s the driving camera hook re-asserts and pulls back to street level
+        }
         setTimeout(() => {
           if (nextLeg?.to_stop) {
             speakInstruction(`Next: ${nextLeg.to_stop.name || nextLeg.to_stop.address}`);
