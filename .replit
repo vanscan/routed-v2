@@ -57,9 +57,10 @@ externalPort = 3000
 localPort = 8000
 
 [deployment]
-deploymentTarget = "cloudrun"
+deploymentTarget = "static"
 run = ["bash", "-c", "cd backend && uvicorn server:app --host 0.0.0.0 --port 8000 & cd frontend && npx expo start --web --port 5000 --host localhost --no-dev"]
 build = ["bash", "-c", "cd frontend && npm install --legacy-peer-deps && npx expo export -p web"]
+publicDir = "frontend/dist"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-01753d05-d523-4695-95dc-656e76546043"
