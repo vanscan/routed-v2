@@ -1,61 +1,41 @@
 #!/usr/bin/env bash
-# Pre-deploy audit — runs on every deploy to prevent the `.gitignore`
-# self-healing-to-broken bug from silently rolling back production.
+# Pre-deploy audit — verifies that .env files containing real secrets are
+# not committed to the repository and not baked into the Docker image.
 #
-# Background: The `deployment_agent` tool repeatedly re-injects `.env`,
-# `.env.*`, and `*.env` patterns into /app/.gitignore. When those
-# patterns are present, Emergent's deploy bundle strips the .env files
-# the production pod needs, and the deploy silently rolls back to the
-# previous image (no error surfaced; users see "endpoint not found"
-# 404/405 because their latest code never shipped). This script catches
-# that state BEFORE a deploy goes out.
+# Secrets must be injected at deploy time via the platform's secret/env-var
+# UI (Railway Variables, Fly.io secrets, Replit Secrets, etc.).
 #
 # Exit codes:
-#   0  ✓  Clean — safe to deploy.
-#   1  ✗  Found one or more `.env*` patterns — deploy will silently
-#         drop env files. Remove them from .gitignore first.
-#   2  ✗  /app/.gitignore is missing — should never happen on a
-#         healthy repo; bail loudly.
-#
-# Usage:
-#   bash /app/scripts/pre-deploy-audit.sh
-#   # or wire into a deploy hook / pre-commit:
-#   #   yarn pre-deploy-audit
-#
-# Side-effects: NONE. Read-only audit. Safe to run anywhere.
+#   0  Clean — safe to deploy.
+#   1  Found committed .env values — remove secrets and re-deploy.
 
 set -euo pipefail
 
-GITIGNORE="/app/.gitignore"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="${REPO_ROOT}/backend/.env"
 
-if [[ ! -f "${GITIGNORE}" ]]; then
-  echo "✗ pre-deploy-audit: ${GITIGNORE} is missing." >&2
-  exit 2
+if [[ ! -f "${ENV_FILE}" ]]; then
+  echo "✓ pre-deploy-audit: backend/.env not present — clean."
+  exit 0
 fi
 
-# Match the three patterns the deployment_agent has been observed to
-# inject. We anchor to start-of-line to avoid false positives on
-# comments that legitimately contain ".env" as documentation.
-OFFENDERS="$(grep -nE '^[[:space:]]*(\.env(\.\*)?|\*\.env)[[:space:]]*$' "${GITIGNORE}" || true)"
+# Check whether any line in backend/.env has a non-empty value (i.e. a real
+# secret is present). Lines that are blank, comments, or KEY= (empty value)
+# are safe.
+POPULATED="$(grep -vE '^[[:space:]]*(#|$)' "${ENV_FILE}" | grep -E '=.+' | grep -vE '=(false|true|http://localhost:[0-9]+|[0-9]+)' || true)"
 
-if [[ -n "${OFFENDERS}" ]]; then
+if [[ -n "${POPULATED}" ]]; then
   echo "" >&2
   echo "╔══════════════════════════════════════════════════════════════════╗" >&2
-  echo "║  ✗ DEPLOY BLOCKED — .gitignore is excluding .env files         ║" >&2
+  echo "║  ✗ DEPLOY CHECK — backend/.env contains non-empty secret values ║" >&2
   echo "╚══════════════════════════════════════════════════════════════════╝" >&2
   echo "" >&2
-  echo "Production needs the .env files to be present in the deploy bundle." >&2
-  echo "Found these offending patterns in ${GITIGNORE}:" >&2
-  echo "" >&2
-  echo "${OFFENDERS}" | sed 's/^/    /' >&2
-  echo "" >&2
-  echo "→ Remove these lines and re-run the deploy." >&2
-  echo "→ If deployment_agent re-added them, see the warning block in" >&2
-  echo "  .gitignore — do NOT run that agent again until the upstream" >&2
-  echo "  bug is fixed." >&2
+  echo "backend/.env should only contain empty placeholders (KEY=)." >&2
+  echo "Inject real values via the platform's secret/env-var UI instead." >&2
+  echo "See backend/.env.example for the full list of required variables." >&2
   echo "" >&2
   exit 1
 fi
 
-echo "✓ pre-deploy-audit: .gitignore is clean — safe to deploy."
+echo "✓ pre-deploy-audit: backend/.env contains no secret values — clean."
 exit 0

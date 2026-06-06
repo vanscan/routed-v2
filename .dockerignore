@@ -21,6 +21,13 @@ __pycache__/
 .idea/
 .DS_Store
 
+# Secrets — never bake .env files into the image; inject via platform secrets
+.env
+.env.*
+*.env
+backend/.env
+backend/.env.*
+
 # Misc
 .git/
 .github/
