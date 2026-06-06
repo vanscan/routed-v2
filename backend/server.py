@@ -7,6 +7,7 @@ import os
 import errno
 import logging
 import traceback
+import zipfile
 
 # Suppress httpx INFO logs that leak Mapbox API keys and other tokens
 # into the server log. Only WARNING+ messages from httpx are useful.
@@ -2326,6 +2327,42 @@ def parse_excel_file(file_content: bytes, filename: str) -> pd.DataFrame:
         lower = filename.lower()
 
         if is_xlsx or is_xls:
+            # Pre-parse ZIP/OOXML safety gate — runs before pandas decompresses
+            # anything, so a zip-bomb payload is rejected before it can expand.
+            if is_xlsx:
+                _xlsx_max_uncompressed = 50 * 1024 * 1024  # 50 MB decompressed
+                _xlsx_max_ratio = 100                       # compression ratio limit
+                _xlsx_max_entries = 500                     # entry count limit
+                try:
+                    with zipfile.ZipFile(io.BytesIO(file_content)) as zf:
+                        entries = zf.infolist()
+                        if len(entries) > _xlsx_max_entries:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"File contains too many archive entries ({len(entries):,}). "
+                                       "This file cannot be imported.",
+                            )
+                        total_uncompressed = sum(e.file_size for e in entries)
+                        if total_uncompressed > _xlsx_max_uncompressed:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"File expands to {total_uncompressed // (1024*1024):,} MB when "
+                                       f"decompressed, which exceeds the {_xlsx_max_uncompressed // (1024*1024)} MB limit.",
+                            )
+                        for entry in entries:
+                            if entry.compress_size > 0:
+                                ratio = entry.file_size / entry.compress_size
+                                if ratio > _xlsx_max_ratio:
+                                    raise HTTPException(
+                                        status_code=400,
+                                        detail="File has a suspiciously high compression ratio and cannot be imported.",
+                                    )
+                except HTTPException:
+                    raise
+                except zipfile.BadZipFile:
+                    raise HTTPException(status_code=400, detail="File appears corrupt or is not a valid Excel file.")
+                except Exception as zip_err:
+                    logger.warning(f"ZIP inspection failed for import: {zip_err}")
             # calamine handles both formats from the in-memory bytes; the
             # extension is irrelevant once we know the magic bytes.
             df = pd.read_excel(io.BytesIO(file_content), engine='calamine')
