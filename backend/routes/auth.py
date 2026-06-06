@@ -326,7 +326,7 @@ async def exchange_session(request: Request, response: Response):
         value=session_data.session_token,
         httponly=True,
         secure=True,
-        samesite="none",
+        samesite="lax",
         path="/",
         max_age=7 * 24 * 60 * 60,
     )
@@ -430,7 +430,7 @@ async def reviewer_login(body: ReviewerLoginRequest, response: Response):
         value=session_token,
         httponly=True,
         secure=True,
-        samesite="none",
+        samesite="lax",
         path="/",
         max_age=7 * 24 * 60 * 60,
     )
@@ -558,7 +558,7 @@ async def register_email(body: EmailRegisterRequest, response: Response):
         value=session_token,
         httponly=True,
         secure=True,
-        samesite="none",
+        samesite="lax",
         path="/",
         max_age=7 * 24 * 60 * 60,
     )
@@ -615,7 +615,7 @@ async def login_email(body: EmailLoginRequest, response: Response):
         value=session_token,
         httponly=True,
         secure=True,
-        samesite="none",
+        samesite="lax",
         path="/",
         max_age=7 * 24 * 60 * 60,
     )

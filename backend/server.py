@@ -10781,10 +10781,22 @@ async def terms_redirect():
     return HTMLResponse(content=_read_privacy_policy())
 
 
+# Build an explicit origin allowlist from the ALLOWED_ORIGINS env var.
+# Accepting credentials alongside a wildcard origin is forbidden by the
+# CORS spec and exposes cookie-authenticated sessions to any site. The
+# allowlist must name every trusted frontend origin exactly.
+#
+# Format: comma-separated URLs, e.g.
+#   ALLOWED_ORIGINS=https://app.getrouted.xyz,https://api.getrouted.xyz
+_raw_allowed_origins = os.environ.get("ALLOWED_ORIGINS", "https://api.getrouted.xyz")
+_CORS_ALLOWED_ORIGINS: list[str] = [
+    o.strip() for o in _raw_allowed_origins.split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=_CORS_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
