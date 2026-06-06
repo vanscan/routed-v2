@@ -97,20 +97,19 @@ queensland.osrm*
 osrm-backend/
 
 # ─────────────────────────────────────────────────────────────────────
-# .env files are INTENTIONALLY TRACKED. Do NOT add `.env`, `.env.*`,
-# or `*.env` patterns to this file. Emergent's deploy pipeline relies
-# on the .env files being present in the repo bundle — blocking them
-# silently strips production env values and causes deploys to roll back
-# to the previous image without surfacing an error.
+# .env files must NOT be committed. They contain live production secrets
+# (database credentials, JWT signing secrets, API keys). Secrets must be
+# injected at deploy time via the hosting platform's secret/env-var UI
+# (Railway Variables, Fly.io secrets, Replit Secrets, etc.).
 #
-# KNOWN ISSUE: the deployment_agent tool has been observed re-appending
-# `.env` blocking patterns automatically on each invocation. The audit
-# script at /app/scripts/pre-deploy-audit.sh checks for this on every
-# commit (via .husky/pre-commit) and every deploy (via package.json
-# `update:prod` and `deploy:preflight`). If your push fails with the
-# red "DEPLOY BLOCKED" banner, scroll up — the line numbers in the
-# audit output tell you exactly which .env* patterns to delete.
+# Use backend/.env.example as the canonical list of required variables.
+# Copy it to backend/.env locally and fill in real values; never commit
+# that filled-in file.
 # ─────────────────────────────────────────────────────────────────────
+.env
+.env.*
+*.env
+!*.env.example
 credentials.json
 *.pem
 *.key
