@@ -1,0 +1,1 @@
+- [GitHub sync path](github-sync.md) — main repl can read GitHub but destructive git is blocked here; task containers can't reach github.com; push/sync only via Replit Git pane.
