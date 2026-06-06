@@ -692,7 +692,8 @@ export default function RouteScreen() {
         .map((s) => s.id);
       console.log('[AUDIT LINE DRAW]', _drawOrder);
       
-      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`);
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`, { headers: authHeaders });
       if (!response.ok) {
         // Backend returned 4xx/5xx (e.g. OSRM down, Mapbox refused) — clear
         // the stats so the HUD never shows a stale distance from an older
@@ -2010,7 +2011,8 @@ export default function RouteScreen() {
       const coordinates = `${snapped.lng},${snapped.lat};${currentLeg.to_stop.longitude},${currentLeg.to_stop.latitude}`;
       console.log('[LiveRoute] Fetching from API (snapped):', coordinates);
       
-      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`);
+      const liveRouteHeaders = await getAuthHeaders();
+      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`, { headers: liveRouteHeaders });
       console.log('[LiveRoute] Response status:', response.status);
       
       if (response.ok) {
@@ -2285,7 +2287,8 @@ export default function RouteScreen() {
         `${activeStop.longitude},${activeStop.latitude}`
       ].join(';');
       
-      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`);
+      const rerouteHeaders = await getAuthHeaders();
+      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`, { headers: rerouteHeaders });
       if (response.ok) {
         const data = await response.json();
         setLiveRoute(data);
