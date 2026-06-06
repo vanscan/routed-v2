@@ -7,9 +7,11 @@
 node_modules/
 
 # Expo / Metro caches (largest source of transient junk files)
-.expo/
-.expo-shared/
-.metro-cache/
+# Note: use bare names (no trailing slash) so the ignore package matches the
+# directory entry itself when fs.cp calls the filter on the dir path.
+.expo
+.expo-shared
+.metro-cache
 .metro-health-check*
 
 # Python / tooling caches that sometimes leak into /app/frontend
