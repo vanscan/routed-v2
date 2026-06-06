@@ -11019,10 +11019,10 @@ async def liveness_check():
     # Simple check - if the app can respond, it's alive
     return {"alive": True}
 
-# ── Temporary public file download (no auth) ─────────────────────────
+# ── Authenticated temporary file download ────────────────────────────
 @app.get("/api/download/{token}")
-async def download_temp_file(token: str):
-    """One-time public download for exported files."""
+async def download_temp_file(token: str, current_user: User = Depends(get_current_user)):
+    """Authenticated download for exported files. Requires a valid session."""
     import os
     from fastapi.responses import FileResponse
     safe_token = "".join(c for c in token if c.isalnum())

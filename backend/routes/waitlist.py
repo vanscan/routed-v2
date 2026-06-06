@@ -195,52 +195,29 @@ async def join_waitlist(body: WaitlistJoinRequest, request: Request):
     from server import db
 
     entry = await add_to_waitlist(db, body.email, body.name, source="manual_join")
-    status = entry["status"]
 
-    if status == "approved":
-        msg = "You're approved! Sign in to get started."
-    elif status == "rejected":
-        msg = "Your request was not approved at this time."
-    else:
-        msg = "You're on the waitlist! We'll notify you when a spot opens up."
-
+    # Always return a uniform pending message regardless of the actual entry
+    # status (new, existing-pending, approved, or rejected). Revealing the real
+    # status here lets unauthenticated callers enumerate approval state for
+    # arbitrary email addresses by simply submitting them to this endpoint.
     return WaitlistJoinResponse(
         id=entry["id"],
         email=entry["email"],
-        status=status,
-        message=msg,
+        status="pending",
+        message="You're on the waitlist! We'll notify you when a spot opens up.",
     )
 
 
-@router.get("/status", response_model=WaitlistStatusResponse)
+@router.get("/status")
 async def check_waitlist_status(email: str, request: Request):
-    """Public: check waitlist status for an email address."""
+    """Public: acknowledge a waitlist status check without revealing membership or state."""
     _check_rate_limit(request, _RATE_LIMIT_STATUS)
-    from server import db
-
-    email_lower = email.strip().lower()
-    entry = await db.waitlist.find_one({"email": email_lower}, {"_id": 0})
-
-    if not entry:
-        return WaitlistStatusResponse(
-            email=email_lower,
-            on_waitlist=False,
-        )
-
-    # Position = count of pending entries created before this one
-    position = None
-    if entry["status"] == "pending":
-        position = await db.waitlist.count_documents({
-            "status": "pending",
-            "created_at": {"$lte": entry["created_at"]},
-        })
-
-    return WaitlistStatusResponse(
-        email=email_lower,
-        on_waitlist=True,
-        status=entry["status"],
-        position=position,
-    )
+    # Return a uniform response regardless of whether the email exists or what
+    # its status is. This prevents enumeration of waitlist membership, approval
+    # state, and queue position by unauthenticated callers.
+    return {
+        "message": "If this email address is on our waitlist, you will be notified when your status changes."
+    }
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────
