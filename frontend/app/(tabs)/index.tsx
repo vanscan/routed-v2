@@ -4384,6 +4384,59 @@ export default function RouteScreen() {
             );
           }
         }}
+        onRecoverStopIds={async (routeId: string) => {
+          try {
+            const token = await getAuthToken();
+            console.log('[HistoryModal] Recover stop IDs - routeId:', routeId);
+            // Fetch the archived route details (includes stops)
+            const res = await fetch(`${BACKEND_URL}/api/routes/history/${routeId}`, {
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              credentials: 'include',
+            });
+            if (res.ok) {
+              const route = await res.json();
+              const archivedStops = route.stops || [];
+              console.log('[HistoryModal] Recovered', archivedStops.length, 'stops from history');
+              
+              if (archivedStops.length === 0) {
+                Alert.alert('No stops', 'This archived route has no stops to recover.');
+                return;
+              }
+              
+              // Add recovered stops to current stops (merge, not replace)
+              // Using the bulk import endpoint to add them
+              const addRes = await fetch(`${BACKEND_URL}/api/stops/batch`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                credentials: 'include',
+                body: JSON.stringify({ stops: archivedStops }),
+              });
+              
+              if (addRes.ok) {
+                const addData = await addRes.json();
+                setShowHistoryModal(false);
+                await fetchStops();
+                try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+                Alert.alert('Stops recovered', `Added ${addData.added || archivedStops.length} stops from archived route.`);
+              } else {
+                const errBody = await addRes.json().catch(() => ({}));
+                Alert.alert('Recovery failed', errBody?.detail || 'Could not add stops to current route.');
+              }
+            } else if (res.status === 404) {
+              Alert.alert('Route not found', 'This archived route no longer exists.');
+            } else {
+              Alert.alert('Recovery failed', `Server error (${res.status}). Try again.`);
+            }
+          } catch (e: any) {
+            Alert.alert('Network error', `Could not reach the server.\n\n${e?.message || ''}`);
+          }
+        }}
         insets={insets}
       />
 

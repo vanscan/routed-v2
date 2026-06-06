@@ -107,6 +107,7 @@ interface HistoryModalProps {
   visible: boolean;
   onClose: () => void;
   onResume: (routeId: string) => void;
+  onRecoverStopIds?: (routeId: string) => void;
   insets: { top: number; bottom: number };
 }
 
@@ -123,7 +124,7 @@ const authFetch = async (url: string, options: RequestInit = {}): Promise<Respon
   });
 };
 
-export const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, onResume, insets }) => {
+export const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, onResume, onRecoverStopIds, insets }) => {
   const [routes, setRoutes] = useState<RouteSummary[]>([]);
   const [stats, setStats] = useState<AggregateStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -210,6 +211,20 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, on
     ]);
   };
 
+  const recoverStopIds = (routeId: string) => {
+    Alert.alert(
+      'Recover Stop IDs',
+      'This will add the stop IDs from this archived route to your current stops (merging, not replacing). Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Recover',
+          onPress: () => onRecoverStopIds?.(routeId),
+        },
+      ]
+    );
+  };
+
   const formatDate = (iso?: string) => {
     if (!iso) return '--';
     const d = new Date(iso);
@@ -239,6 +254,16 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ visible, onClose, on
           <View style={[s.rateBadge, { backgroundColor: rateColor + '22' }]}>
             <Text style={[s.rateText, { color: rateColor }]}>{rate}%</Text>
           </View>
+          {/* Recover Stop IDs - adds stops to current route */}
+          {onRecoverStopIds && (
+            <TouchableOpacity
+              style={s.recoverBtn}
+              onPress={() => recoverStopIds(item.id)}
+              data-testid={`history-recover-${item.id}`}
+            >
+              <Ionicons name="download-outline" size={18} color="#8b5cf6" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={s.resumeBtn}
             onPress={() => resumeRoute(item.id)}
@@ -473,6 +498,15 @@ const s = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  recoverBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
