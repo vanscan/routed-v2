@@ -1575,7 +1575,8 @@ async def resume_route(route_id: str, current_user: User = Depends(get_current_u
     """Restore an archived route back into active stops (resets completion status).
 
     Hardened against:
-      - Legacy archives saved under a different user_id (e.g. old dev-user-123).
+      - Cross-tenant access: lookup is always scoped to current_user.user_id;
+        no fallback path that bypasses ownership is permitted.
       - Stops carrying completion telemetry fields that must be cleared so the
         resumed route shows as pristine pending.
       - Duplicate stop ids inside the same archive (would collide with the
@@ -1583,21 +1584,10 @@ async def resume_route(route_id: str, current_user: User = Depends(get_current_u
       - Generic exceptions — we now surface the real reason to the client.
     """
     try:
-        # Primary lookup: scoped to current user.
+        # Lookup scoped strictly to the current user — no cross-tenant fallback.
         route = await db.route_history.find_one(
             {"id": route_id, "user_id": current_user.user_id}, {"_id": 0}
         )
-        # Fallback: legacy archives may exist under a previous user_id (e.g.
-        # before auth was hooked up). If the user can read it from their
-        # history listing today, they should be allowed to resume it.
-        if not route:
-            route = await db.route_history.find_one({"id": route_id}, {"_id": 0})
-            if route:
-                logger.warning(
-                    f"[resume_route] route {route_id} owned by "
-                    f"{route.get('user_id')} resumed by {current_user.user_id} "
-                    f"(legacy archive fallback)"
-                )
         if not route:
             raise HTTPException(status_code=404, detail="Route not found in history")
 
