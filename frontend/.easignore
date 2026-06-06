@@ -63,7 +63,8 @@ app-example/
 .github/
 
 # Corrupted binary file (non-UTF8 filename, zero bytes — safe to exclude)
-@@9@8
+# Wildcard needed because Node.js inserts replacement chars around the non-UTF-8 bytes
+*@@*
 
 # Google Play service account key (credential — never upload to EAS servers)
 play-service-account.json
