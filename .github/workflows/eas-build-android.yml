@@ -1,0 +1,75 @@
+name: EAS Android Build
+
+# Triggers a native Android APK build on EAS cloud servers.
+# The resulting APK can be downloaded from the Expo dashboard and
+# distributed for sideloading or uploaded to the Play Store manually.
+#
+# Setup (one-time):
+#   1. In Expo dashboard → Access Tokens → create a token
+#   2. In GitHub repo → Settings → Secrets → Actions → add:
+#        EXPO_TOKEN = <the token>
+#   3. Run manually from the Actions tab, or push a tag like `build-2026.06.06`
+#
+# Profile used: production-apk (APK for sideloading, autoIncrement versionCode)
+# To build an AAB for the Play Store: change --profile to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS build profile'
+        required: false
+        default: 'production-apk'
+        type: choice
+        options:
+          - production-apk
+          - production
+          - preview
+  push:
+    tags:
+      - 'build-*'
+
+jobs:
+  build:
+    name: Android EAS Build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: eas-build-android-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: EAS Build
+        working-directory: frontend
+        run: |
+          PROFILE="${{ github.event.inputs.profile || 'production-apk' }}"
+          echo "Building profile: $PROFILE"
+          eas build --platform android --profile "$PROFILE" --non-interactive --no-wait
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### EAS Android Build — ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "Profile: \`${{ github.event.inputs.profile || 'production-apk' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Monitor build progress: [Expo Dashboard](https://expo.dev/accounts/xxmltvguides-organization/projects/routr/builds)" >> $GITHUB_STEP_SUMMARY
