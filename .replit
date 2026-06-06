@@ -68,3 +68,15 @@ defaultBucketID = "replit-objstore-01753d05-d523-4695-95dc-656e76546043"
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 180000
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_SUPABASE_URL = "https://kulsrotsnlqdzkmjmarx.supabase.co"
+EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1bHNyb3RzbmxxZHprbWptYXJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MjY5MzQsImV4cCI6MjA5NjAwMjkzNH0.n1xrOfDhDL_Tk4fNewhwk0FJpqNBj9xWQO41jJ5kNfY"
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = "95569758736-c3ocds98iskqaatrdeoumtk9dc38agsb.apps.googleusercontent.com"
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = "95569758736-41pn10hgdrgjs7e4rftti6r714om0au3.apps.googleusercontent.com"
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID = "95569758736-f9hbeb6a3d5of216pp5c7l2ng89dih5j.apps.googleusercontent.com"
+EXPO_PUBLIC_BACKEND_URL = "https://api.getrouted.xyz"
+EXPO_PUBLIC_DEV_MODE = "false"
+EXPO_USE_FAST_RESOLVER = "1"
