@@ -22,6 +22,7 @@ Design notes:
     Debian mirrors; it works in Emergent's cloud image
 """
 
+import hashlib
 import importlib
 import logging
 import os
@@ -48,6 +49,10 @@ LKH_BIN_PATH = (
 )
 LKH_VERSION = "3.0.11"
 LKH_SOURCE_URL = f"http://webhotel4.ruc.dk/~keld/research/LKH-3/LKH-{LKH_VERSION}.tgz"
+# Pinned SHA-256 for LKH-3.0.11.tgz. Any tampered tarball (MITM, DNS poisoning,
+# or compromised upstream host) will produce a different digest and be rejected
+# before extraction or compilation.
+LKH_SOURCE_SHA256 = "6e156cbf99552bb6203a76fde0a7e722583c0b20dc61203c427a5ce22159edbf"
 LKH_WORK_DIR = "/tmp/lkh-install"
 
 # Lock to prevent concurrent LKH rebuild attempts (multiple threads/restarts)
@@ -71,6 +76,26 @@ def _run(cmd: list[str], cwd: str | None = None, timeout: int = 120) -> None:
         cmd, cwd=cwd, timeout=timeout, check=True,
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
     )
+
+
+def _verify_sha256(path: str, expected: str) -> None:
+    """Raise ValueError if the SHA-256 digest of *path* does not match *expected*.
+
+    This must be called on every downloaded archive before extraction or
+    compilation. Without this check, a network attacker or compromised upstream
+    host can substitute a trojaned tarball that the bootstrap process would
+    silently compile and install.
+    """
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    actual = h.hexdigest()
+    if actual != expected:
+        raise ValueError(
+            f"SHA-256 mismatch for {path}: expected {expected}, got {actual}. "
+            "The downloaded archive may have been tampered with — refusing to extract."
+        )
 
 
 # =============================================================================
@@ -176,7 +201,9 @@ def _install_lkh_sync_locked() -> bool:
     try:
         logger.info("[lkh-installer] downloading LKH %s source...", LKH_VERSION)
         urllib.request.urlretrieve(LKH_SOURCE_URL, tarball)
-        logger.info("[lkh-installer] extracting...")
+        logger.info("[lkh-installer] verifying SHA-256 integrity...")
+        _verify_sha256(tarball, LKH_SOURCE_SHA256)
+        logger.info("[lkh-installer] checksum OK — extracting...")
         _run(["tar", "xzf", tarball, "-C", LKH_WORK_DIR], timeout=30)
         logger.info("[lkh-installer] compiling with `make` (~20s)...")
         _run(["make"], cwd=src_dir, timeout=360)
@@ -199,6 +226,9 @@ def _install_lkh_sync_locked() -> bool:
             pass
         logger.info("[lkh-installer] OK — LKH installed at %s", LKH_BIN_PATH)
         return True
+    except ValueError as e:
+        logger.error("[lkh-installer] INTEGRITY CHECK FAILED — %s", e)
+        return False
     except subprocess.TimeoutExpired as e:
         logger.warning("[lkh-installer] step timed out: %s", e)
         return False
