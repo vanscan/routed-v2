@@ -10,29 +10,30 @@ Production-scoping assumptions for future scans:
 - TLS for deployed traffic is handled by the platform.
 - This deployment is public, so unauthenticated endpoints are internet-exposed.
 - On 2026-06-06, the advertised public deployment URL returned Replit's "This app isn't live yet" placeholder, so runtime validation was limited; findings in this scan are based on production-reachable code paths that would become exposed when the deployment is live.
+- Repository-tracked env files and Docker build inputs remain in scope because this project intentionally ships `backend/.env` with the backend bundle; secret-management issues in those files are production-relevant rather than historical-only source exposure.
 
 ## Assets
 
 - **User accounts and active sessions** — session cookies, bearer tokens, reviewer/admin identities, and any account-linking data in MongoDB. Compromise allows impersonation and access to route/workflow data.
 - **Driver route data** — stops, route history, navigation progress, delivery notes, van layouts, and export files. This data can include sensitive addresses and operational details.
 - **Billing and entitlement state** — subscription records, reviewer/admin bypasses, and Stripe customer/subscription identifiers. Unauthorized changes could unlock paid features or expose business data.
-- **Operational diagnostics and deployment artifacts** — debug endpoints, build metadata, logs, temporary exports, and sync archives. These can leak internal state or code if exposed publicly.
-- **Application secrets and third-party credentials** — Mongo connection info, Stripe secrets, Mapbox token, Supabase configuration, reviewer passcodes, and TTS/API keys.
+- **Operational diagnostics and deployment artifacts** — debug endpoints, build metadata, logs, temporary exports, sync archives, and generated media responses. These can leak internal state or code if exposed publicly.
+- **Application secrets and third-party credentials** — Mongo connection info, Stripe secrets, Mapbox token, Supabase configuration, reviewer passcodes, TTS/API keys, and any secrets embedded in repository-tracked env files.
 
 ## Trust Boundaries
 
 - **Client to backend API** — every request from the mobile app, web client, or arbitrary internet caller is untrusted until authenticated and authorized server-side.
 - **Backend to MongoDB** — backend code has broad access to tenant data; injection or authorization flaws here become full data-access issues.
 - **Backend to external services** — the backend fetches/validates data from external services and must not treat upstream responses as implicitly safe.
-- **Unauthenticated to authenticated** — health, map/tile, waitlist, and other public endpoints are exposed without login; authenticated endpoints must not be reachable via alternate public paths.
+- **Unauthenticated to authenticated** — health, map/tile, waitlist, TTS, sync-drop, and other public endpoints are exposed without login; authenticated endpoints must not be reachable via alternate public paths.
 - **Authenticated to admin/reviewer bypasses** — reviewer/admin allowlists and paywall bypasses create privileged paths that must be tightly scoped and never become generic backdoors.
 - **Production to dev-only/test surfaces** — map-test, cluster-test, diagnostics, migration helpers, and similar endpoints should be treated as out of scope unless they remain reachable in the production app.
 
 ## Scan Anchors
 
 - **Production entry points:** `backend/server.py`, `backend/routes/auth.py`, `backend/routes/stops.py`, `backend/routes/billing.py`, `backend/routes/waitlist.py`, `backend/routes/tiles.py`.
-- **Highest-risk areas:** auth/session parsing in `backend/server.py`, legacy auth exchange in `backend/routes/auth.py`, public operational endpoints near the bottom of `backend/server.py`, unauthenticated alert and routing helpers, billing/waitlist privilege checks, and any file export/import paths.
-- **Public surfaces:** root probes, `/api/health*`, `/api/waitlist/*` public routes, `/api/alerts*`, `/api/directions`, map/tile endpoints, build/debug/meta endpoints, and any unauthenticated download/test routes.
+- **Highest-risk areas:** auth/session parsing in `backend/server.py`, legacy auth exchange in `backend/routes/auth.py`, repository-tracked secrets in `backend/.env` and Docker build inputs, public operational endpoints near the bottom of `backend/server.py`, unauthenticated alert and routing helpers, public `/api/tts`, public `/api/sync-drop/*`, billing/waitlist privilege checks, file export/import paths, and the route-history resume fallback in `backend/server.py`.
+- **Public surfaces:** root probes, `/api/health*`, `/api/waitlist/*` public routes, `/api/alerts*`, `/api/directions`, `/api/tts`, `/api/sync-drop/*`, map/tile endpoints, build/debug/meta endpoints, and any unauthenticated download/test routes.
 - **Authenticated surfaces:** stop CRUD, optimize/import jobs, route history, telemetry, van layout, billing status/checkout.
 - **Dev-only areas usually ignorable unless reachable:** Expo/mobile local storage helpers, standalone test pages, benchmark/test harnesses, and scripts under `backend/tests`, `frontend/scripts`, `scripts/`.
 
@@ -48,7 +49,7 @@ Drivers can modify stops, route order, optimization inputs, imports, alerts, and
 
 ### Information Disclosure
 
-The system stores route history, stop addresses, notes, export files, operational telemetry, and deployment diagnostics. Public or weakly protected debug/download endpoints, over-broad API responses, and any cross-origin exposure of authenticated responses could leak sensitive route and operational data.
+The system stores route history, stop addresses, notes, export files, operational telemetry, deployment diagnostics, and repository-tracked secrets. Public or weakly protected debug/download endpoints, over-broad API responses, and any cross-origin exposure of authenticated responses could leak sensitive route, operational, or credential material.
 
 ### Denial of Service
 
