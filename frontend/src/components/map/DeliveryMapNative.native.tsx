@@ -381,7 +381,11 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const [refreshNonce, setRefreshNonce] = useState(0);
 
     // Driving-camera bookkeeping.
+    const easeInFlightRef = useRef(false);
     const userInteractingRef = useRef(false);
+    // Mirrors the highFreqCameraActive prop in a ref so handleRegionDidChange
+    // (a stable callback) can read the current value without being re-created.
+    const highFreqCameraActiveRef = useRef(false);
     const userInteractTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mapHeightRef = useRef<number>(Dimensions.get('window').height);
     const wasDrivingRef = useRef(false);
@@ -471,6 +475,8 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const center = initialCenter ?? DEFAULT_CENTER;
     const zoom = initialZoom ?? DEFAULT_ZOOM;
     const highFreqCameraActive = !!props.highFreqCameraActive;
+    // Keep the ref in sync so stable callbacks can read it without stale closure
+    highFreqCameraActiveRef.current = highFreqCameraActive;
 
     // Stop centroids (lng/lat) for tagging nearby address labels as delivery
     // targets — rebuilt only when the stop set changes.
@@ -532,13 +538,11 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       (lng: number, lat: number, bearing?: number, _speedMps?: number) => {
         const cam = cameraRef.current;
         if (!cam) return;
+        if (easeInFlightRef.current) return;
         if (userInteractingRef.current) return;
-        // TOP padding pushes the center DOWN on screen, placing puck in lower third
         const topPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
+        easeInFlightRef.current = true;
         try {
-          // MapLibre handles overlapping easeTo calls by smoothly interrupting the
-          // previous animation — no in-flight guard needed. Calling every 250 ms
-          // at a 200 ms duration gives continuous, gap-free camera motion.
           cam.easeTo({
             center: [lng, lat],
             zoom: DRIVING_ZOOM,
@@ -550,6 +554,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         } catch {
           // ignore transient native camera errors
         }
+        // Guard cleared after ease finishes (DRIVING_EASE_MS=200ms).
+        // Interval is 250ms → 50ms settling gap before next tick → no skipped frames.
+        setTimeout(() => { easeInFlightRef.current = false; }, DRIVING_EASE_MS + 20);
       },
       [],
     );
@@ -861,7 +868,8 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             onCameraIdle({ lng: c[0], lat: c[1] }, zz);
           }
           // Phase 2: refresh data-driven overlays for the new viewport.
-          if (Array.isArray(c) && c.length >= 2) {
+          // Skip during driving — camera idles 4×/s and hammers the backend.
+          if (Array.isArray(c) && c.length >= 2 && !highFreqCameraActiveRef.current) {
             refreshOverlays(c[0], c[1], zz);
           }
           // Update pulse ring position to track the camera.

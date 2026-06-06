@@ -18,6 +18,7 @@ import {
   KeyboardAvoidingView,
   FlatList,
   TextInput,
+  unstable_batchedUpdates,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -1876,10 +1877,16 @@ export default function RouteScreen() {
           };
 
           // GPS data flows to map via driverLocation prop — no injection needed
-
-          setCurrentLocation(newLocation);
           currentLocationRef.current = newLocation;
-          setCurrentSpeed(Math.round((location.coords.speed || 0) * 3.6));
+
+          // Batch all three setState calls into one React render pass.
+          // expo-location callbacks arrive via the native bridge outside React's
+          // event system, so without batching each setState triggers a separate
+          // full re-render of this component — 3× the work per GPS tick.
+          unstable_batchedUpdates(() => {
+            setCurrentLocation(newLocation);
+            setCurrentSpeed(Math.round((location.coords.speed || 0) * 3.6));
+          });
           
           // Add to traveled path
           setTraveledPath(prev => {
