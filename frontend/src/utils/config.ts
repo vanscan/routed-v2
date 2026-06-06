@@ -10,27 +10,24 @@
 
 import Constants from 'expo-constants';
 
-// HARDCODED production backend URL - DO NOT CHANGE
-// This ensures all builds and OTA updates always point to production
-const HARDCODED_BACKEND_URL = 'https://api.getrouted.xyz';
+// Production backend URL — used as a safe fallback when EXPO_PUBLIC_BACKEND_URL is not set.
+// EXPO_PUBLIC_BACKEND_URL (Replit env / .env) takes priority so config survives a git sync.
+const FALLBACK_BACKEND_URL = 'https://api.getrouted.xyz';
 
 /**
- * Get the backend URL. Always returns the hardcoded production URL
- * to prevent OTA updates from using preview/development URLs.
+ * Get the backend URL.
+ * Priority:
+ *  1. EXPO_PUBLIC_BACKEND_URL env var (set in Replit Secrets/env — survives git sync)
+ *  2. Hardcoded production fallback (safe default for OTA updates without env configured)
  */
 export function getBackendUrl(): string {
-  // Priority:
-  // 1. Hardcoded production URL (always wins for safety)
-  // 2. app.config.js extra.backendUrl (for builds)
-  // 3. Environment variable (fallback, but shouldn't be needed)
-  
-  return HARDCODED_BACKEND_URL;
+  return process.env.EXPO_PUBLIC_BACKEND_URL || FALLBACK_BACKEND_URL;
 }
 
 /**
- * Alias for backward compatibility
+ * Alias for backward compatibility — resolves at module load time.
  */
-export const BACKEND_URL = HARDCODED_BACKEND_URL;
+export const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || FALLBACK_BACKEND_URL;
 
 /**
  * Get Supabase URL from environment
