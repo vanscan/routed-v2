@@ -22,6 +22,18 @@ RouTr is published on Replit as a **static Expo web export**, NOT the full stack
 - The `frontend/.env` stored in history carries stale **Emergent dev-tunnel vars** (`EXPO_PACKAGER_PROXY_URL`, `EXPO_PACKAGER_HOSTNAME`, `EXPO_TUNNEL_SUBDOMAIN`, `METRO_CACHE_ROOT`). Leaving `EXPO_PACKAGER_PROXY_URL` (points at emergentagent.com) in place makes Metro wait on an external proxy and **port 5000 never serves locally**. Strip those four keys; keep `EXPO_PUBLIC_*` and set `EXPO_PUBLIC_BACKEND_URL=http://localhost:8000` for dev.
 - Expo CLI rejects host `0.0.0.0`; dev web uses `--host localhost`.
 
+## publicDir must point at the export output dir
+
+`publicDir` in `.replit [deployment]` must be `"./frontend/dist"` — NOT `"./frontend"`. Expo exports to `frontend/dist/`; using the parent dir causes "Could not find index.html" at promote time even though the build succeeds.
+
+## Dev workflow must NOT use `--host localhost`
+
+`--host localhost` binds Metro to 127.0.0.1. Replit's workflow port health-checker cannot reach that — it checks from outside loopback. Symptom: Metro logs "Web is waiting on http://localhost:5000" but the workflow shows FAILED / DIDNT_OPEN_A_PORT. Fix: remove `--host localhost` entirely. Correct dev command: `cd frontend && npx expo start --web --port 5000`.
+
+## Env wiring (Replit Secrets → app config)
+
+Backend hard-requires only `MONGO_URL` and `DB_NAME` (bare `os.environ[...]` at server.py:191,205). Both are in Replit Secrets — backend starts without `backend/.env`. All other backend keys use `.get()` with safe defaults (optional features degrade gracefully). Frontend EXPO_PUBLIC_* vars are set as Replit shared env vars so they survive a git sync: SUPABASE_URL, SUPABASE_ANON_KEY, GOOGLE_WEB/IOS/ANDROID_CLIENT_ID, BACKEND_URL, DEV_MODE, EXPO_USE_FAST_RESOLVER. Key-name bug fixed: `frontend/utils/supabase.ts` was using EXPO_PUBLIC_SUPABASE_KEY → changed to EXPO_PUBLIC_SUPABASE_ANON_KEY.
+
 ## Security hardening vs. the static deploy (recurring conflict)
 A security pass set `.gitignore` to ignore `.env`, `.env.*`, `*.env` (only `!*.env.example` allowed) to keep secret `.env` files out of git. That rule also matches `frontend/.env.production` and **untracks it**, so the static deploy builds from a tree with no production config → published web app loses its backend URL / Supabase / Google IDs (or the build is misconfigured).
 
