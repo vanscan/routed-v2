@@ -110,6 +110,11 @@ osrm-backend/
 .env.*
 *.env
 !*.env.example
+# Exception: frontend production config holds ONLY public EXPO_PUBLIC_* client
+# values (Supabase URL/anon key, Google client IDs, public backend URL). These
+# are compiled into the browser bundle and are NOT secret. Required by the
+# Replit static web deploy so `expo export` targets the production backend.
+!frontend/.env.production
 credentials.json
 *.pem
 *.key
