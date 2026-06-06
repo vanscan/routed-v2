@@ -61,3 +61,9 @@ app-example/
 # Git / internal state
 .git/
 .github/
+
+# Corrupted binary file (non-UTF8 filename, zero bytes — safe to exclude)
+@@9@8
+
+# Google Play service account key (credential — never upload to EAS servers)
+play-service-account.json
