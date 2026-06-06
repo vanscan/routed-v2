@@ -64,3 +64,7 @@ run = ["bash", "-c", "cd backend && uvicorn server:app --host 0.0.0.0 --port 800
 
 [objectStorage]
 defaultBucketID = "replit-objstore-01753d05-d523-4695-95dc-656e76546043"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
