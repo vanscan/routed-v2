@@ -1,53 +1,69 @@
-RouTeD — Changed files for manual GitHub upload
-================================================
-Generated: 2026-05-31
+RouTeD — GitHub sync status & changed files
+===========================================
+Updated: 2026-06-06
 
-WHY THIS ZIP EXISTS
--------------------
-The managed "Save to GitHub" action fails with a non-fast-forward (500) because
-the workspace `main` has diverged from GitHub's `main`. This zip contains the
-CURRENT content of every source file changed in the un-pushed local history, so
-you can upload them to GitHub manually and make the remote match the workspace.
+CURRENT STATUS
+--------------
+Production at https://api.getrouted.xyz is HEALTHY and serving all expected
+endpoints (verified 2026-06-06). See COOLIFY_SETUP.md §0 for full smoke-test
+results.
 
-HOW TO UPLOAD
--------------
-Option A (GitHub web UI): open your repo → "Add file" → "Upload files" → drag the
-  folders from this zip (keep the same paths) → commit to `main`.
-Option B (git CLI on your machine):
-  1) Clone/pull your repo.
-  2) Copy these files over the same paths.
-  3) git add -A && git commit -m "Native map migration Phase 0-3 + OSRM fix" && git push
+The Replit workspace main is 1 commit ahead of github.com/vanscan/routed-v2.
+Outbound git push from Replit times out (network restriction). "Save to GitHub"
+returns a non-fast-forward 500.
 
-NOTE: paths in this zip are relative to the repo root (e.g. frontend/..., backend/...).
-Do NOT upload node_modules, .expo, caches, or .env files.
+PENDING WORKSPACE-ONLY COMMIT
+------------------------------
+Commit: "Update backend dependencies for improved functionality"
+File changed: backend/requirements.txt
+Change: removed the 'emergentintegrations' package line (package migrated away)
 
-WHAT'S INCLUDED
----------------
-Native MapLibre migration (Phase 0–3):
-  frontend/src/components/map/DeliveryMapNative.native.tsx   (native map: driving, overlays, editing)
-  frontend/src/components/map/DeliveryMapNative.tsx          (web stub — keeps native module out of web bundle)
-  frontend/src/components/map/DeliveryMapNative.types.ts     (shared cross-platform types)
-  frontend/src/components/map/mapTileLoaders.ts              (Phase 2 overlay tile loaders)
-  frontend/src/components/map/mapEditingHelpers.ts           (Phase 3 lasso/section/no-go/driveway helpers)
-  frontend/src/components/DeliveryMap.native.tsx             (legacy WebView map — feature-flag wiring)
-  frontend/src/utils/featureFlags.ts                         (useNativeMap flag)
-  frontend/app/_layout.tsx                                   (flag state)
-  frontend/app/native-map-test.tsx                           (isolated test screen)
-  frontend/app/(tabs)/index.tsx                              (map ref calls: clusters/parcels/lasso)
-  frontend/app.json                                          (maplibre config plugin)
-  frontend/eas.json                                          (dev/preview backend URL)
-  frontend/package.json, frontend/package-lock.json          (@maplibre/maplibre-react-native dep)
+This is a clean-up commit — production is already running without that package.
+It does NOT affect any runtime behaviour; the container builds fine without it.
 
-Backend:
-  backend/server.py                                          (OSRM directions fix + tile/housenumber endpoints)
-  backend/tests/*, backend_test.py                           (related tests)
+HOW TO SYNC TO GITHUB
+---------------------
+Option A — from a machine with GitHub credentials:
+  1) git clone https://github.com/vanscan/routed-v2
+  2) Remove 'emergentintegrations' from backend/requirements.txt
+  3) git add backend/requirements.txt
+  4) git commit -m "Remove emergentintegrations dep; clean requirements"
+  5) git push origin main
+  6) In Coolify dashboard: Redeploy (optional — prod is already healthy)
+
+Option B — store GITHUB_TOKEN secret in Replit, then from Replit shell:
+  git remote set-url origin https://$GITHUB_TOKEN@github.com/vanscan/routed-v2
+  git push origin main
+
+Option C (original — GitHub web UI):
+  Open your repo → navigate to backend/requirements.txt → Edit →
+  remove the emergentintegrations line → commit to main.
+
+NOTE: Do NOT upload node_modules, .expo, caches, or .env files.
+
+PREVIOUSLY CHANGED FILES (all now live in production)
+------------------------------------------------------
+Native MapLibre migration (Phase 0-3):
+  frontend/src/components/map/DeliveryMapNative.native.tsx
+  frontend/src/components/map/DeliveryMapNative.tsx
+  frontend/src/components/map/DeliveryMapNative.types.ts
+  frontend/src/components/map/mapTileLoaders.ts
+  frontend/src/components/map/mapEditingHelpers.ts
+  frontend/src/components/DeliveryMap.native.tsx
+  frontend/src/utils/featureFlags.ts
+  frontend/app/_layout.tsx
+  frontend/app/native-map-test.tsx
+  frontend/app/(tabs)/index.tsx
+  frontend/app.json
+  frontend/eas.json
+  frontend/package.json, frontend/package-lock.json
+
+Backend (all verified live at api.getrouted.xyz):
+  backend/server.py          (OSRM circuit-breaker fix + tile/housenumber endpoints)
+  backend/routes/tiles.py    (parcels + addresses tile routes)
+  backend/routes/housenumbers.py  (housenumber endpoint)
+  backend/tests/*            (related tests)
 
 Docs:
-  memory/PRD.md, test_result.md                              (progress notes — optional, safe to skip)
-
-CAVEAT
-------
-Because GitHub's `main` is unreachable from the workspace, I could not diff
-against the exact remote HEAD. This package includes all source files touched in
-recent local history (covers the full migration + backend fix). Uploading them is
-safe — identical files simply overwrite with the same content.
+  COOLIFY_SETUP.md           (updated with deployment status, smoke tests, sync steps)
+  CHANGES_MANIFEST.txt       (this file)
