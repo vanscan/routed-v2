@@ -1,9 +1,58 @@
 # RouTeD Backend — Coolify Deployment Playbook
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-06
 > VPS: Vultr ($6/mo, Ubuntu 24.04, 2 GB RAM)
 > Orchestrator: Coolify (self-hosted)
-> Source: github.com/xmltvg-create/RouTeD
+> Source: github.com/vanscan/routed-v2 (previously referenced as xmltvg-create/RouTeD)
+
+---
+
+## 0 — Current deployment status
+
+**Production domain:** `https://api.getrouted.xyz`
+
+### Smoke test results — 2026-06-06
+
+All key endpoints verified healthy:
+
+| Endpoint | Result |
+|---|---|
+| `GET /api/health` | `{"status":"healthy","database":"connected","supabase_configured":true}` |
+| `GET /api/directions?coordinates=…` | `source: "osrm"` — OSRM circuit-breaker fix is live |
+| `GET /api/tiles/buildings/metadata` | `{"total_buildings":"564624"}` |
+| `GET /api/tiles/parcels/{z}/{x}/{y}.json` | HTTP 200, valid GeoJSON |
+| `GET /api/tiles/addresses/{z}/{x}/{y}.json` | HTTP 200, valid GeoJSON |
+| `GET /api/housenumbers?bbox=…` | HTTP 200, FeatureCollection with real features |
+
+### GitHub sync status (as of 2026-06-06)
+
+The Replit workspace `main` is **1 commit ahead** of `github.com/vanscan/routed-v2 main`. The Replit "Save to GitHub" action fails with a non-fast-forward 500 error. Outbound `git push` from the Replit container also times out (network restriction).
+
+**To fix manually** (from a machine with GitHub credentials):
+```bash
+git clone https://github.com/vanscan/routed-v2
+cd routed-v2
+# Apply the workspace-only commit (title: "Update backend dependencies for improved functionality")
+# which removes the emergentintegrations package from backend/requirements.txt
+# Then:
+git add backend/requirements.txt
+git commit -m "Remove emergentintegrations dep; clean requirements for Coolify build"
+git push origin main
+```
+
+Once pushed, trigger a Coolify redeploy (dashboard → Redeploy, or via API — see §2 below).
+The production container is already healthy, so this sync is for repo hygiene only.
+
+**Alternative — store a GitHub PAT in Replit secrets:**
+```
+Secret name: GITHUB_TOKEN
+Value: ghp_<your Personal Access Token with repo write scope>
+```
+Then from Replit shell:
+```bash
+git remote set-url origin https://$GITHUB_TOKEN@github.com/vanscan/routed-v2
+git push origin main
+```
 
 ---
 
