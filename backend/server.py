@@ -7,6 +7,7 @@ import os
 import errno
 import logging
 import traceback
+import zipfile
 
 # Suppress httpx INFO logs that leak Mapbox API keys and other tokens
 # into the server log. Only WARNING+ messages from httpx are useful.
@@ -2301,6 +2302,12 @@ async def _cache_geocode_result(normalized_address: str, original_address: str, 
     except Exception as e:
         logger.error(f"Cache save error: {e}")
 
+# Maximum raw upload size accepted for import endpoints (10 MB on the wire).
+# A separate row-count guard below catches decompressed OOXML/zip-bomb expansion.
+MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_IMPORT_ROWS = 10_000
+MAX_IMPORT_COLS = 100
+
 def parse_excel_file(file_content: bytes, filename: str) -> pd.DataFrame:
     """Parse Excel/CSV file and return DataFrame.
 
@@ -2309,7 +2316,10 @@ def parse_excel_file(file_content: bytes, filename: str) -> pd.DataFrame:
     actual file format from the magic bytes rather than the extension, so
     mis-named uploads (e.g. an .xlsx renamed to .xls before upload, or
     case-mismatch like .XLS) work correctly. Falls back to extension-based
-    routing only when magic bytes are inconclusive (e.g. CSV)."""
+    routing only when magic bytes are inconclusive (e.g. CSV).
+
+    Hard limits (MAX_IMPORT_ROWS / MAX_IMPORT_COLS) are enforced after
+    parsing to guard against decompressed OOXML/zip-bomb expansion."""
     try:
         head = file_content[:8]
         is_xlsx = head[:4] == b"PK\x03\x04"  # ZIP container = .xlsx/.ods/.xlsb
@@ -2317,6 +2327,42 @@ def parse_excel_file(file_content: bytes, filename: str) -> pd.DataFrame:
         lower = filename.lower()
 
         if is_xlsx or is_xls:
+            # Pre-parse ZIP/OOXML safety gate — runs before pandas decompresses
+            # anything, so a zip-bomb payload is rejected before it can expand.
+            if is_xlsx:
+                _xlsx_max_uncompressed = 50 * 1024 * 1024  # 50 MB decompressed
+                _xlsx_max_ratio = 100                       # compression ratio limit
+                _xlsx_max_entries = 500                     # entry count limit
+                try:
+                    with zipfile.ZipFile(io.BytesIO(file_content)) as zf:
+                        entries = zf.infolist()
+                        if len(entries) > _xlsx_max_entries:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"File contains too many archive entries ({len(entries):,}). "
+                                       "This file cannot be imported.",
+                            )
+                        total_uncompressed = sum(e.file_size for e in entries)
+                        if total_uncompressed > _xlsx_max_uncompressed:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"File expands to {total_uncompressed // (1024*1024):,} MB when "
+                                       f"decompressed, which exceeds the {_xlsx_max_uncompressed // (1024*1024)} MB limit.",
+                            )
+                        for entry in entries:
+                            if entry.compress_size > 0:
+                                ratio = entry.file_size / entry.compress_size
+                                if ratio > _xlsx_max_ratio:
+                                    raise HTTPException(
+                                        status_code=400,
+                                        detail="File has a suspiciously high compression ratio and cannot be imported.",
+                                    )
+                except HTTPException:
+                    raise
+                except zipfile.BadZipFile:
+                    raise HTTPException(status_code=400, detail="File appears corrupt or is not a valid Excel file.")
+                except Exception as zip_err:
+                    logger.warning(f"ZIP inspection failed for import: {zip_err}")
             # calamine handles both formats from the in-memory bytes; the
             # extension is irrelevant once we know the magic bytes.
             df = pd.read_excel(io.BytesIO(file_content), engine='calamine')
@@ -2332,6 +2378,19 @@ def parse_excel_file(file_content: bytes, filename: str) -> pd.DataFrame:
             )
 
         df.columns = df.columns.str.strip()
+
+        # Guard against decompressed expansion (zip-bomb / unusually wide sheets).
+        if len(df) > MAX_IMPORT_ROWS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File contains too many rows ({len(df):,}). Maximum allowed is {MAX_IMPORT_ROWS:,}.",
+            )
+        if len(df.columns) > MAX_IMPORT_COLS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File contains too many columns ({len(df.columns):,}). Maximum allowed is {MAX_IMPORT_COLS:,}.",
+            )
+
         return df
     except HTTPException:
         raise
@@ -2357,7 +2416,12 @@ async def preview_import(
             detail=f"Unsupported file format. Allowed: {', '.join(allowed_extensions)}"
         )
     
-    content = await file.read()
+    content = await file.read(MAX_IMPORT_FILE_BYTES + 1)
+    if len(content) > MAX_IMPORT_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum upload size is {MAX_IMPORT_FILE_BYTES // (1024 * 1024)} MB.",
+        )
     df = parse_excel_file(content, file.filename)
     
     # Get sample rows (first 5) - convert numpy types to native Python types
@@ -2447,7 +2511,12 @@ async def process_import(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid mapping: {str(e)}")
 
-    content = await file.read()
+    content = await file.read(MAX_IMPORT_FILE_BYTES + 1)
+    if len(content) > MAX_IMPORT_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum upload size is {MAX_IMPORT_FILE_BYTES // (1024 * 1024)} MB.",
+        )
     df = parse_excel_file(content, file.filename)
 
     if field_mapping.address not in df.columns:
