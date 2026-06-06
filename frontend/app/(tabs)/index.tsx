@@ -4400,6 +4400,7 @@ export default function RouteScreen() {
               const route = await res.json();
               const archivedStops = route.stops || [];
               console.log('[HistoryModal] Recovered', archivedStops.length, 'stops from history');
+              console.log('[HistoryModal] First stop sample:', JSON.stringify(archivedStops[0]));
               
               if (archivedStops.length === 0) {
                 Alert.alert('No stops', 'This archived route has no stops to recover.');
@@ -4410,8 +4411,19 @@ export default function RouteScreen() {
               let addedCount = 0;
               let failedCount = 0;
               
+              // Map priority number to string if needed
+              const priorityMap: Record<number, string> = { 0: 'low', 1: 'medium', 2: 'high' };
+              
               for (const stop of archivedStops) {
                 try {
+                  // Determine priority - convert number to string if needed
+                  let priority = stop.priority;
+                  if (typeof priority === 'number') {
+                    priority = priorityMap[priority] || 'medium';
+                  } else if (!priority || !['low', 'medium', 'high'].includes(priority)) {
+                    priority = 'medium';
+                  }
+                  
                   // Create stop payload matching StopCreate model
                   const stopPayload = {
                     address: stop.address,
@@ -4419,14 +4431,16 @@ export default function RouteScreen() {
                     suburb: stop.suburb || '',
                     latitude: stop.latitude,
                     longitude: stop.longitude,
-                    priority: stop.priority || 0,
+                    priority: priority,
                     time_window: stop.time_window || null,
                     notes: stop.notes || '',
-                    weight: stop.weight || 0,
-                    quantity: stop.quantity || 1,
+                    weight: stop.weight || null,
+                    quantity: stop.quantity || null,
                     tracking_number: stop.tracking_number || '',
                     delivery_status: 'pending', // Reset status for recovered stops
                   };
+                  
+                  console.log('[Recovery] Creating stop:', stopPayload.address);
                   
                   const addRes = await fetch(`${BACKEND_URL}/api/stops`, {
                     method: 'POST',
@@ -4440,9 +4454,11 @@ export default function RouteScreen() {
                   
                   if (addRes.ok) {
                     addedCount++;
+                    console.log('[Recovery] Added stop:', stopPayload.address);
                   } else {
                     failedCount++;
-                    console.warn('[Recovery] Failed to add stop:', stop.address);
+                    const errText = await addRes.text().catch(() => '');
+                    console.warn('[Recovery] Failed to add stop:', stop.address, addRes.status, errText);
                   }
                 } catch (e) {
                   failedCount++;
@@ -4450,11 +4466,15 @@ export default function RouteScreen() {
                 }
               }
               
+              console.log('[Recovery] Complete - added:', addedCount, 'failed:', failedCount);
+              
               setShowHistoryModal(false);
               await fetchStops();
               try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
               
-              if (failedCount > 0) {
+              if (addedCount === 0) {
+                Alert.alert('Recovery failed', `Could not add any stops. ${failedCount} failed.`);
+              } else if (failedCount > 0) {
                 Alert.alert('Stops recovered', `Added ${addedCount} stops (${failedCount} failed).`);
               } else {
                 Alert.alert('Stops recovered', `Added ${addedCount} stops from archived route.`);
