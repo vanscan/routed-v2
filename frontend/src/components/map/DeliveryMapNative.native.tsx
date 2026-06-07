@@ -1379,23 +1379,22 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               minzoom={hasClusterData ? CLUSTER_SWAP_ZOOM : undefined}
               layout={{
                 'icon-image': ['get', 'marker'],
-                'icon-size': 0.9,
+                'icon-size': 0.85,
                 'icon-anchor': 'bottom',
                 'icon-allow-overlap': true,
                 'icon-ignore-placement': true,
                 'text-field': ['get', 'label'],
-                // Font stack: try OpenFreeMap format first, then VersaTiles format
                 'text-font': ['Noto Sans Bold', 'noto_sans_bold', 'Arial Unicode MS Bold'],
-                'text-size': 15,
+                'text-size': 14,
                 'text-anchor': 'center',
-                'text-offset': [0, -3.0],
+                'text-offset': [0, -3.1],
                 'text-allow-overlap': true,
                 'text-ignore-placement': true,
               }}
               paint={{
                 'text-color': '#0f172a',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2,
+                'text-halo-color': 'rgba(255,255,255,0)',
+                'text-halo-width': 0,
               }}
             />
           </GeoJSONSource>
