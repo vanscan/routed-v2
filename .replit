@@ -83,3 +83,4 @@ EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID = "95569758736-f9hbeb6a3d5of216pp5c7l2ng89d
 EXPO_PUBLIC_BACKEND_URL = "https://api.getrouted.xyz"
 EXPO_PUBLIC_DEV_MODE = "false"
 EXPO_USE_FAST_RESOLVER = "1"
+CLAUDE_CONFIG_DIR = "/home/runner/workspace/.claude-user"

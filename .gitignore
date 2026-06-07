@@ -1,5 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Claude Code — local agent tooling, not project dependencies
+**/.claude-user
+.claude/settings.local.json
+/package.json
+/package-lock.json
+
 # IDE and editors
 .idea/
 .vscode/
