@@ -226,33 +226,19 @@ async def confirm_route(
             r["id"]: r.get("original_sequence")
             for r in existing_rows
         }
-        # Next stamp number for new late freight: max-existing + 1.
-        # `[None]` guard handles the "no stamps yet" edge case cleanly.
-        max_locked = max(
-            (v for v in existing_by_id.values() if isinstance(v, int)),
-            default=0,
-        )
-        next_stamp = max_locked + 1
-        late_freight_count = 0
-        for stop_id in ids:
-            current = existing_by_id.get(stop_id)
-            if isinstance(current, int):
-                continue  # already Sharpie-locked — preserve
-            ops.append(
-                UpdateOne(
-                    {"id": stop_id, "user_id": current_user.user_id},
-                    {"$set": {"original_sequence": next_stamp}},
-                )
-            )
-            next_stamp += 1
-            late_freight_count += 1
+        # Late freight stays unsequenced — we do NOT stamp new stops with
+        # max+1, max+2 etc. any more. Drivers don't pre-label late parcels
+        # with a Sharpie number; instead the frontend's buildLateFreightLabels
+        # displays them as "4A", "4B" anchored to the nearest preceding locked
+        # stop in drive order — which is exactly what drivers expect to see.
+        locked_count = sum(1 for v in existing_by_id.values() if isinstance(v, int))
+        late_freight_count = len(ids) - locked_count
         logger.info(
             "[confirm_route] user=%s resume=True locked_preserved=%d "
-            "late_freight_stamped=%d (next_stamp_after=%d)",
+            "late_freight_unsequenced=%d",
             current_user.user_id,
-            sum(1 for v in existing_by_id.values() if isinstance(v, int)),
+            locked_count,
             late_freight_count,
-            next_stamp - 1,
         )
     else:
         # First confirm of this route — full 1..N stamp, just like before.
