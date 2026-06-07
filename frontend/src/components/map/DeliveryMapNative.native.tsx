@@ -59,6 +59,7 @@ import {
 import { buildLateFreightLabels } from '../../utils/stopPinNumber';
 import {
   loadBuildingTiles,
+  loadMsBuildingTiles,
   loadParcelTiles,
   loadAddressTiles,
   fetchHouseNumbers,
@@ -395,6 +396,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     // cadastral parcels, street-number addresses, OSM house numbers) plus the
     // imperatively-pushed delivery clusters.
     const [buildingsFC, setBuildingsFC] = useState<GeoJSON.FeatureCollection>(EMPTY_FC);
+    const [msBuildingsFC, setMsBuildingsFC] = useState<GeoJSON.FeatureCollection>(EMPTY_FC);
     const [parcelsFC, setParcelsFC] = useState<GeoJSON.FeatureCollection>(EMPTY_FC);
     const [addressesFC, setAddressesFC] = useState<GeoJSON.FeatureCollection>(EMPTY_FC);
     const [houseNumbersFC, setHouseNumbersFC] =
@@ -584,6 +586,10 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             // Self-hosted QLD buildings — always on (z ≥ 13).
             const b = await loadBuildingTiles(bounds, z);
             if (b) setBuildingsFC({ type: 'FeatureCollection', features: b });
+
+            // Microsoft Global ML building footprints — worldwide supplement.
+            const ms = await loadMsBuildingTiles(bounds, z);
+            if (ms) setMsBuildingsFC({ type: 'FeatureCollection', features: ms });
 
             // Parcels + addresses — only when the Parcels layer is toggled on.
             if (parcelsVisibleRef.current) {
@@ -1193,6 +1199,46 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
                 'text-halo-width': 2,
                 'text-halo-blur': 0.3,
                 'text-opacity': ['interpolate', ['linear'], ['zoom'], 17, 0, 17.5, 0.4, 18, 1],
+              }}
+            />
+          </GeoJSONSource>
+
+          {/* ── Microsoft Global ML Building Footprints (worldwide supplement).
+              Fills in suburbs where the QLD cadastre data is sparse.
+              Height defaults to 6 m (typical single-storey AU house) when
+              the 'height' property is absent from the footprint. ── */}
+          <GeoJSONSource id="ms-buildings-src" data={msBuildingsFC}>
+            <Layer
+              id="ms-buildings-3d"
+              type="fill-extrusion"
+              minzoom={13}
+              paint={{
+                'fill-extrusion-color': [
+                  'interpolate', ['linear'],
+                  ['coalesce', ['to-number', ['get', 'height']], 6],
+                  0, '#e2e8f0', 6, '#cbd5e1', 12, '#b0bec5', 25, '#90a4ae', 50, '#78716c',
+                ],
+                'fill-extrusion-height': [
+                  'interpolate', ['linear'], ['zoom'],
+                  13, 0,
+                  15, ['*', 0.5, ['coalesce', ['to-number', ['get', 'height']], 6]],
+                  16, ['coalesce', ['to-number', ['get', 'height']], 6],
+                ],
+                'fill-extrusion-base': 0,
+                'fill-extrusion-opacity': [
+                  'interpolate', ['linear'], ['zoom'], 13, 0.25, 15, 0.55, 17, 0.75,
+                ],
+              }}
+            />
+            <Layer
+              id="ms-buildings-outline"
+              type="line"
+              minzoom={15}
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+              paint={{
+                'line-color': '#475569',
+                'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.5, 17, 1, 19, 1.5],
+                'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0.35, 17, 0.65, 19, 0.85],
               }}
             />
           </GeoJSONSource>

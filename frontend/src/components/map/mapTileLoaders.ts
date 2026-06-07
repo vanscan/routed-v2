@@ -76,7 +76,7 @@ function tileKeysForBounds(bounds: Bounds, z: number): string[] {
  * `null` if the visible tile set is unchanged since the previous call.
  */
 async function loadTiles(
-  kind: 'buildings' | 'parcels' | 'addresses',
+  kind: 'buildings' | 'parcels' | 'addresses' | 'ms-buildings',
   bounds: Bounds,
   z: number,
   cache: TileCache,
@@ -119,6 +119,17 @@ export async function loadBuildingTiles(
 ): Promise<GeoJSON.Feature[] | null> {
   if (zoom < 13) return null;
   return loadTiles('buildings', bounds, 14, _buildingCache, _buildingState);
+}
+
+// ─── Microsoft Global ML Building Footprints (worldwide, z14, ≥ z13) ─────────
+const _msBuildingCache = makeCache();
+const _msBuildingState = { lastViewKey: '' };
+export async function loadMsBuildingTiles(
+  bounds: Bounds,
+  zoom: number,
+): Promise<GeoJSON.Feature[] | null> {
+  if (zoom < 13) return null;
+  return loadTiles('ms-buildings', bounds, 14, _msBuildingCache, _msBuildingState);
 }
 
 // ─── Parcels (cadastral boundaries, z16, only when toggled on ≥ z15) ────────

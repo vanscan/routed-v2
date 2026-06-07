@@ -10663,6 +10663,9 @@ _TILE_DB_PATH = _resolve_tile_db_path()
 from routes.tiles import router as tiles_router
 api_router.include_router(tiles_router)
 
+from routes.ms_buildings import router as ms_buildings_router
+api_router.include_router(ms_buildings_router)
+
 # ── House-number endpoints moved to routes/housenumbers.py ───────────────
 # Handles /api/housenumbers and /api/housenumbers/prewarm. Own caches +
 # circuit breakers — no shared state with server.py.
