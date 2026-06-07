@@ -36,7 +36,8 @@ function latToTileY(lat: number, z: number): number {
 }
 
 // ─── Bounded FIFO tile cache (parity with WebView _cachePut) ────────────────
-const TILE_CACHE_MAX = 64; // ≈ 6 MB worst case at ~100 KB/tile
+const TILE_CACHE_MAX = 256; // ≈ 25 MB worst case — larger cache means re-visited streets
+                            // load instantly from memory instead of re-fetching
 interface TileCache {
   map: Record<string, GeoJSON.Feature[]>;
   keys: string[];
