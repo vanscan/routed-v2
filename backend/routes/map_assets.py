@@ -67,13 +67,29 @@ async def _proxy_and_cache(upstream_url: str, cache_key: str,
 
 
 def _rewrite_style(style_bytes: bytes, backend_base: str) -> bytes:
-    """Point sprite/glyphs at our proxy. We rewrite inside the style-JSON body
-    so the device fetches them from the same origin + HTTP/2 connection as
-    every other API call — kills the cold-start label flash."""
+    """Point sprite/glyphs at our proxy and patch the building layers so flat
+    2D footprints are visible at all zoom levels (≥13), not just z13-14."""
     import json
     style = json.loads(style_bytes)
     style["sprite"] = f"{backend_base}/api/map/sprites/ofm"
     style["glyphs"] = f"{backend_base}/api/map/fonts/{{fontstack}}/{{range}}.pbf"
+
+    for layer in style.get("layers", []):
+        lid = layer.get("id")
+        if lid == "building":
+            layer.pop("maxzoom", None)
+            paint = layer.setdefault("paint", {})
+            paint["fill-color"] = "hsl(35,8%,82%)"
+            paint["fill-opacity"] = [
+                "interpolate", ["linear"], ["zoom"],
+                13, 0.5, 15, 0.65, 17, 0.75,
+            ]
+        elif lid == "building-3d":
+            layer["paint"]["fill-extrusion-opacity"] = [
+                "interpolate", ["linear"], ["zoom"],
+                14, 0.0, 15, 0.5, 17, 0.75,
+            ]
+
     return json.dumps(style).encode("utf-8")
 
 
