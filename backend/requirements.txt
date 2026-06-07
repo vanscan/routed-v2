@@ -7,7 +7,7 @@ PyJWT==2.13.0
 PyYAML==6.0.3
 Pygments==2.20.0
 aiohappyeyeballs==2.6.2
-aiohttp==3.13.5
+aiohttp==3.14.0
 aiosignal==1.4.0
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -93,7 +93,7 @@ pycparser==3.0
 pydantic==2.13.4
 pydantic_core==2.46.4
 pyflakes==3.4.0
-pymongo==4.5.0
+pymongo==4.6.3
 pyparsing==3.3.2
 pytest==9.0.3
 python-calamine
