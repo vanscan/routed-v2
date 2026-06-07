@@ -35,7 +35,7 @@
     "@react-navigation/native-stack": "^7.1.6",
     "@supabase/supabase-js": "^2.107.0",
     "@types/react": "~19.1.10",
-    "axios": "^1.13.4",
+    "axios": "^1.17.0",
     "date-fns": "^4.1.0",
     "expo": "~54.0.35",
     "expo-auth-session": "~7.0.11",
