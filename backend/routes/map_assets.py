@@ -127,7 +127,7 @@ async def get_style(request: Request):
     origin = f"{fwd_proto}://{fwd_host}" if fwd_host else str(request.base_url).rstrip("/")
     rewritten = _rewrite_style(raw, origin)
     return Response(content=rewritten, media_type="application/json",
-                    headers={"Cache-Control": "public, max-age=3600"})
+                    headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/map/sprites/{path:path}")
