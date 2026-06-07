@@ -67,8 +67,10 @@ async def _proxy_and_cache(upstream_url: str, cache_key: str,
 
 
 def _rewrite_style(style_bytes: bytes, backend_base: str) -> bytes:
-    """Point sprite/glyphs at our proxy and patch the building layers so flat
-    2D footprints are visible at all zoom levels (≥13), not just z13-14."""
+    """Point sprite/glyphs at our proxy and patch the building layers:
+    style the flat 2D `building` footprint fill, and hide the style's
+    `building-3d` extrusion (the frontend renders 3D itself, so keeping both
+    double-extrudes the same geometry)."""
     import json
     style = json.loads(style_bytes)
     style["sprite"] = f"{backend_base}/api/map/sprites/ofm"
@@ -85,10 +87,12 @@ def _rewrite_style(style_bytes: bytes, backend_base: str) -> bytes:
                 13, 0.5, 15, 0.65, 17, 0.75,
             ]
         elif lid == "building-3d":
-            layer["paint"]["fill-extrusion-opacity"] = [
-                "interpolate", ["linear"], ["zoom"],
-                14, 0.0, 15, 0.5, 17, 0.75,
-            ]
+            # The frontend renders worldwide 3D buildings via its own
+            # `buildings-3d` fill-extrusion layer (DeliveryMapNative), which
+            # already extrudes this same `building` source-layer with a tuned
+            # height ramp + hide_3d filter. Hide the style's duplicate
+            # extrusion so the two don't z-fight / double up opacity.
+            layer.setdefault("layout", {})["visibility"] = "none"
 
     return json.dumps(style).encode("utf-8")
 
