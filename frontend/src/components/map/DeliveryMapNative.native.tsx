@@ -1097,25 +1097,27 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* ── 2D building footprints — rendered AFTER all extrusions so the
-              flat fill is always visible on top. Worldwide OSM coverage. ── */}
+          {/* ── 2D building footprints — fill-extrusion with height=0 so it
+              participates in the extrusion rendering pass (always on top of
+              fill layers) while appearing completely flat. Worldwide OSM. ── */}
           <Layer
             id="buildings-2d"
-            type="fill"
+            type="fill-extrusion"
             source="openmaptiles"
             source-layer="building"
             minzoom={13}
             paint={{
-              'fill-color': [
+              'fill-extrusion-color': [
                 'interpolate', ['linear'],
                 ['coalesce', ['to-number', ['get', 'render_height']], 4],
                 0, '#d4d4d8', 10, '#c4b5a0', 30, '#a1a1aa', 80, '#78716c',
               ],
-              'fill-opacity': [
+              'fill-extrusion-height': 0,
+              'fill-extrusion-base': 0,
+              'fill-extrusion-opacity': [
                 'interpolate', ['linear'], ['zoom'],
-                13, 0.3, 15, 0.45, 17, 0.6,
+                13, 0.5, 15, 0.65, 17, 0.8,
               ],
-              'fill-outline-color': '#6b7280',
             }}
           />
 
