@@ -998,29 +998,6 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             initialViewState={{ center, zoom }}
           />
 
-          {/* ── 2D building footprints — worldwide OSM flat fill so every city
-              shows solid building shapes, not just QLD. Renders at all pitches
-              including the top-down planning view. ── */}
-          <Layer
-            id="buildings-2d"
-            type="fill"
-            source="openmaptiles"
-            source-layer="building"
-            minzoom={13}
-            paint={{
-              'fill-color': [
-                'interpolate', ['linear'],
-                ['coalesce', ['to-number', ['get', 'render_height']], 4],
-                0, '#d4d4d8', 10, '#c4b5a0', 30, '#a1a1aa', 80, '#78716c',
-              ],
-              'fill-opacity': [
-                'interpolate', ['linear'], ['zoom'],
-                13, 0.25, 15, 0.4, 17, 0.55,
-              ],
-              'fill-outline-color': '#6b7280',
-            }}
-          />
-
           {/* ── 3D buildings — worldwide OSM (style's openmaptiles vector
               source). Always visible ≥ z13; height ramps 0→full by z16. ── */}
           <Layer
@@ -1119,6 +1096,28 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               }}
             />
           </GeoJSONSource>
+
+          {/* ── 2D building footprints — rendered AFTER all extrusions so the
+              flat fill is always visible on top. Worldwide OSM coverage. ── */}
+          <Layer
+            id="buildings-2d"
+            type="fill"
+            source="openmaptiles"
+            source-layer="building"
+            minzoom={13}
+            paint={{
+              'fill-color': [
+                'interpolate', ['linear'],
+                ['coalesce', ['to-number', ['get', 'render_height']], 4],
+                0, '#d4d4d8', 10, '#c4b5a0', 30, '#a1a1aa', 80, '#78716c',
+              ],
+              'fill-opacity': [
+                'interpolate', ['linear'], ['zoom'],
+                13, 0.3, 15, 0.45, 17, 0.6,
+              ],
+              'fill-outline-color': '#6b7280',
+            }}
+          />
 
           {/* ── Cadastral parcel boundaries (toggleable). ── */}
           {parcelsVisible && (
