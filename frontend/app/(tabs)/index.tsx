@@ -63,6 +63,7 @@ import { useNavigationCamera } from '../../src/hooks/useNavigationCamera';
 import { useGeofenceArrival, GeofenceStop } from '../../src/hooks/useGeofenceArrival';
 import { LastMilePrecisionHUD } from '../../src/components/LastMilePrecisionHUD';
 import { MapStyleSwitcher, MAP_STYLES, MapStyleKey } from '../../src/components/map/MapStyleSwitcher';
+import { useLateFreightZipper } from '../../src/hooks/useLateFreightZipper';
 
 import { BACKEND_URL } from '../../src/utils/config';
 
@@ -105,6 +106,7 @@ export default function RouteScreen() {
   const pendingNavTargetId = useStopsStore((s) => s.pendingNavTargetId);
   const setPendingNavTarget = useStopsStore((s) => s.setPendingNavTarget);
   const offline = useOfflineCache();
+  const { route: zipperRoute, inserting: zipperInserting, zip } = useLateFreightZipper();
   const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [clusterOverlays, setClusterOverlays] = useState<import('../../src/store/stopsStore').ClusterInfo[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -872,25 +874,44 @@ export default function RouteScreen() {
     return result;
   };
 
-  // ── Late-freight auto-scan ──
-  // When a late freight is added to a locked route, the store sets
-  // `lateFreightScanPending`. On returning to this screen we clear the flag
-  // and re-run the optimize, which on the backend takes the
-  // smart-insertion path (locked stops held in order, the late parcel
-  // slotted into its cheapest gap) — so it gets re-numbered (e.g. 23A) and
-  // repositioned in the drive order instead of being dumped at the end.
+  // ── Late-freight zipper ──
+  // When a late freight parcel is added to a locked route, the store sets
+  // `lateFreightScanPending`. On returning to this screen we invoke the
+  // Late Freight Zipper: the OR-Tools solver keeps locked Sharpie stop order
+  // intact and slots each new parcel into its cheapest gap, labelling it
+  // "23A", "23B" etc. On success, reorderStops() updates the drive order
+  // and the pin labels re-derive automatically.
   useEffect(() => {
     if (!lateFreightScanPending) return;
     useStopsStore.setState({ lateFreightScanPending: false });
     (async () => {
       try {
-        await runOptimization(currentLocationRef.current);
+        const gps = currentLocationRef.current;
+        if (!gps || stops.length === 0) return;
+
+        // Build input: depot from GPS, then all current stops preserving
+        // original_sequence for locked ones (null for late freight).
+        const zipStops = [
+          { id: '__depot__', lat: gps.latitude, lon: gps.longitude, original_sequence: null, is_depot: true },
+          ...stops.map((s) => ({
+            id: s.id,
+            lat: s.latitude,
+            lon: s.longitude,
+            original_sequence: s.original_sequence ?? null,
+          })),
+        ];
+
+        const result = await zip(zipStops);
+        if (result) {
+          const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
+          await reorderStops(ordered);
+          setResumeToast('Route updated with late freight');
+        }
       } catch (e) {
-        console.warn('[late-freight] auto-scan failed:', (e as Error)?.message || e);
+        console.warn('[late-freight] zipper failed:', (e as Error)?.message || e);
       }
     })();
-    // runOptimization is a stable closure for our purposes; we intentionally
-    // only re-fire when the pending flag flips true.
+    // zip and reorderStops are stable; re-fire only when the pending flag flips.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lateFreightScanPending]);
 
@@ -3734,6 +3755,15 @@ export default function RouteScreen() {
           </View>
         </Animated.View>
       )}
+      {/* Zipper inserting indicator — shown while the late freight solver runs */}
+      {zipperInserting && (
+        <View pointerEvents="none" style={[styles.resumeToastWrap, { top: insets.top + 12 }]}>
+          <View style={styles.resumeToast}>
+            <ActivityIndicator size="small" color="#dcfce7" style={{ marginRight: 6 }} />
+            <Text style={styles.resumeToastText}>Zipping in late freight…</Text>
+          </View>
+        </View>
+      )}
       {/* Resume toast — 1.5s green pill confirming we restored the driver's
           active stop when they re-entered navigation. */}
       {resumeToast && (
@@ -3907,6 +3937,7 @@ export default function RouteScreen() {
             if (bufferMs > 5 * 60 * 1000) return '#22c55e'; // green: ≥5 min buffer
             return '#f59e0b';                              // amber: tight
           })()}
+          zipperRoute={zipperRoute.length > 0 ? zipperRoute : undefined}
         />
 
         {/* No-Go Zone toggle: tap → "block road" mode → next map tap creates a

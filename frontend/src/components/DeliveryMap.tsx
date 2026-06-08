@@ -108,6 +108,8 @@ interface DeliveryMapProps {
   nextStopCoord?: [number, number] | null;
   /** Web no-op — native-only. Parent passes same prop to both. */
   nextStopColor?: string | null;
+  /** Web no-op — Late Freight Zipper overlay rendered inside the native map. */
+  zipperRoute?: unknown[];
 }
 
 // ─── Map Styles ───────────────────────────────────────────────────────────────

@@ -57,6 +57,7 @@ import {
   type GeoJSONSourceRef,
 } from '@maplibre/maplibre-react-native';
 import { buildLateFreightLabels } from '../../utils/stopPinNumber';
+import { ZipperRouteLayer } from '../../hooks/useLateFreightZipper';
 import {
   loadBuildingTiles,
   loadMsBuildingTiles,
@@ -1593,8 +1594,13 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             </GeoJSONSource>
           )}
 
+          {/* Late Freight Zipper overlay — sky-blue line + amber late-freight pins */}
+          {props.zipperRoute && props.zipperRoute.length >= 2 && (
+            <ZipperRouteLayer route={props.zipperRoute} />
+          )}
+
           {/* Waze-style navigation puck with heading rotation */}
-          <UserLocation 
+          <UserLocation
             animated
             heading={true}
             minDisplacement={3}
