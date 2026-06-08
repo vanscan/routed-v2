@@ -10792,6 +10792,12 @@ from routes.waitlist import (
 )
 api_router.include_router(waitlist_router)
 
+# ── Late Freight Zipper ───────────────────────────────────────────────
+# /api/route/zipper — inserts mid-route parcels into a locked Sharpie run
+# without re-ordering the stops the driver has already numbered.
+from routes.zipper import router as zipper_router
+api_router.include_router(zipper_router)
+
 _building_tile_db = None
 # Re-resolve here (the earlier assignment is shadowed by this one at module load).
 # Dev:        /app/backend/server.py  -> /app/tiles/buildings.db
