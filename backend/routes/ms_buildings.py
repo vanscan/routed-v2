@@ -88,6 +88,79 @@ def _in_bbox(feat: dict, lon_min: float, lat_min: float,
         return False
 
 
+def _polygon_area_m2(coordinates: list) -> float:
+    """Shoelace area of the outer ring, projected to metres."""
+    if not coordinates:
+        return 0.0
+    ring = coordinates[0]
+    if len(ring) < 3:
+        return 0.0
+    lat_c = sum(p[1] for p in ring) / len(ring)
+    lat_scale = 111_320.0
+    lon_scale = 111_320.0 * math.cos(math.radians(lat_c))
+    area = 0.0
+    n = len(ring)
+    for i in range(n):
+        j = (i + 1) % n
+        xi = ring[i][0] * lon_scale
+        yi = ring[i][1] * lat_scale
+        xj = ring[j][0] * lon_scale
+        yj = ring[j][1] * lat_scale
+        area += xi * yj - xj * yi
+    return abs(area) / 2.0
+
+
+def _enrich_height(feat: dict) -> dict:
+    """Add ``height_est`` and ``confidence_norm`` properties to a feature.
+
+    ``height_est`` is the best available height in metres:
+    - Uses the dataset ``height`` value when it is a positive number.
+    - Falls back to a footprint-area heuristic otherwise:
+        ≥ 3 000 m²  → 15 m  (large commercial / warehouse)
+        ≥ 1 000 m²  → 10 m  (medium commercial / multi-storey)
+        ≥  300 m²   →  7 m  (standard residential / small commercial)
+        <  300 m²   →  4 m  (small outbuilding / garage)
+
+    ``confidence_norm`` is the dataset confidence clamped to [0, 1];
+    features with a missing or -1 confidence get 0.5 (neutral).
+    """
+    props = feat.get("properties") or {}
+
+    try:
+        h = float(props.get("height", -1))
+    except (TypeError, ValueError):
+        h = -1.0
+
+    try:
+        confidence = float(props.get("confidence", -1))
+    except (TypeError, ValueError):
+        confidence = -1.0
+
+    if h > 0:
+        height_est = h
+    else:
+        try:
+            area = _polygon_area_m2(
+                feat.get("geometry", {}).get("coordinates", [])
+            )
+        except Exception:
+            area = 0.0
+
+        if area >= 3_000:
+            height_est = 15.0
+        elif area >= 1_000:
+            height_est = 10.0
+        elif area >= 300:
+            height_est = 7.0
+        else:
+            height_est = 4.0
+
+    conf_norm = max(0.0, min(1.0, confidence)) if confidence >= 0 else 0.5
+
+    new_props = {**props, "height_est": height_est, "confidence_norm": conf_norm}
+    return {**feat, "properties": new_props}
+
+
 def _build_fallback_urls(qk: str) -> list[str]:
     """Construct candidate Azure URLs directly without the CSV index."""
     urls = []
@@ -234,6 +307,10 @@ async def get_ms_buildings_tile(z: int, x: int, y: int):
         )
 
     lon_min, lat_min, lon_max, lat_max = _tile_bbox(z, x, y)
-    clipped = [f for f in features if _in_bbox(f, lon_min, lat_min, lon_max, lat_max)]
+    clipped = [
+        _enrich_height(f)
+        for f in features
+        if _in_bbox(f, lon_min, lat_min, lon_max, lat_max)
+    ]
     fc = json.dumps({"type": "FeatureCollection", "features": clipped})
     return Response(content=fc.encode(), media_type="application/json", headers=_HEADERS)

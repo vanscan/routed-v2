@@ -1248,8 +1248,13 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
 
           {/* ── Microsoft Global ML Building Footprints (worldwide supplement).
               Fills in suburbs where the QLD cadastre data is sparse.
-              Height defaults to 6 m (typical single-storey AU house) when
-              the 'height' property is absent from the footprint. ── */}
+              The backend enriches each feature with:
+                height_est    – best-available height in metres (footprint-area
+                                heuristic when the dataset height ≤ 0)
+                confidence_norm – dataset confidence clamped [0,1]; 0.5 for
+                                  unknown buildings
+              Color band and opacity are driven by height_est / confidence_norm
+              so commercial/large footprints render visibly taller. ── */}
           <GeoJSONSource id="ms-buildings-src" data={msBuildingsFC}>
             <Layer
               id="ms-buildings-3d"
@@ -1258,18 +1263,23 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               paint={{
                 'fill-extrusion-color': [
                   'interpolate', ['linear'],
-                  ['coalesce', ['to-number', ['get', 'height']], 6],
-                  0, '#e2e8f0', 6, '#cbd5e1', 12, '#b0bec5', 25, '#90a4ae', 50, '#78716c',
+                  ['coalesce', ['to-number', ['get', 'height_est']], 6],
+                  0, '#e2e8f0', 6, '#cbd5e1', 10, '#b0bec5', 15, '#90a4ae', 25, '#78909c', 50, '#78716c',
                 ],
                 'fill-extrusion-height': [
                   'interpolate', ['linear'], ['zoom'],
                   13, 0,
-                  15, ['*', 0.5, ['coalesce', ['to-number', ['get', 'height']], 6]],
-                  16, ['coalesce', ['to-number', ['get', 'height']], 6],
+                  15, ['*', 0.5, ['coalesce', ['to-number', ['get', 'height_est']], 6]],
+                  16, ['coalesce', ['to-number', ['get', 'height_est']], 6],
                 ],
                 'fill-extrusion-base': 0,
                 'fill-extrusion-opacity': [
-                  'interpolate', ['linear'], ['zoom'], 13, 0.25, 15, 0.55, 17, 0.75,
+                  '*',
+                  ['interpolate', ['linear'], ['zoom'], 13, 0.2, 15, 0.65, 17, 0.85],
+                  [
+                    '+', 0.55,
+                    ['*', 0.45, ['coalesce', ['to-number', ['get', 'confidence_norm']], 0.5]],
+                  ],
                 ],
               }}
             />
