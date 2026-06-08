@@ -52,15 +52,16 @@ const COLOR = {
 
 export default function LoginScreen() {
   // Supabase auth context (primary auth)
-  const { 
-    user, 
+  const {
+    user,
     session: supabaseSession,
-    loading: supabaseLoading, 
+    loading: supabaseLoading,
     isReady: supabaseReady,
     signIn: supabaseSignIn,
     signUp: supabaseSignUp,
     signInWithOAuth: supabaseSignInWithOAuth,
     signOut: supabaseSignOut,
+    resetPassword: supabaseResetPassword,
   } = useSupabase();
   
   // Native Google OAuth hook (expo-auth-session + Supabase signInWithIdToken)
@@ -127,11 +128,30 @@ export default function LoginScreen() {
   const [passwordInput, setPasswordInput] = useState('');
   const [nameInput, setNameInput] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const mapAuthError = (msg: string): string => {
+    if (/invalid login credentials/i.test(msg)) return 'Email or password is incorrect.';
+    if (/user already registered/i.test(msg)) return 'That email already has an account — sign in instead.';
+    if (/email not confirmed/i.test(msg)) return 'Please confirm your email first — check your inbox.';
+    if (/password should be at least/i.test(msg)) return 'Password must be at least 6 characters.';
+    if (/unable to validate email/i.test(msg)) return 'Enter a valid email address.';
+    return msg;
+  };
 
   const submitEmailAuth = async () => {
     setEmailError('');
-    if (!emailInput.trim() || !passwordInput) {
+    const emailTrimmed = emailInput.trim();
+    if (!emailTrimmed || !passwordInput) {
       setEmailError('Please enter email and password');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      setEmailError('Enter a valid email address');
+      return;
+    }
+    if (passwordInput.length < 6) {
+      setEmailError('Password must be at least 6 characters');
       return;
     }
     try {
@@ -188,7 +208,35 @@ export default function LoginScreen() {
       }
     } catch (e: any) {
       console.error('[AUTH] Auth error:', e);
-      setEmailError(e?.message || 'Authentication failed');
+      setEmailError(mapAuthError(e?.message || 'Authentication failed'));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const email = emailInput.trim();
+    if (!email) {
+      setEmailError('Enter your email address above, then tap Forgot password.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError('Enter a valid email address first.');
+      return;
+    }
+    try {
+      setAuthLoading(true);
+      const { error } = await supabaseResetPassword(email);
+      if (error) {
+        setEmailError(mapAuthError(error.message || 'Could not send reset email'));
+      } else {
+        Alert.alert(
+          'Check your email',
+          `We sent a password-reset link to ${email}. Tap the link to set a new password.`,
+        );
+      }
+    } catch (e: any) {
+      setEmailError(mapAuthError(e?.message || 'Could not send reset email'));
     } finally {
       setAuthLoading(false);
     }
@@ -633,16 +681,30 @@ export default function LoginScreen() {
                 autoCorrect={false}
                 style={styles.reviewerInput}
               />
-              <TextInput
-                data-testid="email-password-input"
-                value={passwordInput}
-                onChangeText={setPasswordInput}
-                placeholder="Password (min 6 characters)"
-                placeholderTextColor={COLOR.textFaint}
-                secureTextEntry
-                autoCapitalize="none"
-                style={styles.reviewerInput}
-              />
+              <View style={styles.passwordRow}>
+                <TextInput
+                  data-testid="email-password-input"
+                  value={passwordInput}
+                  onChangeText={setPasswordInput}
+                  placeholder="Password (min 6 characters)"
+                  placeholderTextColor={COLOR.textFaint}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  style={[styles.reviewerInput, { flex: 1, marginBottom: 0 }]}
+                />
+                <Pressable
+                  onPress={() => setShowPassword(v => !v)}
+                  hitSlop={8}
+                  style={styles.eyeButton}
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={COLOR.textDim}
+                  />
+                </Pressable>
+              </View>
               {!!emailError && (
                 <Text style={{ color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{emailError}</Text>
               )}
@@ -656,6 +718,16 @@ export default function LoginScreen() {
                   {authLoading ? 'Please wait...' : isSettingPassword ? 'Set Password & Sign In' : isRegistering ? 'Create Account' : 'Sign In'}
                 </Text>
               </Pressable>
+              {!isRegistering && !isSettingPassword && (
+                <Pressable
+                  data-testid="forgot-password-btn"
+                  onPress={handleForgotPassword}
+                  hitSlop={8}
+                  disabled={authLoading}
+                >
+                  <Text style={[styles.tertiaryText, { textAlign: 'center' }]}>Forgot password?</Text>
+                </Pressable>
+              )}
               {!isSettingPassword && (
                 <Pressable
                   data-testid="email-toggle-register"
@@ -1118,6 +1190,18 @@ const styles = StyleSheet.create({
     color: COLOR.text,
     fontSize: 14,
     letterSpacing: 0.4,
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  eyeButton: {
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLOR.hairline,
+    borderRadius: 10,
+    backgroundColor: COLOR.bg0,
   },
   reviewerRow: {
     flexDirection: 'row',
