@@ -5095,30 +5095,46 @@ def _indices_by_identity(source_list: List[dict], ordered: List[dict]) -> List[i
 
 
 def two_opt_improve(route_indices: List[int], distance_matrix: List[List[float]]) -> List[int]:
-    """2-Opt improvement - reverse segments to reduce total distance"""
+    """2-Opt improvement — asymmetric-matrix-safe.
+
+    Standard 2-opt reverses the segment between two cut edges. On a symmetric
+    matrix every internal edge has the same cost in both directions so the
+    boundary-only delta formula (d1+d2 vs d3+d4) is correct. On an asymmetric
+    matrix (OSRM one-way streets, turn restrictions) reversing a segment flips
+    every internal edge's direction, changing its cost — the boundary-only
+    formula accepts moves that only *look* cheaper and can produce longer routes.
+
+    Fix: measure the full cost of the affected path slice before and after
+    reversal (O(segment) per evaluation). Only accept if the total genuinely
+    decreases. Identical to the fix already applied to three_opt_improve.
+    """
     improved = True
     best = route_indices[:]
-    
+    n = len(best)
+
     while improved:
         improved = False
-        for i in range(1, len(best) - 1):
-            for j in range(i + 1, len(best)):
-                # Calculate current distance
-                if i == 0:
-                    d1 = 0
-                else:
-                    d1 = distance_matrix[best[i-1]][best[i]]
-                d2 = distance_matrix[best[j-1]][best[j]] if j < len(best) else 0
-                
-                # Calculate new distance after reversal
-                d3 = distance_matrix[best[i-1]][best[j-1]] if i > 0 else 0
-                d4 = distance_matrix[best[i]][best[j]] if j < len(best) else 0
-                
-                # If improvement found, reverse the segment
-                if d1 + d2 > d3 + d4:
+        for i in range(1, n - 1):
+            for j in range(i + 1, n):
+                # ── Cost of current path slice: best[i-1] → … → best[j] ──
+                cur = distance_matrix[best[i - 1]][best[i]]
+                for k in range(i, j - 1):
+                    cur += distance_matrix[best[k]][best[k + 1]]
+                if j < n:
+                    cur += distance_matrix[best[j - 1]][best[j]]
+
+                # ── Cost after reversing best[i:j] ──
+                # New path: best[i-1] → best[j-1] → best[j-2] → … → best[i] → best[j]
+                rev = distance_matrix[best[i - 1]][best[j - 1]]
+                for k in range(j - 1, i, -1):
+                    rev += distance_matrix[best[k]][best[k - 1]]
+                if j < n:
+                    rev += distance_matrix[best[i]][best[j]]
+
+                if cur > rev:
                     best[i:j] = reversed(best[i:j])
                     improved = True
-    
+
     return best
 
 def iterated_local_search(
@@ -7107,26 +7123,61 @@ async def _optimize_route_inner(
     elif algorithm_used == "vroom_lkh_3opt":
         try:
             solver_matrix = duration_matrix if duration_matrix else _haversine_duration_matrix(stops)
-            # Stage 1: VROOM
-            if VROOM_AVAILABLE:
-                indices = vroom_tsp_solve(solver_matrix, depot=start_index, exploration_level=5)
+
+            # ── Stage 1+2: VROOM and LKH race in parallel ─────────────────
+            # Both solvers are CPU-bound and thread-safe; running them
+            # concurrently via asyncio.to_thread means total wall-clock time
+            # is max(vroom, lkh) instead of their sum. Winner is selected by
+            # measuring actual tour cost on the OSRM matrix so we never accept
+            # a self-reported cost that may use a different objective.
+            import functools
+
+            def _run_vroom_sync():
+                if not VROOM_AVAILABLE:
+                    return None
+                return cluster_aware_solve(
+                    vroom_tsp_solve, solver_matrix, start_index, stops,
+                    exploration_level=5,
+                )
+
+            def _run_lkh_sync():
+                if not LKH_AVAILABLE:
+                    return None
+                return cluster_aware_solve(
+                    lkh_tsp_solve, solver_matrix, start_index, stops,
+                    runs=5, time_limit_seconds=15,
+                )
+
+            vroom_result, lkh_result = await asyncio.gather(
+                asyncio.to_thread(_run_vroom_sync),
+                asyncio.to_thread(_run_lkh_sync),
+                return_exceptions=True,
+            )
+
+            # Pick the best valid result by measured tour cost
+            candidates = []
+            for label, result in (("VROOM", vroom_result), ("LKH", lkh_result)):
+                if isinstance(result, Exception):
+                    logger.warning("%s failed in parallel race: %s", label, result)
+                elif result is not None:
+                    candidates.append((label, result, calculate_route_distance(result, solver_matrix)))
+
+            if not candidates:
+                raise RuntimeError("Both VROOM and LKH failed")
+
+            best_label, indices, best_cost = min(candidates, key=lambda x: x[2])
+            # Log which solver won and by how much
+            if len(candidates) == 2:
+                other_label, _, other_cost = next(c for c in candidates if c[0] != best_label)
+                saved_vs_other = ((other_cost - best_cost) / other_cost * 100) if other_cost > 0 else 0
+                logger.info("Race: %s wins over %s by %.1f%%", best_label, other_label, saved_vs_other)
             else:
-                nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
-                indices = _indices_by_identity(stops, nn_result)
-            # Stage 2: LKH refinement
-            if LKH_AVAILABLE:
-                try:
-                    lkh_indices = lkh_tsp_solve(solver_matrix, depot=start_index, runs=5, time_limit_seconds=10)
-                    if calculate_route_distance(lkh_indices, solver_matrix) < calculate_route_distance(indices, solver_matrix):
-                        indices = lkh_indices
-                except Exception:
-                    pass
-            # Stage 3: 3-opt polish — only KEEP if it actually improves.
-            # 3-opt is supposed to be monotonic but its `calculate_route_distance`
-            # implementation occasionally regresses by ~0.3 min on routes the
-            # LKH stage already brought to local optimum. Guard against that
-            # so the cascade is *strictly* ≥ LKH-alone quality.
-            pre_cost = calculate_route_distance(indices, solver_matrix)
+                logger.info("Race: only %s available", best_label)
+
+            # ── Stage 3: 3-opt polish — only keep if it genuinely improves ─
+            # Guard: 3-opt occasionally regresses on routes LKH already brought
+            # to local optimum, so we measure before/after and discard if worse.
+            pre_cost = best_cost
             polished = three_opt_improve(indices, solver_matrix, max_iterations=5)
             polished_cost = calculate_route_distance(polished, solver_matrix)
             if polished_cost < pre_cost:
@@ -7136,7 +7187,7 @@ async def _optimize_route_inner(
                 post_cost = pre_cost
             saved = ((pre_cost - post_cost) / pre_cost * 100) if pre_cost > 0 else 0
             optimized_stops = [stops[i] for i in indices]
-            reasoning = f"VROOM+LKH+3-opt pipeline ({len(stops)} stops, 3-opt saved {saved:.1f}%)"
+            reasoning = f"{best_label}+3-opt pipeline ({len(stops)} stops, 3-opt saved {saved:.1f}%)"
         except Exception as e:
             logger.warning("VROOM+LKH+3opt failed: %s", e)
             # Use the OSRM duration matrix for the fallback so the route
@@ -7148,9 +7199,9 @@ async def _optimize_route_inner(
             fallback_matrix = duration_matrix if duration_matrix else _haversine_duration_matrix(stops)
             nn_result = nearest_neighbor_optimize(stops, fallback_matrix, start_index)
             route_indices = _indices_by_identity(stops, nn_result)
-            improved_indices = two_opt_improve(route_indices, fallback_matrix)
+            improved_indices = or_opt_improve(route_indices, fallback_matrix)
             optimized_stops = [stops[i] for i in improved_indices]
-            reasoning = "VROOM+LKH+3opt failed, OSRM 2-Opt fallback"
+            reasoning = "VROOM+LKH+3opt failed, OSRM Or-opt fallback"
 
     elif algorithm_used == "timefold":
         try:
