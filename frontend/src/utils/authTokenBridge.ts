@@ -14,6 +14,9 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Verbose debug logs are stripped in production builds
+const debugLog = __DEV__ ? console.log.bind(console) : () => {};
+
 // Cached reference to supabase client getter
 let supabaseClientGetter: (() => Promise<any>) | null = null;
 
@@ -26,13 +29,13 @@ let cachedSupabaseClient: any = null;
  * Also pre-fetches the client for faster synchronous access.
  */
 export function registerSupabaseClientGetter(getter: () => Promise<any>) {
-  console.log('[authTokenBridge] Supabase client getter registered');
+  debugLog('[authTokenBridge] Supabase client getter registered');
   supabaseClientGetter = getter;
   
   // Pre-fetch the client immediately
   getter().then(client => {
     cachedSupabaseClient = client;
-    console.log('[authTokenBridge] Supabase client cached for fast access');
+    debugLog('[authTokenBridge] Supabase client cached for fast access');
   }).catch(err => {
     console.warn('[authTokenBridge] Failed to pre-cache Supabase client:', err);
   });
@@ -89,7 +92,7 @@ export async function getAuthToken(): Promise<string | null> {
       const { data: { session }, error } = await cachedSupabaseClient.auth.getSession();
       
       if (session?.access_token && isValidSupabaseToken(session.access_token)) {
-        console.log('[authTokenBridge] ✓ Got valid token from cached Supabase client');
+        debugLog('[authTokenBridge] ✓ Got valid token from cached Supabase client');
         return session.access_token;
       }
       
@@ -113,7 +116,7 @@ export async function getAuthToken(): Promise<string | null> {
         if (session?.access_token && isValidSupabaseToken(session.access_token)) {
           // Cache the client for future calls
           cachedSupabaseClient = client;
-          console.log('[authTokenBridge] ✓ Got valid token from getter, caching client');
+          debugLog('[authTokenBridge] ✓ Got valid token from getter, caching client');
           return session.access_token;
         }
         
@@ -136,7 +139,7 @@ export async function getAuthToken(): Promise<string | null> {
     if (session?.access_token && isValidSupabaseToken(session.access_token)) {
       // Cache the client for future calls
       cachedSupabaseClient = client;
-      console.log('[authTokenBridge] ✓ Got valid token from direct import');
+      debugLog('[authTokenBridge] ✓ Got valid token from direct import');
       return session.access_token;
     }
     
@@ -154,7 +157,7 @@ export async function getAuthToken(): Promise<string | null> {
     
     if (legacyToken) {
       if (isValidSupabaseToken(legacyToken)) {
-        console.log('[authTokenBridge] ✓ Using valid legacy session_token');
+        debugLog('[authTokenBridge] ✓ Using valid legacy session_token');
         return legacyToken;
       }
       
@@ -167,7 +170,7 @@ export async function getAuthToken(): Promise<string | null> {
     console.warn('[authTokenBridge] Legacy token fetch failed:', error);
   }
 
-  console.log('[authTokenBridge] No valid auth token found');
+  debugLog('[authTokenBridge] No valid auth token found');
   return null;
 }
 
@@ -196,7 +199,7 @@ export async function clearAuthTokens(): Promise<void> {
  * Only clears tokens that don't match known valid formats.
  */
 export async function clearCorruptedTokens(): Promise<void> {
-  console.log('[authTokenBridge] Checking for corrupted tokens...');
+  debugLog('[authTokenBridge] Checking for corrupted tokens...');
   
   // Check and clear legacy session_token if it's not a valid JWT
   try {
@@ -209,5 +212,5 @@ export async function clearCorruptedTokens(): Promise<void> {
     console.warn('[authTokenBridge] Error checking legacy token:', e);
   }
   
-  console.log('[authTokenBridge] Corruption check complete');
+  debugLog('[authTokenBridge] Corruption check complete');
 }
