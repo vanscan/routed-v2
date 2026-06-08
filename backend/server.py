@@ -6763,20 +6763,25 @@ async def _optimize_route_inner(
             reasoning = "Mapbox failed, used 2-Opt fallback"
             
     elif algorithm_used == "alns":
+        # Use the OSRM duration matrix (seconds) like the rest of the cascade so
+        # ALNS optimizes for travel time, not crow-flies distance. Falls back to
+        # distance_matrix (OSRM distance / haversine) only when OSRM duration is
+        # unavailable.
+        alns_matrix = duration_matrix if duration_matrix else distance_matrix
         try:
             alns_time_limit = max(4, min(15, 8 + len(stops) // 10))
             optimized_stops = alns_hybrid_optimize(
                 stops,
-                distance_matrix,
+                alns_matrix,
                 start_index=start_index,
                 time_limit_seconds=alns_time_limit,
             )
             reasoning = "Optimized using ALNS Hybrid Metaheuristic (NN + ALNS/SA + Local Search)"
         except Exception as e:
             logger.warning("ALNS optimization failed, using 2-Opt fallback: %s", e)
-            nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
+            nn_result = nearest_neighbor_optimize(stops, alns_matrix, start_index)
             route_indices = _indices_by_identity(stops, nn_result)
-            improved_indices = two_opt_improve(route_indices, distance_matrix)
+            improved_indices = two_opt_improve(route_indices, alns_matrix)
             optimized_stops = [stops[i] for i in improved_indices]
             reasoning = f"ALNS failed ({str(e)[:80]}), used 2-Opt fallback"
 
