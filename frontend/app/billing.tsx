@@ -3,7 +3,7 @@
  *
  * Three visual states:
  *  1. Pro/Admin: green "you're on the Pro plan" card + Manage button (opens Stripe customer portal in WebView).
- *  2. Free: hero copy + monthly/annual plan cards with "Start 7-day free trial" CTAs.
+ *  2. Free: hero copy + monthly/annual plan cards with "Start 14-day free trial" CTAs.
  *  3. Loading: spinner while /api/billing/status resolves.
  *
  * Surfaced from the Profile tab "Upgrade to Pro" row AND auto-pushed
@@ -167,8 +167,8 @@ export default function BillingScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>RouTeD Pro</Text>
         <Text style={styles.subtitle}>
-          Unlock the multi-engine optimiser, cluster tightening, no-go zones,
-          and full route history.
+          Free plan: optimise routes up to 20 stops, no credit card needed.
+          Upgrade for unlimited stops, no-go zones, cluster tightening, and full route history.
         </Text>
       </View>
 
@@ -194,11 +194,13 @@ export default function BillingScreen() {
       ) : (
         <>
           <View style={styles.benefitsCard}>
+            <FreeTierNote text="Free plan: up to 20 stops · No credit card required" />
+            <Benefit text="Unlimited stops per route" />
             <Benefit text="Multi-engine optimiser (VROOM, LKH-3, OR-Tools)" />
             <Benefit text="Cluster tightening + cross-cluster guard" />
             <Benefit text="No-go zones & late-freight ghost pins" />
             <Benefit text="Full route history + telemetry rollup" />
-            <Benefit text="7-day free trial — no card charged upfront" />
+            <Benefit text="14-day free trial — no card charged upfront" />
           </View>
 
           {Object.entries(status?.available_plans ?? {}).map(([planId, plan]) => (
@@ -212,7 +214,7 @@ export default function BillingScreen() {
             >
               {planId === 'annual' && (
                 <View style={styles.savingBadge}>
-                  <Text style={styles.savingBadgeText}>Save ~34%</Text>
+                  <Text style={styles.savingBadgeText}>Save 36%</Text>
                 </View>
               )}
               <Text style={styles.planLabel}>{plan.label}</Text>
@@ -271,6 +273,15 @@ function Benefit({ text }: { text: string }) {
   );
 }
 
+function FreeTierNote({ text }: { text: string }) {
+  return (
+    <View style={styles.freeTierRow}>
+      <Ionicons name="gift-outline" size={16} color="#64748b" />
+      <Text style={styles.freeTierText}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
   container: { flex: 1, backgroundColor: '#f8fafc' },
@@ -296,6 +307,8 @@ const styles = StyleSheet.create({
   planLabel: { fontSize: 14, fontWeight: '700', color: '#475569' },
   planAmount: { fontSize: 26, fontWeight: '800', color: '#0f172a', marginTop: 4 },
   planTrial: { fontSize: 13, color: '#10b981', fontWeight: '700', marginTop: 4 },
+  freeTierRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 4 },
+  freeTierText: { fontSize: 13, color: '#64748b', marginLeft: 8, flex: 1, fontStyle: 'italic' },
   planCta: { fontSize: 14, color: '#3b82f6', fontWeight: '700', marginTop: 12 },
   planCtaDisabled: { fontSize: 14, color: '#94a3b8', fontWeight: '600', marginTop: 12 },
   modalCloseBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },

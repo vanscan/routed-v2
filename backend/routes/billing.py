@@ -106,6 +106,9 @@ REVIEWER_EMAILS = {e.strip().lower() for e in _reviewer_csv.split(",") if e.stri
 # defer to Stripe's lifecycle — we don't yank access mid-shift.
 _PRO_STATUSES = {"trialing", "active", "past_due"}
 
+# Free tier: maximum stops per optimization for non-Pro users.
+FREE_STOP_CAP = 20
+
 # Plan id → Stripe price id mapping. Empty mapping if not configured.
 _PLAN_TO_PRICE: dict[str, str] = {}
 if STRIPE_PRICE_MONTHLY:
@@ -180,6 +183,16 @@ async def _upsert_subscription(db, doc: dict) -> None:
 # inside the function (not at module top) to avoid a circular import.
 # server.py imports this module before its own `db` and auth helpers
 # are defined; deferring those lookups to request time sidesteps that.
+async def get_is_pro(db, user_id: str, email: str) -> bool:
+    """Return True iff the user has Pro access (admin, reviewer, or active subscription)."""
+    if user_id in ADMIN_USER_IDS:
+        return True
+    if email.lower() in REVIEWER_EMAILS:
+        return True
+    sub = await _get_subscription(db, user_id)
+    return sub is not None and sub.get("status") in _PRO_STATUSES
+
+
 async def require_pro(request: Request):
     """FastAPI dependency: 402 unless the caller is an admin or has an
     active/trialing/past_due subscription."""
@@ -187,12 +200,7 @@ async def require_pro(request: Request):
     # dependency, server.py is fully loaded and these names exist.
     from server import db, get_current_user
     current_user = await get_current_user(request)
-    if current_user.user_id in ADMIN_USER_IDS:
-        return current_user
-    if (current_user.email or "").lower() in REVIEWER_EMAILS:
-        return current_user
-    sub = await _get_subscription(db, current_user.user_id)
-    if sub and sub.get("status") in _PRO_STATUSES:
+    if await get_is_pro(db, current_user.user_id, current_user.email or ""):
         return current_user
     # Payment Required. Frontend reads `detail.upgrade_required`.
     raise HTTPException(
@@ -201,7 +209,7 @@ async def require_pro(request: Request):
             "code": "subscription_required",
             "message": (
                 "This feature is available on the Pro plan. "
-                "Start your 7-day free trial — no card charged "
+                "Start your 14-day free trial — no card charged "
                 "until the trial ends."
             ),
             "upgrade_required": True,
@@ -241,14 +249,14 @@ async def get_billing_status(request: Request):
             "monthly": {
                 "price_id": STRIPE_PRICE_MONTHLY or "not_configured",
                 "label": "Pro Monthly",
-                "amount_display": "$9.99 / month",
-                "trial_days": "7",
+                "amount_display": "A$12.99 / month",
+                "trial_days": "14",
             },
             "annual": {
                 "price_id": STRIPE_PRICE_ANNUAL or "not_configured",
                 "label": "Pro Annual",
-                "amount_display": "$79 / year",
-                "trial_days": "7",
+                "amount_display": "A$99 / year",
+                "trial_days": "14",
             },
         },
     )
@@ -283,7 +291,7 @@ async def create_checkout_session(request: Request, body: CheckoutRequest):
             "payment_method_types": ["card"],
             "line_items": [{"price": price_id, "quantity": 1}],
             "subscription_data": {
-                "trial_period_days": 7,
+                "trial_period_days": 14,
                 "metadata": {
                     "user_id": current_user.user_id,
                     "plan_id": body.plan_id,
