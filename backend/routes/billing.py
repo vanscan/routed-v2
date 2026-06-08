@@ -78,11 +78,11 @@ STRIPE_PRICE_ANNUAL = os.environ.get("STRIPE_PRICE_ANNUAL", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_CHECKOUT_SUCCESS_URL = os.environ.get(
     "STRIPE_CHECKOUT_SUCCESS_URL",
-    "https://floating-map-ui.emergent.host/billing/success",
+    "https://api.getrouted.xyz/billing/success",
 )
 STRIPE_CHECKOUT_CANCEL_URL = os.environ.get(
     "STRIPE_CHECKOUT_CANCEL_URL",
-    "https://floating-map-ui.emergent.host/billing/cancel",
+    "https://api.getrouted.xyz/billing/cancel",
 )
 
 # Admin allowlist — comma-separated user_ids that bypass the paywall.
