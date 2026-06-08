@@ -314,8 +314,13 @@ const RouteLine = React.memo(function RouteLine({ routeFC, routeIsPreview }: Rou
 // ─── Driving-camera tuning (parity with WebView 3D driving mode) ─────────────
 const DRIVING_PITCH = 60; // degrees — 3D look-ahead tilt
 const DRIVING_ZOOM = 18.5; // street-level, close to driver
-const DRIVING_EASE_MS = 200; // finish before next 250 ms GPS tick — no skipped frames
+const DRIVING_EASE_MS = 200;            // finish before next 250 ms GPS tick — no skipped frames
 const DRIVING_BOTTOM_PAD_RATIO = 0.45; // push driver toward bottom of screen
+// Speed-adaptive zoom: zoom out progressively at highway speeds so the driver
+// sees more road ahead. At 35 m/s (126 km/h) the zoom reaches DRIVING_ZOOM_MIN.
+//   zoom = clamp(DRIVING_ZOOM - speed × factor, DRIVING_ZOOM_MIN, DRIVING_ZOOM)
+const DRIVING_ZOOM_MIN = 15.5;          // max zoom-out (highway ~130 km/h)
+const DRIVING_ZOOM_SPEED_FACTOR = 0.086; // zoom units per m/s
 
 // ─── Phase 2 overlay tuning ──────────────────────────────────────────────────
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -429,10 +434,6 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     // Driving-camera bookkeeping.
     const easeInFlightRef = useRef(false);
     const userInteractingRef = useRef(false);
-    // True once the entry zoom has been applied for the current nav session.
-    // driveCamera sets zoom on the FIRST tick only so the user can freely
-    // pinch-zoom without being snapped back to DRIVING_ZOOM every 250 ms.
-    const drivingZoomSetRef = useRef(false);
     // Mirrors the highFreqCameraActive prop in a ref so handleRegionDidChange
     // (a stable callback) can read the current value without being re-created.
     const highFreqCameraActiveRef = useRef(false);
@@ -591,24 +592,29 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     //    Look-ahead is achieved with top-heavy padding (puck → lower third,
     //    road ahead up top), matching the WebView's pixel-space offset.
     //
-    //    Zoom is applied ONCE per navigation session (first tick only) so the
-    //    user can freely pinch-zoom without being snapped back every 250 ms.
-    //    All subsequent ticks skip the zoom axis entirely. ──────────────────
+    //    Zoom adapts to speed on every tick: street-level when slow, zooms out
+    //    progressively at highway speeds so the driver sees more road ahead.
+    //    Manual pinch-zoom is respected for 2 s after any user interaction. ──
     const driveCamera = useCallback(
-      (lng: number, lat: number, bearing?: number, _speedMps?: number) => {
+      (lng: number, lat: number, bearing?: number, speedMps?: number) => {
         const cam = cameraRef.current;
         if (!cam) return;
         if (easeInFlightRef.current) return;
         if (userInteractingRef.current) return;
         const topPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
+        // Speed-adaptive zoom: slower → stay close, faster → pull back.
+        // Clamped so it never goes tighter than DRIVING_ZOOM or wider than
+        // DRIVING_ZOOM_MIN regardless of GPS noise at extreme speeds.
+        const speed = Math.max(0, speedMps ?? 0);
+        const targetZoom = Math.max(
+          DRIVING_ZOOM_MIN,
+          DRIVING_ZOOM - speed * DRIVING_ZOOM_SPEED_FACTOR,
+        );
         easeInFlightRef.current = true;
-        // Set zoom only on the first tick of a navigation session.
-        const entryZoom = drivingZoomSetRef.current ? undefined : DRIVING_ZOOM;
-        drivingZoomSetRef.current = true;
         try {
           cam.easeTo({
             center: [lng, lat],
-            ...(entryZoom !== undefined ? { zoom: entryZoom } : {}),
+            zoom: targetZoom,
             bearing: bearing ?? 0,
             pitch: DRIVING_PITCH,
             padding: { top: topPad, right: 0, bottom: 0, left: 0 },
@@ -816,8 +822,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         refreshMsBuildings(lastZoomRef.current);
       }
       if (wasDrivingRef.current && !highFreqCameraActive) {
-        // Navigation ended — reset so the NEXT session gets a fresh entry zoom.
-        drivingZoomSetRef.current = false;
+        // Navigation ended — flatten pitch back to 0.
         if (cameraRef.current) {
           try {
             cameraRef.current.setStop({ pitch: 0, duration: 400 });
