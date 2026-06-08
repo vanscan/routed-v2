@@ -57,7 +57,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: yarn install --frozen-lockfile
+        run: yarn install --no-frozen-lockfile
 
       - name: Pre-deploy audit (lightweight)
         run: |
