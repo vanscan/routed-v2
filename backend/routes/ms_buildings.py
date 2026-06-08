@@ -262,15 +262,17 @@ async def _fetch_z9(qk: str) -> Optional[List[dict]]:
             logger.warning("MS buildings: gzip decompress failed qk=%s: %s", qk, exc)
             return None
 
-        features: List[dict] = []
+        raw_features: List[dict] = []
         for line in raw.decode("utf-8", errors="replace").splitlines():
             line = line.strip()
             if not line:
                 continue
             try:
-                features.append(json.loads(line))
+                raw_features.append(json.loads(line))
             except Exception:
                 pass
+
+        features = [_enrich_height(f) for f in raw_features]
 
         try:
             await disk_cache.put(
@@ -308,7 +310,7 @@ async def get_ms_buildings_tile(z: int, x: int, y: int):
 
     lon_min, lat_min, lon_max, lat_max = _tile_bbox(z, x, y)
     clipped = [
-        _enrich_height(f)
+        f
         for f in features
         if _in_bbox(f, lon_min, lat_min, lon_max, lat_max)
     ]
