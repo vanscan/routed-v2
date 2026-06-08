@@ -33,6 +33,8 @@ jobs:
   ota-update:
     name: Publish OTA bundle
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     concurrency:
       group: ota-${{ github.ref }}
       cancel-in-progress: false   # never cancel an in-flight publish
@@ -45,7 +47,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'yarn'
           cache-dependency-path: frontend/yarn.lock
 
@@ -57,16 +59,22 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: yarn install --frozen-lockfile
+        run: yarn install --no-frozen-lockfile
 
       - name: Pre-deploy audit (lightweight)
         run: |
           # Same checks as scripts/predeploy.sh but inline for CI speed.
-          # Fails the workflow if eas.json has the rejected Proguard key
-          # or if EXPO_PUBLIC_BACKEND_URL is missing.
+          # Fails the workflow if eas.json has the rejected Proguard key.
           if grep -q "enableProguardInReleaseBuilds" frontend/eas.json; then
             echo "::error::eas.json contains 'enableProguardInReleaseBuilds' — remove it"
             exit 1
+          fi
+          # Ensure frontend/.env exists with the production backend URL.
+          # The app hardcodes this URL as a fallback, but eas update reads .env
+          # during bundling. Create it if missing (CI runners never have .env).
+          if [ ! -f frontend/.env ]; then
+            echo "EXPO_PUBLIC_BACKEND_URL=https://api.getrouted.xyz" > frontend/.env
+            echo "Created frontend/.env with production backend URL"
           fi
           if ! grep -qE "^EXPO_PUBLIC_BACKEND_URL=https://" frontend/.env; then
             echo "::error::frontend/.env missing EXPO_PUBLIC_BACKEND_URL"

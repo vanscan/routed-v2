@@ -215,9 +215,14 @@ export default function ProfileScreen() {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          // Sign out from Supabase
-          await signOut();
+          try {
+            await signOut();
+          } catch (e) {
+            console.warn('[handleLogout] signOut error:', e);
+          }
           clearStops();
+          // Navigation is handled by the tabs layout auth guard which
+          // fires when user becomes null. Call replace here as a fallback.
           router.replace('/');
         },
       },

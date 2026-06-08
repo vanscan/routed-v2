@@ -1,13 +1,25 @@
 import React, { useEffect } from 'react';
-import { Tabs, usePathname } from 'expo-router';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as NavigationBar from 'expo-navigation-bar';
+import { useSupabase } from '../../src/contexts/SupabaseContext';
 
 export default function TabLayout() {
   const pathname = usePathname();
   const isMapTab = pathname === '/' || pathname === '';
+  const router = useRouter();
+  const { user, loading } = useSupabase();
+
+  // When the user signs out (user becomes null while tabs are mounted),
+  // redirect to the login screen. This runs regardless of which tab triggered
+  // the sign-out, covering race conditions in the logout handler.
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/');
+    }
+  }, [user, loading]);
   // Safe-area inset reflects the height of the Android system nav bar (or
   // iOS home-indicator). Without this, the tab bar sits UNDER the system
   // gesture pill / 3-button bar — taps on Stops/Profile get swallowed by
