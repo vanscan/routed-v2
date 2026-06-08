@@ -18,7 +18,7 @@ export function useLateFreightZipper() {
     route: [] as PlannedStop[],
     inserting: false,
     error: null as string | null,
-    zip: async (_stops: Omit<PlannedStop, 'label' | 'is_late_freight'>[]) => {},
+    zip: async (_stops: Array<Omit<PlannedStop, 'label' | 'is_late_freight'> & { is_depot?: boolean }>): Promise<PlannedStop[] | null> => null,
   };
 }
 

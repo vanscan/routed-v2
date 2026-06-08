@@ -10,6 +10,16 @@ import type {
   NextTurnInfo,
 } from '../DeliveryMap';
 
+/** Minimal stop shape used by the Late Freight Zipper route overlay. */
+export type ZipperStop = {
+  id: string;
+  label: string;
+  lat: number;
+  lon: number;
+  original_sequence: number | null;
+  is_late_freight: boolean;
+};
+
 /** Superset mirror of the WebView map's prop contract. */
 export interface DeliveryMapNativeProps {
   stops: DeliveryStop[];
@@ -35,4 +45,5 @@ export interface DeliveryMapNativeProps {
   nextStopCoord?: [number, number] | null;
   nextStopColor?: string | null;
   highFreqCameraActive?: boolean;
+  zipperRoute?: ZipperStop[];
 }

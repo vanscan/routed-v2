@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import MapLibreGL from "@maplibre/maplibre-react-native";
+import { GeoJSONSource, Layer } from "@maplibre/maplibre-react-native";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL || "https://api.getrouted.xyz";
 
@@ -35,6 +35,8 @@ type ZipperResponse =
   | { ok: true; total_distance_m: number; inserted_labels: string[]; route: PlannedStop[] }
   | { ok: false; error: string; detail?: string };
 
+type ZipStopInput = Omit<PlannedStop, "label" | "is_late_freight"> & { is_depot?: boolean };
+
 export function useLateFreightZipper() {
   const [route, setRoute] = useState<PlannedStop[]>([]);
   const [inserting, setInserting] = useState(false);
@@ -45,7 +47,7 @@ export function useLateFreightZipper() {
   const reqId = useRef(0);
 
   const zip = useCallback(
-    async (stops: Omit<PlannedStop, "label" | "is_late_freight">[]) => {
+    async (stops: ZipStopInput[]): Promise<PlannedStop[] | null> => {
       const mine = ++reqId.current;
       setInserting(true);
       setError(null);
@@ -53,17 +55,19 @@ export function useLateFreightZipper() {
         const res = await fetch(`${API}/api/route/zipper`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stops, time_limit_s: 5 }),
+          body: JSON.stringify({ stops, return_to_depot: false, time_limit_s: 5 }),
         });
         const data: ZipperResponse = await res.json();
-        if (mine !== reqId.current) return;        // a newer request superseded us
+        if (mine !== reqId.current) return null;   // a newer request superseded us
         if (!data.ok) {
           setError(data.error);
-          return;
+          return null;
         }
         setRoute(data.route);
+        return data.route;
       } catch (e: any) {
         if (mine === reqId.current) setError(e?.message ?? "network");
+        return null;
       } finally {
         if (mine === reqId.current) setInserting(false);
       }
@@ -112,46 +116,36 @@ export const ZipperRouteLayer = (function () {
 
     return (
       <>
-        <MapLibreGL.ShapeSource id="zip-line" shape={lineGeoJSON}>
-          <MapLibreGL.LineLayer
+        <GeoJSONSource id="zip-line" data={lineGeoJSON}>
+          <Layer
             id="zip-line-layer"
-            style={{ lineColor: "#38bdf8", lineWidth: 5, lineCap: "round", lineJoin: "round" }}
+            type="line"
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            paint={{ 'line-color': '#38bdf8', 'line-width': 5 }}
           />
-        </MapLibreGL.ShapeSource>
+        </GeoJSONSource>
 
-        <MapLibreGL.ShapeSource id="zip-stops" shape={pointGeoJSON}>
-          <MapLibreGL.CircleLayer
+        <GeoJSONSource id="zip-stops" data={pointGeoJSON}>
+          <Layer
             id="zip-stop-dot"
-            style={{
-              circleRadius: 13,
-              circleColor: ["case", ["==", ["get", "late"], 1], "#f59e0b", "#1e293b"],
-              circleStrokeColor: "#ffffff",
-              circleStrokeWidth: 2,
+            type="circle"
+            paint={{
+              'circle-radius': 13,
+              'circle-color': ['case', ['==', ['get', 'late'], 1], '#f59e0b', '#1e293b'],
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-width': 2,
             }}
           />
-          <MapLibreGL.SymbolLayer
+          <Layer
             id="zip-stop-label"
-            style={{ textField: ["get", "label"], textSize: 11, textColor: "#ffffff", textFont: ["Noto Sans Bold"] }}
+            type="symbol"
+            layout={{ 'text-field': ['get', 'label'], 'text-size': 11, 'text-font': ['Noto Sans Bold'] }}
+            paint={{ 'text-color': '#ffffff' }}
           />
-        </MapLibreGL.ShapeSource>
+        </GeoJSONSource>
       </>
     );
   };
   // Only re-render when the route object identity changes.
   return require("react").memo(Inner, (a: any, b: any) => a.route === b.route);
 })();
-
-/**
- * Puck + camera. followUserLocation drives the camera on the native thread.
- * Note the absence of zoom/center props here — passing them while following
- * fights the native follow loop and makes the puck stutter.
- */
-export function FollowCamera() {
-  return (
-    <>
-      <MapLibreGL.Camera followUserLocation followUserMode={"course" as any} followZoomLevel={16} />
-      {/* course over compass: metal van body wrecks the magnetometer */}
-      <MapLibreGL.UserLocation renderMode="native" androidRenderMode="compass" />
-    </>
-  );
-}
