@@ -384,6 +384,10 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     // Driving-camera bookkeeping.
     const easeInFlightRef = useRef(false);
     const userInteractingRef = useRef(false);
+    // True once the entry zoom has been applied for the current nav session.
+    // driveCamera only sets zoom on the FIRST tick so subsequent GPS updates
+    // respect whatever zoom the driver has manually pinched to.
+    const drivingZoomSetRef = useRef(false);
     // Mirrors the highFreqCameraActive prop in a ref so handleRegionDidChange
     // (a stable callback) can read the current value without being re-created.
     const highFreqCameraActiveRef = useRef(false);
@@ -538,7 +542,11 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
 
     // ── Driving camera: drive the native Camera from a drivingCamera message.
     //    Look-ahead is achieved with top-heavy padding (puck → lower third,
-    //    road ahead up top), matching the WebView's pixel-space offset. ──────
+    //    road ahead up top), matching the WebView's pixel-space offset.
+    //
+    //    Zoom is applied ONCE per navigation session (entry tick only).
+    //    Subsequent GPS ticks omit zoom so the native map respects whatever
+    //    zoom level the driver has manually pinched to — no rubber-banding. ──
     const driveCamera = useCallback(
       (lng: number, lat: number, bearing?: number, _speedMps?: number) => {
         const cam = cameraRef.current;
@@ -547,10 +555,14 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         if (userInteractingRef.current) return;
         const topPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
         easeInFlightRef.current = true;
+        // Set zoom only on the first tick of a navigation session so the user
+        // can freely pinch-zoom without being snapped back every 250 ms.
+        const entryZoom = drivingZoomSetRef.current ? undefined : DRIVING_ZOOM;
+        drivingZoomSetRef.current = true;
         try {
           cam.easeTo({
             center: [lng, lat],
-            zoom: DRIVING_ZOOM,
+            ...(entryZoom !== undefined ? { zoom: entryZoom } : {}),
             bearing: bearing ?? 0,
             pitch: DRIVING_PITCH,
             padding: { top: topPad, right: 0, bottom: 0, left: 0 },
@@ -757,11 +769,15 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         // Entering navigation — load MS buildings for the current viewport now.
         refreshMsBuildings(lastZoomRef.current);
       }
-      if (wasDrivingRef.current && !highFreqCameraActive && cameraRef.current) {
-        try {
-          cameraRef.current.setStop({ pitch: 0, duration: 400 });
-        } catch {
-          // ignore
+      if (wasDrivingRef.current && !highFreqCameraActive) {
+        // Navigation ended — reset so the NEXT session gets a fresh entry zoom.
+        drivingZoomSetRef.current = false;
+        if (cameraRef.current) {
+          try {
+            cameraRef.current.setStop({ pitch: 0, duration: 400 });
+          } catch {
+            // ignore
+          }
         }
       }
       wasDrivingRef.current = highFreqCameraActive;
