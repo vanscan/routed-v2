@@ -6029,13 +6029,12 @@ def optimize_segment(stops: List[dict], algorithm: str, start_point: dict = None
 # the /optimize/jobs endpoint below — the symbol must be bound at
 # decorator-evaluation time, but billing.require_pro defers its server
 # imports to request time so there is no import-order issue.
-from routes.billing import require_pro as _billing_require_pro  # noqa: E402
+from routes.billing import require_pro as _billing_require_pro, FREE_STOP_CAP as _FREE_STOP_CAP, get_is_pro as _billing_get_is_pro  # noqa: E402
 
 @api_router.post("/optimize")
 async def optimize_route(
     request: OptimizationRequest = OptimizationRequest(),
     current_user: User = Depends(get_current_user),
-    _pro=Depends(_billing_require_pro),
 ):
     """Optimize route order using various algorithms
     
@@ -6069,6 +6068,22 @@ async def _optimize_route_inner(
     all_user_stops = await db.stops.find({"user_id": current_user.user_id}, {"_id": 0}).sort("order", 1).to_list(1000)
     completed_stops = [s for s in all_user_stops if s.get("completed")]
     stops = [s for s in all_user_stops if not s.get("completed")]
+
+    if not await _billing_get_is_pro(db, current_user.user_id, current_user.email or ""):
+        if len(stops) > _FREE_STOP_CAP:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "code": "subscription_required",
+                    "message": (
+                        f"Free plan is limited to {_FREE_STOP_CAP} stops. "
+                        "Upgrade to Pro for unlimited routes — 14-day free trial, no card upfront."
+                    ),
+                    "upgrade_required": True,
+                    "stop_cap": _FREE_STOP_CAP,
+                    "checkout_endpoint": "/api/billing/checkout",
+                },
+            )
 
     # ── AUDIT 1: raw input + super-node proxy ────────────────────────────
     # Counts unique (lat, lng) — this is what PyVRP's super-node grouper

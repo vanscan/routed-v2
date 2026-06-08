@@ -11,6 +11,8 @@ What we cover here:
   * /api/billing/status: admin user reports pro=true, is_admin=true
   * /api/billing/status: free user reports pro=false, is_admin=false, plans listed
   * /api/billing/status: trialing/active subscription in Mongo flips pro=true
+  * /api/optimize: free user with ≤20 stops → allowed (200/no 402)
+  * /api/optimize: free user with >20 stops → 402 with stop_cap in detail
   * /api/optimize/jobs: free user → 402 with upgrade_required=true
   * /api/optimize/jobs: admin user → 202 (bypass)
   * /api/billing/checkout: bad plan_id → 422 validation error
@@ -120,7 +122,7 @@ def test_status_free_user_reports_no_pro(free_user):
     assert body["plan_id"] is None
     assert "monthly" in body["available_plans"]
     assert "annual" in body["available_plans"]
-    assert body["available_plans"]["monthly"]["trial_days"] == "7"
+    assert body["available_plans"]["monthly"]["trial_days"] == "14"
 
 
 def test_status_admin_user_reports_pro_true(admin_user):
@@ -156,6 +158,41 @@ def test_status_trialing_subscription_flips_pro(free_user):
     assert body["pro"] is True
     assert body["status"] == "trialing"
     assert body["plan_id"] == "monthly"
+
+
+# ── Stop-cap enforcement on /optimize (free tier) ────────────
+
+
+def test_optimize_free_user_under_cap_succeeds(free_user):
+    """Free user with ≤20 stops must NOT receive a 402 — the free tier
+    allows optimization up to FREE_STOP_CAP stops."""
+    headers, uid, db = free_user
+    db.stops.delete_many({"user_id": uid})
+    db.stops.insert_many([
+        {"id": f"fc{i}", "user_id": uid, "address": f"{i} St",
+         "latitude": -26.65 + i * 0.001, "longitude": 153.10, "order": i}
+        for i in range(5)
+    ])
+    r = requests.post(f"{API}/optimize", json={}, headers=headers, timeout=10)
+    assert r.status_code != 402, f"Unexpected paywall for 5-stop free user: {r.text}"
+
+
+def test_optimize_free_user_over_cap_returns_402(free_user):
+    """Free user with >20 stops must hit a 402 with stop_cap in the
+    detail, so the frontend can show the correct upgrade message."""
+    headers, uid, db = free_user
+    db.stops.delete_many({"user_id": uid})
+    db.stops.insert_many([
+        {"id": f"oc{i}", "user_id": uid, "address": f"{i} St",
+         "latitude": -26.65 + i * 0.001, "longitude": 153.10, "order": i}
+        for i in range(25)
+    ])
+    r = requests.post(f"{API}/optimize", json={}, headers=headers, timeout=5)
+    assert r.status_code == 402, r.text
+    detail = r.json().get("detail") or {}
+    assert detail.get("code") == "subscription_required"
+    assert detail.get("upgrade_required") is True
+    assert detail.get("stop_cap") == 20
 
 
 # ── Paywall enforcement on /optimize/jobs ────────────────────
