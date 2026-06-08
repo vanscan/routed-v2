@@ -272,7 +272,7 @@ function lineFeature(coords: number[][] | null): GeoJSON.FeatureCollection {
 // Keeps the GeoJSONSource and its child layers off the 250 ms render cycle.
 type RouteLineProps = {
   routeFC: GeoJSON.FeatureCollection;
-  routeIsPreview: boolean;
+  routeIsPreview?: boolean;
 };
 const RouteLine = React.memo(function RouteLine({ routeFC, routeIsPreview }: RouteLineProps) {
   return (
@@ -427,10 +427,11 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const [refreshNonce, setRefreshNonce] = useState(0);
 
     // Driving-camera bookkeeping.
+    const easeInFlightRef = useRef(false);
     const userInteractingRef = useRef(false);
     // True once the entry zoom has been applied for the current nav session.
-    // driveCamera only sets zoom on the FIRST tick; trackUserLocation="course"
-    // handles center/bearing natively so no per-tick easeTo is needed.
+    // driveCamera sets zoom on the FIRST tick only so the user can freely
+    // pinch-zoom without being snapped back to DRIVING_ZOOM every 250 ms.
     const drivingZoomSetRef = useRef(false);
     // Mirrors the highFreqCameraActive prop in a ref so handleRegionDidChange
     // (a stable callback) can read the current value without being re-created.
@@ -586,24 +587,39 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       [nextStopCoord],
     );
 
-    // ── Driving camera: called by useNavigationCamera on every 250 ms GPS tick.
+    // ── Driving camera: imperatively track the puck from a drivingCamera message.
+    //    Look-ahead is achieved with top-heavy padding (puck → lower third,
+    //    road ahead up top), matching the WebView's pixel-space offset.
     //
-    //    The Camera now uses trackUserLocation="course" during navigation, which
-    //    tracks center AND bearing entirely on the native thread — no bridge
-    //    crossing per GPS update. This function's only job is to animate to the
-    //    entry zoom level ONCE when navigation begins; all subsequent calls are
-    //    no-ops so the native tracker runs uncontested. ──────────────────────
+    //    Zoom is applied ONCE per navigation session (first tick only) so the
+    //    user can freely pinch-zoom without being snapped back every 250 ms.
+    //    All subsequent ticks skip the zoom axis entirely. ──────────────────
     const driveCamera = useCallback(
-      (_lng: number, _lat: number, _bearing?: number, _speedMps?: number) => {
-        if (drivingZoomSetRef.current) return; // zoom already set for this session
+      (lng: number, lat: number, bearing?: number, _speedMps?: number) => {
         const cam = cameraRef.current;
         if (!cam) return;
+        if (easeInFlightRef.current) return;
+        if (userInteractingRef.current) return;
+        const topPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
+        easeInFlightRef.current = true;
+        // Set zoom only on the first tick of a navigation session.
+        const entryZoom = drivingZoomSetRef.current ? undefined : DRIVING_ZOOM;
         drivingZoomSetRef.current = true;
         try {
-          cam.zoomTo(DRIVING_ZOOM, { duration: DRIVING_EASE_MS });
+          cam.easeTo({
+            center: [lng, lat],
+            ...(entryZoom !== undefined ? { zoom: entryZoom } : {}),
+            bearing: bearing ?? 0,
+            pitch: DRIVING_PITCH,
+            padding: { top: topPad, right: 0, bottom: 0, left: 0 },
+            duration: DRIVING_EASE_MS,
+          });
         } catch {
           // ignore transient native camera errors
         }
+        // Guard cleared after ease finishes (DRIVING_EASE_MS=200ms).
+        // Interval is 250ms → 50ms settling gap before next tick.
+        setTimeout(() => { easeInFlightRef.current = false; }, DRIVING_EASE_MS + 20);
       },
       [],
     );
@@ -1091,29 +1107,10 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           onRegionIsChanging={handleRegionIsChanging}
           onPress={handleMapPress}
         >
-          {/* During navigation: trackUserLocation="course" delegates center AND
-              bearing tracking to the native thread — zero bridge crossings per
-              GPS update. pitch and padding are set declaratively; zoom is set
-              once via driveCamera → zoomTo on the first GPS tick.
-              Outside navigation: manual camera, imperative control via cameraRef. */}
-          {highFreqCameraActive ? (
-            <Camera
-              ref={cameraRef}
-              trackUserLocation="course"
-              pitch={DRIVING_PITCH}
-              padding={{
-                top: Math.round(mapHeight * DRIVING_BOTTOM_PAD_RATIO),
-                right: 0,
-                bottom: 0,
-                left: 0,
-              }}
-            />
-          ) : (
-            <Camera
-              ref={cameraRef}
-              initialViewState={{ center, zoom }}
-            />
-          )}
+          <Camera
+            ref={cameraRef}
+            initialViewState={{ center, zoom }}
+          />
 
           {/* ── 3D buildings — worldwide OSM (style's openmaptiles vector
               source). Always visible ≥ z13; height ramps 0→full by z16. ── */}
