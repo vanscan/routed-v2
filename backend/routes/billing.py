@@ -78,11 +78,11 @@ STRIPE_PRICE_ANNUAL = os.environ.get("STRIPE_PRICE_ANNUAL", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_CHECKOUT_SUCCESS_URL = os.environ.get(
     "STRIPE_CHECKOUT_SUCCESS_URL",
-    "https://floating-map-ui.emergent.host/billing/success",
+    "https://api.getrouted.xyz/billing/success",
 )
 STRIPE_CHECKOUT_CANCEL_URL = os.environ.get(
     "STRIPE_CHECKOUT_CANCEL_URL",
-    "https://floating-map-ui.emergent.host/billing/cancel",
+    "https://api.getrouted.xyz/billing/cancel",
 )
 
 # Admin allowlist — comma-separated user_ids that bypass the paywall.
@@ -475,3 +475,52 @@ async def stripe_webhook(request: Request):
         # Still ack — Stripe Dashboard manual replay is the recovery path.
 
     return {"received": True, "type": event_type}
+
+
+# ── Post-checkout redirect landing pages ───────────────────────────
+# Stripe redirects the in-app WebView to these URLs after checkout
+# completes or is abandoned. The billing screen detects the path and
+# closes the modal — these just need to return a friendly 200.
+
+from fastapi.responses import HTMLResponse as _HTMLResponse
+
+_SUCCESS_HTML = """<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Subscription confirmed</title>
+<style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;
+justify-content:center;min-height:100vh;margin:0;background:#f0fdf4;}
+.card{text-align:center;padding:2rem;}
+h1{color:#10b981;font-size:2rem;margin-bottom:.5rem;}
+p{color:#475569;font-size:1rem;}</style></head>
+<body><div class="card">
+<h1>&#10003; You&rsquo;re on Pro!</h1>
+<p>Your 7-day free trial has started. Returning to RouTeD&hellip;</p>
+</div></body></html>"""
+
+_CANCEL_HTML = """<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout cancelled</title>
+<style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;
+justify-content:center;min-height:100vh;margin:0;background:#f8fafc;}
+.card{text-align:center;padding:2rem;}
+h1{color:#64748b;font-size:1.5rem;margin-bottom:.5rem;}
+p{color:#94a3b8;font-size:1rem;}</style></head>
+<body><div class="card">
+<h1>Checkout cancelled</h1>
+<p>No charge was made. Returning to RouTeD&hellip;</p>
+</div></body></html>"""
+
+
+@router.get("/success", response_class=_HTMLResponse, include_in_schema=False)
+async def checkout_success():
+    """Stripe redirects here after a successful checkout. The in-app
+    WebView detects '/billing/success' in the URL and closes itself."""
+    return _HTMLResponse(_SUCCESS_HTML)
+
+
+@router.get("/cancel", response_class=_HTMLResponse, include_in_schema=False)
+async def checkout_cancel():
+    """Stripe redirects here when the user abandons checkout."""
+    return _HTMLResponse(_CANCEL_HTML)
