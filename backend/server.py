@@ -5579,7 +5579,7 @@ async def mapbox_optimize(stops: List[dict], current_latitude: float = None, cur
                     return optimized_stops
             
             # If Mapbox fails, fall back to nearest neighbor
-            print(f"Mapbox Optimization API error: {response.status_code} - {response.text[:200]}")
+            logger.warning("Mapbox Optimization API error: %s - %s", response.status_code, response.text[:200])
     
     else:
         # For routes with more than 12 stops, batch optimize
@@ -6734,7 +6734,7 @@ async def _optimize_route_inner(
             )
             reasoning = "Optimized using Generoute API (road-based optimization)"
         except Exception as e:
-            print(f"Generoute optimization failed: {e}, falling back to 2-opt")
+            logger.warning("Generoute optimization failed: %s, falling back to 2-opt", e)
             nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
             route_indices = _indices_by_identity(stops, nn_result)
             improved_indices = two_opt_improve(route_indices, distance_matrix)
@@ -6752,7 +6752,7 @@ async def _optimize_route_inner(
             )
             reasoning = "Optimized using Mapbox Optimization API (road-based)"
         except Exception as e:
-            print(f"Mapbox optimization failed: {e}, falling back to 2-opt")
+            logger.warning("Mapbox optimization failed: %s, falling back to 2-opt", e)
             # Fallback to 2-opt if Mapbox fails
             nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
             route_indices = _indices_by_identity(stops, nn_result)
