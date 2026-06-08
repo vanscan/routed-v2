@@ -62,11 +62,17 @@ jobs:
       - name: Pre-deploy audit (lightweight)
         run: |
           # Same checks as scripts/predeploy.sh but inline for CI speed.
-          # Fails the workflow if eas.json has the rejected Proguard key
-          # or if EXPO_PUBLIC_BACKEND_URL is missing.
+          # Fails the workflow if eas.json has the rejected Proguard key.
           if grep -q "enableProguardInReleaseBuilds" frontend/eas.json; then
             echo "::error::eas.json contains 'enableProguardInReleaseBuilds' — remove it"
             exit 1
+          fi
+          # Ensure frontend/.env exists with the production backend URL.
+          # The app hardcodes this URL as a fallback, but eas update reads .env
+          # during bundling. Create it if missing (CI runners never have .env).
+          if [ ! -f frontend/.env ]; then
+            echo "EXPO_PUBLIC_BACKEND_URL=https://api.getrouted.xyz" > frontend/.env
+            echo "Created frontend/.env with production backend URL"
           fi
           if ! grep -qE "^EXPO_PUBLIC_BACKEND_URL=https://" frontend/.env; then
             echo "::error::frontend/.env missing EXPO_PUBLIC_BACKEND_URL"
