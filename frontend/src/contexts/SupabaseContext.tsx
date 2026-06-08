@@ -155,6 +155,16 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (!supabaseClient) return;
+    // Clear native Google SDK cached session so the next Google sign-in
+    // shows the account picker instead of silently reusing the old account.
+    if (Platform.OS !== 'web') {
+      try {
+        const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+        await GoogleSignin.signOut();
+      } catch {
+        // Google Sign-In not configured — ignore
+      }
+    }
     await supabaseClient.auth.signOut();
   }, [supabaseClient]);
 
