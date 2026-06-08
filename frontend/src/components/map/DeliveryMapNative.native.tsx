@@ -266,6 +266,51 @@ function lineFeature(coords: number[][] | null): GeoJSON.FeatureCollection {
   };
 }
 
+// ─── RouteLine — pure memo component so GPS ticks never re-render the route ──
+// The parent re-renders on every GPS update (driverLocation prop change), but
+// this component only re-renders when the route GeoJSON or preview flag changes.
+// Keeps the GeoJSONSource and its child layers off the 250 ms render cycle.
+type RouteLineProps = {
+  routeFC: GeoJSON.FeatureCollection;
+  routeIsPreview: boolean;
+};
+const RouteLine = React.memo(function RouteLine({ routeFC, routeIsPreview }: RouteLineProps) {
+  return (
+    <GeoJSONSource id="route-src" data={routeFC}>
+      <Layer
+        id="route-line"
+        type="line"
+        layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+        paint={{
+          'line-color': '#2563eb',
+          'line-width': 6,
+          'line-opacity': 0.9,
+          ...(routeIsPreview ? { 'line-dasharray': [2, 2] } : {}),
+        }}
+      />
+      {/* Directional arrows along the route line - vector-based with MapLibre */}
+      <Layer
+        id="route-arrows"
+        type="symbol"
+        layout={{
+          'symbol-placement': 'line',
+          'symbol-spacing': 100,
+          'icon-image': 'route-arrow',
+          'icon-size': 0.6,
+          'icon-rotation-alignment': 'map',
+          'icon-keep-upright': true,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-pitch-alignment': 'map',
+        }}
+        paint={{
+          'icon-opacity': 0.95,
+        }}
+      />
+    </GeoJSONSource>
+  );
+});
+
 // ─── Driving-camera tuning (parity with WebView 3D driving mode) ─────────────
 const DRIVING_PITCH = 60; // degrees — 3D look-ahead tilt
 const DRIVING_ZOOM = 18.5; // street-level, close to driver
@@ -382,17 +427,18 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const [refreshNonce, setRefreshNonce] = useState(0);
 
     // Driving-camera bookkeeping.
-    const easeInFlightRef = useRef(false);
     const userInteractingRef = useRef(false);
     // True once the entry zoom has been applied for the current nav session.
-    // driveCamera only sets zoom on the FIRST tick so subsequent GPS updates
-    // respect whatever zoom the driver has manually pinched to.
+    // driveCamera only sets zoom on the FIRST tick; trackUserLocation="course"
+    // handles center/bearing natively so no per-tick easeTo is needed.
     const drivingZoomSetRef = useRef(false);
     // Mirrors the highFreqCameraActive prop in a ref so handleRegionDidChange
     // (a stable callback) can read the current value without being re-created.
     const highFreqCameraActiveRef = useRef(false);
     const userInteractTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mapHeightRef = useRef<number>(Dimensions.get('window').height);
+    // Reactive copy of mapHeightRef used for Camera padding prop during navigation.
+    const [mapHeight, setMapHeight] = useState<number>(Dimensions.get('window').height);
     const wasDrivingRef = useRef(false);
 
     // ── Phase 2 overlay state ──────────────────────────────────────────────
@@ -540,40 +586,24 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       [nextStopCoord],
     );
 
-    // ── Driving camera: drive the native Camera from a drivingCamera message.
-    //    Look-ahead is achieved with top-heavy padding (puck → lower third,
-    //    road ahead up top), matching the WebView's pixel-space offset.
+    // ── Driving camera: called by useNavigationCamera on every 250 ms GPS tick.
     //
-    //    Zoom is applied ONCE per navigation session (entry tick only).
-    //    Subsequent GPS ticks omit zoom so the native map respects whatever
-    //    zoom level the driver has manually pinched to — no rubber-banding. ──
+    //    The Camera now uses trackUserLocation="course" during navigation, which
+    //    tracks center AND bearing entirely on the native thread — no bridge
+    //    crossing per GPS update. This function's only job is to animate to the
+    //    entry zoom level ONCE when navigation begins; all subsequent calls are
+    //    no-ops so the native tracker runs uncontested. ──────────────────────
     const driveCamera = useCallback(
-      (lng: number, lat: number, bearing?: number, _speedMps?: number) => {
+      (_lng: number, _lat: number, _bearing?: number, _speedMps?: number) => {
+        if (drivingZoomSetRef.current) return; // zoom already set for this session
         const cam = cameraRef.current;
         if (!cam) return;
-        if (easeInFlightRef.current) return;
-        if (userInteractingRef.current) return;
-        const topPad = Math.round(mapHeightRef.current * DRIVING_BOTTOM_PAD_RATIO);
-        easeInFlightRef.current = true;
-        // Set zoom only on the first tick of a navigation session so the user
-        // can freely pinch-zoom without being snapped back every 250 ms.
-        const entryZoom = drivingZoomSetRef.current ? undefined : DRIVING_ZOOM;
         drivingZoomSetRef.current = true;
         try {
-          cam.easeTo({
-            center: [lng, lat],
-            ...(entryZoom !== undefined ? { zoom: entryZoom } : {}),
-            bearing: bearing ?? 0,
-            pitch: DRIVING_PITCH,
-            padding: { top: topPad, right: 0, bottom: 0, left: 0 },
-            duration: DRIVING_EASE_MS,
-          });
+          cam.zoomTo(DRIVING_ZOOM, { duration: DRIVING_EASE_MS });
         } catch {
           // ignore transient native camera errors
         }
-        // Guard cleared after ease finishes (DRIVING_EASE_MS=200ms).
-        // Interval is 250ms → 50ms settling gap before next tick → no skipped frames.
-        setTimeout(() => { easeInFlightRef.current = false; }, DRIVING_EASE_MS + 20);
       },
       [],
     );
@@ -1041,7 +1071,10 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         style={styles.container}
         onLayout={(e) => {
           const h = e?.nativeEvent?.layout?.height;
-          if (typeof h === 'number' && h > 0) mapHeightRef.current = h;
+          if (typeof h === 'number' && h > 0) {
+            mapHeightRef.current = h;
+            setMapHeight(h);
+          }
         }}
       >
         <MapLibreMap
@@ -1058,10 +1091,29 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           onRegionIsChanging={handleRegionIsChanging}
           onPress={handleMapPress}
         >
-          <Camera
-            ref={cameraRef}
-            initialViewState={{ center, zoom }}
-          />
+          {/* During navigation: trackUserLocation="course" delegates center AND
+              bearing tracking to the native thread — zero bridge crossings per
+              GPS update. pitch and padding are set declaratively; zoom is set
+              once via driveCamera → zoomTo on the first GPS tick.
+              Outside navigation: manual camera, imperative control via cameraRef. */}
+          {highFreqCameraActive ? (
+            <Camera
+              ref={cameraRef}
+              trackUserLocation="course"
+              pitch={DRIVING_PITCH}
+              padding={{
+                top: Math.round(mapHeight * DRIVING_BOTTOM_PAD_RATIO),
+                right: 0,
+                bottom: 0,
+                left: 0,
+              }}
+            />
+          ) : (
+            <Camera
+              ref={cameraRef}
+              initialViewState={{ center, zoom }}
+            />
+          )}
 
           {/* ── 3D buildings — worldwide OSM (style's openmaptiles vector
               source). Always visible ≥ z13; height ramps 0→full by z16. ── */}
@@ -1366,39 +1418,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             }}
           />
 
-          {/* Active / preview route polyline */}
-          <GeoJSONSource id="route-src" data={routeFC}>
-            <Layer
-              id="route-line"
-              type="line"
-              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              paint={{
-                'line-color': '#2563eb',
-                'line-width': 6,
-                'line-opacity': 0.9,
-                ...(routeIsPreview ? { 'line-dasharray': [2, 2] } : {}),
-              }}
-            />
-            {/* Directional arrows along the route line - vector-based with MapLibre */}
-            <Layer
-              id="route-arrows"
-              type="symbol"
-              layout={{
-                'symbol-placement': 'line',
-                'symbol-spacing': 100,
-                'icon-image': 'route-arrow',
-                'icon-size': 0.6,
-                'icon-rotation-alignment': 'map',
-                'icon-keep-upright': true,
-                'icon-allow-overlap': true,
-                'icon-ignore-placement': true,
-                'icon-pitch-alignment': 'map',
-              }}
-              paint={{
-                'icon-opacity': 0.95,
-              }}
-            />
-          </GeoJSONSource>
+          {/* Active / preview route polyline — rendered by RouteLine (React.memo)
+              so GPS-driven parent re-renders never touch the GeoJSONSource */}
+          <RouteLine routeFC={routeFC} routeIsPreview={routeIsPreview} />
 
           {/* Turn indicators disabled - route-arrows along the line are sufficient */}
           {/* <GeoJSONSource id="turn-points-src" data={turnPointsFC}>
