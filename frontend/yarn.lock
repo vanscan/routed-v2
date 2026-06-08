@@ -1619,7 +1619,7 @@
 
 "@maplibre/maplibre-react-native@11.3.3":
   version "11.3.3"
-  resolved "http://package-firewall.replit.local/npm/@maplibre/maplibre-react-native/-/maplibre-react-native-11.3.3.tgz"
+  resolved "https://registry.npmjs.org/@maplibre/maplibre-react-native/-/maplibre-react-native-11.3.3.tgz"
   integrity sha512-GVLuzNU3Wm1b7vkXD/5EqnwO6Rqmd3uq/ZczGTgzTJw8RqraWBNKPO/xvZ/87B+3qxeX7R+OAzOuEWElfgcoMw==
   dependencies:
     "@maplibre/maplibre-gl-style-spec" "24.8.5"
@@ -2405,7 +2405,7 @@ agent-base@^7.1.2:
 
 agent-base@6:
   version "6.0.2"
-  resolved "http://package-firewall.replit.local/npm/agent-base/-/agent-base-6.0.2.tgz"
+  resolved "https://registry.npmjs.org/agent-base/-/agent-base-6.0.2.tgz"
   integrity sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==
   dependencies:
     debug "4"
@@ -2530,7 +2530,7 @@ asynckit@^0.4.0:
 
 axios@^1.17.0:
   version "1.17.0"
-  resolved "http://package-firewall.replit.local/npm/axios/-/axios-1.17.0.tgz"
+  resolved "https://registry.npmjs.org/axios/-/axios-1.17.0.tgz"
   integrity sha512-J8SwNxprqqpbfenehxWYXE7CW+wM1BB4w3+N+g+/Wx40xM4rsLrfPmHHxSWIxJLYDgSY/HqlFPIYb2/S3rxafw==
   dependencies:
     follow-redirects "^1.16.0"
@@ -3857,7 +3857,7 @@ flow-enums-runtime@^0.0.6:
 
 follow-redirects@^1.16.0:
   version "1.16.0"
-  resolved "http://package-firewall.replit.local/npm/follow-redirects/-/follow-redirects-1.16.0.tgz"
+  resolved "https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.0.tgz"
   integrity sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw==
 
 fontfaceobserver@^2.1.0:
@@ -4146,7 +4146,7 @@ http2-wrapper@^1.0.0-beta.5.2:
 
 https-proxy-agent@^5.0.1:
   version "5.0.1"
-  resolved "http://package-firewall.replit.local/npm/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz"
+  resolved "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz"
   integrity sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==
   dependencies:
     agent-base "6"
@@ -5575,7 +5575,7 @@ protocol-buffers-schema@^3.3.1:
 
 proxy-from-env@^2.1.0:
   version "2.1.0"
-  resolved "http://package-firewall.replit.local/npm/proxy-from-env/-/proxy-from-env-2.1.0.tgz"
+  resolved "https://registry.npmjs.org/proxy-from-env/-/proxy-from-env-2.1.0.tgz"
   integrity sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==
 
 pump@^3.0.0:
