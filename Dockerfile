@@ -36,8 +36,12 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY backend/requirements.txt ./
 
-# lkh==2.0.0 pins Click<7 (conflicts with black/litellm/uvicorn);
-# install with --no-deps first then the rest without lkh in the file.
+# lkh==2.0.0 pins Click<7 which conflicts with click 8.x (fastapi/uvicorn).
+# Strategy: install lkh --no-deps, then install its three runtime deps
+# (Deprecated, networkx, tabulate) from requirements.txt explicitly. The
+# Click conflict is benign — lkh only uses Click for its own CLI entry point,
+# never for the lkh.solve()/LKHProblem() API we call. pip will still emit one
+# "Click<7 incompatible" warning during Step 4 — that is expected and harmless.
 # emergentintegrations lives on Emergent's CloudFront index, not PyPI.
 
 # Step 1: Upgrade pip
