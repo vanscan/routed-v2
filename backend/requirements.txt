@@ -63,6 +63,12 @@ jsonschema==4.23.0
 librt==0.11.0
 litellm==1.83.14
 lkh==2.0.0
+# lkh's declared deps (installed separately in Dockerfile with --no-deps to avoid
+# the Click<7 conflict with click 8.x used by fastapi/uvicorn). The three below
+# are needed at import time; Click is only used by lkh's CLI and can be omitted.
+Deprecated>=1.2.9,<1.3.0
+networkx>=2.1,<3.0
+tabulate>=0.8.7,<0.9.0
 markdown-it-py==4.2.0
 mccabe==0.7.0
 mdurl==0.1.2
