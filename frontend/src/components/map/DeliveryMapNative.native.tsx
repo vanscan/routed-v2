@@ -405,6 +405,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const [parcelsVisible, setParcelsVisible] = useState(false);
     // Guards against overlapping overlay refreshes on rapid idle events.
     const overlayBusyRef = useRef(false);
+    // Separate busy guard for MS buildings during driving — avoids contention
+    // with overlayBusyRef which isn't consumed during highFreqCameraActive.
+    const msBusyRef = useRef(false);
     const parcelsVisibleRef = useRef(false);
     const clusterSourceRef = useRef<GeoJSONSourceRef | null>(null);
     const hasClusterData = clustersFC.features.length > 0;
@@ -614,6 +617,35 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       [stopCoords],
     );
 
+    // ── MS buildings refresh (driving-safe) ────────────────────────────────
+    // Called during highFreqCameraActive so footprints still load while the
+    // driver is moving. Uses its own busy guard (msBusyRef) so it never
+    // contends with the main overlay path. Cache hits in _msBuildingCache are
+    // instant, so this only makes network calls for genuinely new z14 tiles.
+    const refreshMsBuildings = useCallback(
+      async (z: number) => {
+        if (msBusyRef.current) return;
+        const map = mapRef.current;
+        if (!map) return;
+        msBusyRef.current = true;
+        try {
+          let bounds: Bounds | null = null;
+          try {
+            bounds = (await map.getBounds()) as Bounds;
+          } catch {
+            bounds = null;
+          }
+          if (bounds) {
+            const ms = await loadMsBuildingTiles(bounds, z);
+            if (ms) setMsBuildingsFC({ type: 'FeatureCollection', features: ms });
+          }
+        } finally {
+          msBusyRef.current = false;
+        }
+      },
+      [],
+    );
+
     // ── Phase 3: lasso freehand selection ──────────────────────────────────
     // On release, convert the screen-space path to geo coords via the native
     // map's `unproject`, run point-in-polygon against the (non-completed) stops,
@@ -718,7 +750,13 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     }, [driverLocation]);
 
     // ── Flatten the camera (pitch → 0) when leaving driving mode ───────────
+    // Also prime MS buildings when entering driving mode so the current viewport
+    // is populated before refreshOverlays is suppressed.
     useEffect(() => {
+      if (!wasDrivingRef.current && highFreqCameraActive) {
+        // Entering navigation — load MS buildings for the current viewport now.
+        refreshMsBuildings(lastZoomRef.current);
+      }
       if (wasDrivingRef.current && !highFreqCameraActive && cameraRef.current) {
         try {
           cameraRef.current.setStop({ pitch: 0, duration: 400 });
@@ -727,7 +765,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         }
       }
       wasDrivingRef.current = highFreqCameraActive;
-    }, [highFreqCameraActive]);
+    }, [highFreqCameraActive, refreshMsBuildings]);
 
     // ── Imperative ref (DeliveryMapRef drop-in) ────────────────────────────
     useImperativeHandle(
@@ -874,9 +912,14 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             onCameraIdle({ lng: c[0], lat: c[1] }, zz);
           }
           // Phase 2: refresh data-driven overlays for the new viewport.
-          // Skip during driving — camera idles 4×/s and hammers the backend.
-          if (Array.isArray(c) && c.length >= 2 && !highFreqCameraActiveRef.current) {
-            refreshOverlays(c[0], c[1], zz);
+          // During driving, skip the heavy overlays (buildings, parcels, addresses,
+          // house numbers) but still refresh MS buildings — cached tiles are instant.
+          if (Array.isArray(c) && c.length >= 2) {
+            if (!highFreqCameraActiveRef.current) {
+              refreshOverlays(c[0], c[1], zz);
+            } else {
+              refreshMsBuildings(zz);
+            }
           }
           // Update pulse ring position to track the camera.
           updatePulseScreenPos();
@@ -884,7 +927,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           // ignore malformed region events
         }
       },
-      [onCameraIdle, zoom, refreshOverlays, updatePulseScreenPos],
+      [onCameraIdle, zoom, refreshOverlays, refreshMsBuildings, updatePulseScreenPos],
     );
 
     // Handle a tap on the delivery-clusters source: expand a cluster bubble or
