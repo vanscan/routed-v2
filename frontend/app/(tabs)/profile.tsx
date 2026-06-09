@@ -221,9 +221,10 @@ export default function ProfileScreen() {
             console.warn('[handleLogout] signOut error:', e);
           }
           clearStops();
-          // Navigation is handled by the tabs layout auth guard which
-          // fires when user becomes null. Call replace here as a fallback.
-          router.replace('/');
+          // The auth guard in (tabs)/_layout.tsx calls router.replace('/')
+          // when onAuthStateChange fires with user=null. Calling replace here
+          // races ahead of that update: the login screen mounts while user is
+          // still non-null and immediately bounces back to /(tabs).
         },
       },
     ]);
