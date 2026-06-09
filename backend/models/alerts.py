@@ -50,6 +50,12 @@ class AlertCreate(BaseModel):
 
 
 class AlertResponse(BaseModel):
+    """Public-facing alert shape returned to unauthenticated callers.
+
+    Deliberately excludes identity and lifecycle fields (reported_by,
+    created_at, expires_at, last_confirmed_at) to prevent activity
+    tracking or deanonymisation of reporting drivers.
+    """
     id: str
     type: str
     latitude: float
@@ -59,5 +65,4 @@ class AlertResponse(BaseModel):
     direction: Optional[str] = None
     is_permanent: bool
     confirmations: int
-    created_at: datetime
     distance_meters: Optional[float] = None  # Distance from query location

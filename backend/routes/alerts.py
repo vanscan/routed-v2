@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from haversine import haversine, Unit
 
-from models.alerts import MapAlert, AlertCreate
+from models.alerts import MapAlert, AlertCreate, AlertResponse
 
 logger = logging.getLogger("server")
 router = APIRouter()
@@ -78,7 +78,8 @@ async def get_alerts(
         # Sort by distance
         alerts.sort(key=lambda x: x["distance_meters"])
 
-        return alerts
+        # Strip internal fields (reported_by, created_at, etc.) before returning.
+        return [AlertResponse(**a).model_dump(mode="json") for a in alerts]
     except Exception as e:
         logger.error(f"Error getting alerts: {e}")
         raise HTTPException(status_code=500, detail=str(e))

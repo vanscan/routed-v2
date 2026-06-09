@@ -508,6 +508,18 @@ async def register_email(body: EmailRegisterRequest, response: Response):
     if len(body.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
+    # Block registration of reviewer-allowlisted addresses.
+    # Reviewer Pro access is granted solely by email membership in REVIEWER_EMAILS;
+    # allowing anyone to register that address would turn the allowlist into a
+    # privilege-escalation backdoor. Reviewers must sign in via Google OAuth or
+    # another verified identity provider, not via local email/password.
+    from routes.billing import REVIEWER_EMAILS
+    if email in REVIEWER_EMAILS:
+        raise HTTPException(
+            status_code=403,
+            detail="This email address cannot be used for local registration. Please sign in with Google.",
+        )
+
     # Check if user already exists
     existing = await db.users.find_one({"email": email}, {"_id": 0, "user_id": 1, "provider": 1})
     if existing:

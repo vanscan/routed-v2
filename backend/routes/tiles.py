@@ -12,7 +12,7 @@ import math
 from typing import Dict
 
 import httpx
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException, Response
 
 from ._constants import QLD_PARCEL_ARCGIS_URL, QLD_ADDRESS_ARCGIS_URL
 from . import _tile_cache as disk_cache
@@ -29,6 +29,22 @@ _address_cache: Dict[str, bytes] = {}
 # Disk-cache TTLs: cadastre updates slowly, so a 30-day TTL is generous and
 # still bounded for the (rare) case where a lot plan actually changes.
 _DISK_TTL_S = 30 * 24 * 60 * 60
+# Maximum zoom we are willing to serve and cache.  z=21 is already sub-metre
+# resolution; higher values are nonsensical for cadastral data and create an
+# arbitrarily large valid key space (2^z × 2^z per zoom level), making the
+# cache exhaustion surface effectively unbounded for authenticated tile callers.
+_MAX_ZOOM = 21
+
+# Queensland's bounding box (WGS-84 decimal degrees).  Any tile whose bbox
+# doesn't overlap this region can never contain QLD cadastral data, so we
+# return an empty FeatureCollection immediately — no cache write, no upstream
+# fetch.  This is the primary defence against cache-exhaustion attacks: it
+# collapses the valid key space from the global tile grid to tiles that
+# actually intersect Queensland.
+_QLD_LON_MIN = 138.0
+_QLD_LON_MAX = 154.0
+_QLD_LAT_MIN = -29.2
+_QLD_LAT_MAX = -10.5
 
 _EMPTY = b'{"type":"FeatureCollection","features":[]}'
 _OK_HEADERS = {
@@ -50,6 +66,22 @@ def _tile_to_bbox(z: int, x: int, y: int):
     lat_max = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
     lat_min = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
     return lon_min, lat_min, lon_max, lat_max
+
+
+def _tile_intersects_qld(z: int, x: int, y: int) -> bool:
+    """Return True only if the tile's bbox overlaps Queensland's bounding box.
+
+    Used as an early-exit guard: tiles outside QLD can never contain cadastral
+    data, so they should never reach the cache or ArcGIS.  This collapses the
+    attacker-accessible key space from the global tile grid to the small subset
+    that actually covers Queensland, neutralising disk-exhaustion via arbitrary
+    coordinate enumeration.
+    """
+    lon_min, lat_min, lon_max, lat_max = _tile_to_bbox(z, x, y)
+    # Standard 2-D bbox overlap: neither pair of intervals is disjoint.
+    lon_overlap = lon_min < _QLD_LON_MAX and lon_max > _QLD_LON_MIN
+    lat_overlap = lat_min < _QLD_LAT_MAX and lat_max > _QLD_LAT_MIN
+    return lon_overlap and lat_overlap
 
 
 async def _fetch_arcgis_tile(url: str, z: int, x: int, y: int, fields: str) -> bytes | None:
@@ -89,10 +121,31 @@ async def _fetch_arcgis_tile(url: str, z: int, x: int, y: int, fields: str) -> b
     return None
 
 
+def _validate_tile_coords(z: int, x: int, y: int) -> None:
+    """Raise 400 if z, x or y are outside valid bounds.
+
+    Enforces:
+    - z <= _MAX_ZOOM  (prevents unbounded key-space at nonsensical zoom levels)
+    - 0 <= x < 2^z and 0 <= y < 2^z  (prevents out-of-range cache key pollution)
+
+    Out-of-range requests can never return real data and would only pollute
+    the disk cache with attacker-chosen keys or force unnecessary upstream
+    fetches, so we reject them before touching the cache or network.
+    """
+    if z > _MAX_ZOOM:
+        raise HTTPException(status_code=400, detail=f"Zoom level exceeds maximum supported value ({_MAX_ZOOM})")
+    max_coord = 1 << z  # 2^z
+    if not (0 <= x < max_coord and 0 <= y < max_coord):
+        raise HTTPException(status_code=400, detail="Tile coordinates out of range for zoom level")
+
+
 @router.get("/tiles/parcels/{z}/{x}/{y}.json")
 async def get_parcel_tile(z: int, x: int, y: int):
     """Proxy QLD cadastral parcels from ArcGIS MapServer with caching."""
     if z < 15:
+        return Response(content=_EMPTY, media_type="application/json", headers=_OK_HEADERS)
+    _validate_tile_coords(z, x, y)
+    if not _tile_intersects_qld(z, x, y):
         return Response(content=_EMPTY, media_type="application/json", headers=_OK_HEADERS)
     cache_key = f"{z}/{x}/{y}"
     if cache_key in _parcel_cache:
@@ -119,6 +172,9 @@ async def get_parcel_tile(z: int, x: int, y: int):
 async def get_address_tile(z: int, x: int, y: int):
     """Proxy QLD property addresses from ArcGIS MapServer with caching."""
     if z < 16:
+        return Response(content=_EMPTY, media_type="application/json", headers=_OK_HEADERS)
+    _validate_tile_coords(z, x, y)
+    if not _tile_intersects_qld(z, x, y):
         return Response(content=_EMPTY, media_type="application/json", headers=_OK_HEADERS)
     cache_key = f"addr/{z}/{x}/{y}"
     if cache_key in _address_cache:

@@ -570,29 +570,12 @@ def _decode_google_id_token(token: str) -> Optional[dict]:
                                client_id[:20] + '...', e)
                     continue
         
-        # If no client IDs matched, try without audience verification
-        # This is still secure because we verify signature and issuer
-        try:
-            # Decode without audience check - just verify signature and expiry
-            payload = google_id_token.verify_oauth2_token(
-                token, 
-                request, 
-                audience=None  # Skip audience check
-            )
-            
-            # Verify the issuer is Google
-            issuer = payload.get('iss', '')
-            if issuer not in ['accounts.google.com', 'https://accounts.google.com']:
-                logger.warning("[auth] Google ID token has invalid issuer: %s", issuer)
-                return None
-            
-            # Log the actual audience for debugging
-            logger.info("[auth] Google ID token verified (no audience check), email=%s, sub=%s, aud=%s", 
-                       payload.get("email"), payload.get("sub"), payload.get("aud", "unknown")[:50])
-            return payload
-        except ValueError as e:
-            logger.warning("[auth] Google token verification failed without audience check: %s", e)
-            return None
+        # No configured client ID matched — reject the token.
+        # Accepting tokens with audience=None would allow tokens minted for
+        # any other Google OAuth client to authenticate against this API.
+        logger.warning("[auth] Google ID token rejected: no configured client ID matched (aud=%s)",
+                       "unknown — token not decoded without audience check")
+        return None
         
     except Exception as e:
         logger.warning("[auth] Google ID token verification failed: %s", e)
@@ -738,6 +721,20 @@ async def _get_or_create_user_from_supabase(payload: dict) -> Optional[User]:
             )
         return User(**existing)
     
+    # Apply the same signup-gate checks that the session/register endpoints enforce.
+    # Without this, bearer-token auto-provisioning would bypass SIGNUPS_DISABLED
+    # and ALLOWED_USERS_CSV controls entirely.
+    from routes.auth import SIGNUPS_DISABLED, ALLOWED_USERS
+    if ALLOWED_USERS and email not in ALLOWED_USERS:
+        logger.warning("[auth] Bearer-token login rejected: email not in ALLOWED_USERS (%s)", email)
+        return None
+    if SIGNUPS_DISABLED:
+        from routes.waitlist import is_waitlist_approved
+        approved = await is_waitlist_approved(db, email)
+        if not approved:
+            logger.warning("[auth] Bearer-token auto-provision blocked: signups disabled and %s not approved", email)
+            return None
+
     # Create new user from JWT data
     # Try Supabase format first (user_metadata), then Google format (top-level)
     user_metadata = payload.get("user_metadata", {})

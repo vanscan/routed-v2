@@ -2,6 +2,7 @@ modules = ["nodejs-20", "bash", "web", "python-3.11"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
+integrations = ["stripe:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
@@ -84,3 +85,6 @@ EXPO_PUBLIC_BACKEND_URL = "https://api.getrouted.xyz"
 EXPO_PUBLIC_DEV_MODE = "false"
 EXPO_USE_FAST_RESOLVER = "1"
 CLAUDE_CONFIG_DIR = "/home/runner/workspace/.claude-user"
+STRIPE_PUBLISHABLE_KEY = "pk_live_51TZrPx2F3YolQ67F0BKtmBBF3nksDk1VfAfoZb9A8Wg7DvysJ0YpZ586yjskDGfac625xKUSzuWZ2bZVyZmV7sZN003x5sSCmB"
+STRIPE_PRICE_MONTHLY = "price_1Tg8sp2F3YolQ67FcpvPyMwc"
+STRIPE_PRICE_ANNUAL = "price_1Tg8vH2F3YolQ67FNv2PikzI"
