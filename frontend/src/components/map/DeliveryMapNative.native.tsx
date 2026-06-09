@@ -35,7 +35,16 @@ import React, {
   useCallback,
   useState,
 } from 'react';
-import { View, StyleSheet, Dimensions, PanResponder } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  PanResponder,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -49,6 +58,7 @@ import {
   Camera,
   GeoJSONSource,
   Layer,
+  Marker,
   UserLocation,
   Images,
   LogManager,
@@ -81,7 +91,7 @@ import type {
   DeliveryStop,
   DriverLocation,
 } from '../DeliveryMap';
-import type { DeliveryMapNativeProps } from './DeliveryMapNative.types';
+import type { DeliveryMapNativeProps, MapCallout } from './DeliveryMapNative.types';
 
 export type { DeliveryMapNativeProps };
 
@@ -403,6 +413,175 @@ function extractTurnPoints(coords: number[][] | null): GeoJSON.FeatureCollection
   return { type: 'FeatureCollection', features: turns };
 }
 
+// ─── Stop callout balloon ────────────────────────────────────────────────────
+
+/**
+ * Compact editable card shown over the tapped pin. Pure presentation — all
+ * state (the address value) and side-effects (save / regeocode) are owned by
+ * the parent screen and passed in via `callout`. A small downward tail points
+ * at the pin so it reads as a speech-balloon anchored to the stop.
+ */
+function StopCallout({ callout }: { callout: MapCallout }) {
+  const busy = !!callout.saving || !!callout.regeocoding;
+  return (
+    <View style={calloutStyles.wrap}>
+      <View style={calloutStyles.card}>
+        <View style={calloutStyles.headerRow}>
+          <View style={[calloutStyles.badge, callout.completed && calloutStyles.badgeDone]}>
+            <Text style={calloutStyles.badgeText}>{callout.label}</Text>
+          </View>
+          <View style={calloutStyles.statusWrap}>
+            <View
+              style={[
+                calloutStyles.statusDot,
+                { backgroundColor: callout.completed ? '#10b981' : '#f59e0b' },
+              ]}
+            />
+            <Text style={calloutStyles.statusText}>
+              {callout.completed ? 'Completed' : 'Pending'}
+            </Text>
+            {typeof callout.weight === 'number' && !Number.isNaN(callout.weight) ? (
+              <Text style={calloutStyles.weightText}>· {callout.weight} kg</Text>
+            ) : null}
+          </View>
+          <TouchableOpacity
+            onPress={callout.onClose}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            testID="stop-callout-close"
+          >
+            <Text style={calloutStyles.closeText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          style={calloutStyles.addressInput}
+          value={callout.address}
+          onChangeText={callout.onAddressChange}
+          placeholder="Enter stop address"
+          placeholderTextColor="#94a3b8"
+          multiline
+          testID="stop-callout-address-input"
+        />
+
+        {callout.needsFix ? (
+          <Text style={calloutStyles.needsFixText}>⚠ Needs geocode fix</Text>
+        ) : null}
+
+        <View style={calloutStyles.actionsRow}>
+          <TouchableOpacity
+            style={[calloutStyles.btn, calloutStyles.saveBtn, busy && calloutStyles.btnDisabled]}
+            onPress={callout.onSave}
+            disabled={busy}
+            testID="stop-callout-save"
+          >
+            {callout.saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={calloutStyles.btnText}>Save</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[calloutStyles.btn, calloutStyles.geoBtn, busy && calloutStyles.btnDisabled]}
+            onPress={callout.onRegeocode}
+            disabled={busy}
+            testID="stop-callout-regeocode"
+          >
+            {callout.regeocoding ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={calloutStyles.btnText}>Re-geocode</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {callout.onDetails ? (
+          <TouchableOpacity
+            style={calloutStyles.detailsBtn}
+            onPress={callout.onDetails}
+            testID="stop-callout-details"
+          >
+            <Text style={calloutStyles.detailsText}>More details</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {/* Downward tail pointing at the pin. */}
+      <View style={calloutStyles.tail} />
+    </View>
+  );
+}
+
+const calloutStyles = StyleSheet.create({
+  wrap: { alignItems: 'center', width: 264 },
+  card: {
+    width: 264,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  badge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 6,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeDone: { backgroundColor: '#16a34a' },
+  badgeText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  statusWrap: { flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: 8 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 5 },
+  statusText: { fontSize: 12, fontWeight: '600', color: '#475569' },
+  weightText: { fontSize: 12, fontWeight: '600', color: '#64748b', marginLeft: 4 },
+  closeText: { fontSize: 16, color: '#94a3b8', fontWeight: '700', paddingLeft: 6 },
+  addressInput: {
+    minHeight: 38,
+    maxHeight: 88,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#0f172a',
+    backgroundColor: '#f8fafc',
+    textAlignVertical: 'top',
+  },
+  needsFixText: { color: '#b45309', fontSize: 12, fontWeight: '600', marginTop: 6 },
+  actionsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  btn: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtn: { backgroundColor: '#2563eb' },
+  geoBtn: { backgroundColor: '#7c3aed' },
+  btnDisabled: { opacity: 0.5 },
+  btnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  detailsBtn: { alignItems: 'center', paddingTop: 9 },
+  detailsText: { color: '#2563eb', fontWeight: '600', fontSize: 12 },
+  tail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 9,
+    borderRightWidth: 9,
+    borderTopWidth: 11,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#ffffff',
+    marginTop: -1,
+  },
+});
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps>(
@@ -417,6 +596,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       initialZoom,
       followDriver,
       onStopClick,
+      callout,
       onCameraIdle,
       onMapReady,
       nextStopCoord,
@@ -1512,6 +1692,22 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           {/* Delivery stops: teardrop marker pins. When cluster data is present they
               hide below the swap zoom so the cluster bubbles take over. */}
           <GeoJSONSource id="stops-src" data={stopsFC} onPress={handleStopsPress}>
+            {/* Invisible tap target. The teardrop sprite is small and anchored
+                at its tip, so a finger tap frequently lands a few px off the
+                rendered icon and the source onPress never fires ("tapping a
+                pin does nothing"). A transparent circle with a generous radius
+                on the same source gives every pin a forgiving hit area — the
+                source onPress fires for any feature hit, icon or circle. */}
+            <Layer
+              id="stops-hitbox"
+              type="circle"
+              minzoom={hasClusterData ? CLUSTER_SWAP_ZOOM : undefined}
+              paint={{
+                'circle-radius': 22,
+                'circle-color': '#000000',
+                'circle-opacity': 0,
+              }}
+            />
             {/* Teardrop marker icons - slightly bigger with dark text for contrast */}
             <Layer
               id="stops-marker"
@@ -1538,6 +1734,21 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               }}
             />
           </GeoJSONSource>
+
+          {/* ── Stop callout balloon. Anchored to the tapped stop's coordinate
+              via a native Marker, so it tracks the pin as the map moves. Shows
+              the pin number, weight + status, and an editable address with
+              Save / Re-geocode. ── */}
+          {callout && (
+            <Marker
+              key={`callout-${callout.id}`}
+              lngLat={[callout.lng, callout.lat]}
+              anchor="bottom"
+              offset={[0, -44]}
+            >
+              <StopCallout callout={callout} />
+            </Marker>
+          )}
 
           {/* ── Delivery clusters (zoomed-out overview). Native clustering
               GeoJSON source fed imperatively via setClusters(). Cluster bubbles
