@@ -7982,54 +7982,9 @@ async def cache_stats():
     }
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Van Layout — per-driver bin-grid configuration for the parcel-finding
-# feature. The driver picks a grid shape once (2×3 / 3×3 / 3×4); we
-# persist it on their account and reuse it across every route. Bin
-# coordinates use spreadsheet notation: rows A, B, C (top→bottom) and
-# columns 1, 2, 3 (left→right). So a 3×3 van's bottom-right bin is C3.
-# ─────────────────────────────────────────────────────────────────────
-
-# Allowed shapes are explicitly enumerated to prevent drivers from
-# accidentally configuring a 50×50 van layout that would break the UI.
-ALLOWED_VAN_SHAPES = {(2, 3), (3, 3), (3, 4)}
-
-
-@api_router.get("/van-layout")
-async def get_van_layout(current_user: User = Depends(get_current_user)):
-    """Return the driver's saved van layout, or a 3×3 default."""
-    doc = await db.van_layouts.find_one(
-        {"user_id": current_user.user_id}, {"_id": 0, "user_id": 0}
-    )
-    if not doc:
-        return {"rows": 3, "cols": 3, "is_default": True}
-    return {"rows": int(doc["rows"]), "cols": int(doc["cols"]), "is_default": False}
-
-
-@api_router.put("/van-layout")
-async def save_van_layout(
-    layout: VanLayout,
-    current_user: User = Depends(get_current_user),
-):
-    """Persist the driver's chosen grid shape. Idempotent upsert."""
-    if (layout.rows, layout.cols) not in ALLOWED_VAN_SHAPES:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unsupported van layout {layout.rows}×{layout.cols}. "
-                f"Allowed: {sorted(ALLOWED_VAN_SHAPES)}."
-            ),
-        )
-    await db.van_layouts.update_one(
-        {"user_id": current_user.user_id},
-        {"$set": {
-            "rows": layout.rows,
-            "cols": layout.cols,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }},
-        upsert=True,
-    )
-    return {"rows": layout.rows, "cols": layout.cols, "is_default": False}
+# Van Layout endpoints (/van-layout) live in routes/van_layout.py — wired via
+# api_router.include_router(van_layout_router). ALLOWED_VAN_SHAPES is
+# re-imported below for backward-compatible `from server import` access.
 
 
 @api_router.get("/auth/debug")
@@ -8348,6 +8303,13 @@ api_router.include_router(routing_router)
 # /api/tts — navigation instruction audio via OpenAI TTS.
 from routes.tts import router as tts_router
 api_router.include_router(tts_router)
+
+# ── Van Layout ───────────────────────────────────────────────────────
+# /api/van-layout — per-driver bin-grid configuration.
+# Re-export ALLOWED_VAN_SHAPES so `from server import ALLOWED_VAN_SHAPES`
+# keeps working (used by tests and any legacy callers).
+from routes.van_layout import router as van_layout_router, ALLOWED_VAN_SHAPES  # noqa: F401,E402
+api_router.include_router(van_layout_router)
 
 _building_tile_db = None
 # Re-resolve here (the earlier assignment is shadowed by this one at module load).
