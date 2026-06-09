@@ -10,18 +10,23 @@
 #   /…/hermesc: 1: ELF: not found
 set -eu
 
+HERMESC="$(dirname "$0")/../node_modules/react-native/sdks/hermesc/linux64-bin/hermesc"
+if [ ! -e "$HERMESC" ] && [ ! -e "${HERMESC}.real" ]; then
+  echo "[fix-hermesc] hermesc not found at $HERMESC — skipping"
+  exit 0
+fi
+
+# Ensure the binary is executable on all platforms (yarn doesn't always
+# preserve execute bits after install, which causes Gradle to fail with
+# "A problem occurred starting process").
+chmod +x "$HERMESC" 2>/dev/null || true
+
 # Only touch hermesc on ARM64 — x86_64 hosts run the binary natively.
 ARCH=$(uname -m 2>/dev/null || echo unknown)
 case "$ARCH" in
   aarch64|arm64) ;;
   *) echo "[fix-hermesc] host is $ARCH — no wrapper needed"; exit 0 ;;
 esac
-
-HERMESC="$(dirname "$0")/../node_modules/react-native/sdks/hermesc/linux64-bin/hermesc"
-if [ ! -e "$HERMESC" ] && [ ! -e "${HERMESC}.real" ]; then
-  echo "[fix-hermesc] hermesc not found at $HERMESC — skipping"
-  exit 0
-fi
 
 QEMU=$(command -v qemu-x86_64-static 2>/dev/null || true)
 if [ -z "$QEMU" ]; then
