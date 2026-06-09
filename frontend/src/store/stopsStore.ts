@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { enqueue, flush, getQueuedIds, removeById as removeQueuedById, getQueuedActions, type QueueAction } from '../utils/syncQueue';
 import { BACKEND_URL } from '../utils/config';
+import { uploadProofPhoto, uploadSignature } from '../lib/supabaseStorage';
 
 export interface TimeWindow {
   start?: string;
@@ -45,6 +46,10 @@ export interface Stop {
   completion_lat?: number;
   completion_lng?: number;
   completion_accuracy_m?: number;
+  /** URL of proof photo uploaded on delivery completion */
+  proof_photo_url?: string | null;
+  /** URL of signature capture on delivery completion */
+  signature_url?: string | null;
   /** Set when the driver taps "Start" (confirmRoute). 1-based rank in the
    *  driver's committed tour. `null`/undefined means the stop is not part
    *  of the currently-locked route (unoptimised, added post-confirmation,
@@ -67,6 +72,10 @@ export interface GpsFix {
   lat?: number;
   lng?: number;
   accuracy_m?: number;
+  /** Optional proof photo URI (local file) - will be uploaded to Supabase Storage */
+  proof_photo_uri?: string;
+  /** Optional signature base64 data - will be uploaded to Supabase Storage */
+  signature_base64?: string;
 }
 
 export interface StopCreate {
@@ -1066,6 +1075,35 @@ export const useStopsStore = create<StopsStore>((set, get) => ({
     }));
 
     try {
+      // Upload proof photo and signature to Supabase Storage (non-blocking)
+      let proofPhotoUrl: string | undefined;
+      let signatureUrl: string | undefined;
+      
+      const stop = prev.find(s => s.id === id);
+      const userId = stop?.user_id || 'unknown';
+      
+      if (gps?.proof_photo_uri) {
+        console.log('[completeStop] Uploading proof photo...');
+        const { url, error } = await uploadProofPhoto(id, gps.proof_photo_uri, userId);
+        if (url) {
+          proofPhotoUrl = url;
+          console.log('[completeStop] Proof photo uploaded:', url);
+        } else if (error) {
+          console.warn('[completeStop] Proof photo upload failed:', error);
+        }
+      }
+      
+      if (gps?.signature_base64) {
+        console.log('[completeStop] Uploading signature...');
+        const { url, error } = await uploadSignature(id, gps.signature_base64, userId);
+        if (url) {
+          signatureUrl = url;
+          console.log('[completeStop] Signature uploaded:', url);
+        } else if (error) {
+          console.warn('[completeStop] Signature upload failed:', error);
+        }
+      }
+      
       // Best-effort GPS payload — backend treats absence as "no signal" and
       // never fails the request because of missing/partial fields.
       // `view_mode` rides along to disambiguate "tapped from cockpit" vs
@@ -1079,6 +1117,9 @@ export const useStopsStore = create<StopsStore>((set, get) => ({
       if ((gps as { view_mode?: string } | undefined)?.view_mode) {
         body.view_mode = (gps as { view_mode: string }).view_mode;
       }
+      // Include proof photo and signature URLs if uploaded
+      if (proofPhotoUrl) body.proof_photo_url = proofPhotoUrl;
+      if (signatureUrl) body.signature_url = signatureUrl;
 
       // Race the fetch against a 10s timeout — a hung fetch (DNS/TLS/proxy
       // black-hole) would otherwise produce exactly the symptoms the driver
