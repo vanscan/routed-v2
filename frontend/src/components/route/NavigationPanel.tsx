@@ -140,6 +140,11 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     if (id && lateFreightLabels[id]) return lateFreightLabels[id];
     return '';
   }, [currentStopNumber, currentStop, lateFreightLabels]);
+  // True when the CURRENT stop is a late-freight parcel (added after route
+  // lock, no original_sequence). Used to colour the driving badge purple so
+  // the driver sees the same colour as the map pin and sidebar badge.
+  const isCurrentLateFreight = currentStopNumber == null &&
+    !!((currentStop as any)?.id && lateFreightLabels[(currentStop as any)?.id]);
   const geocodeMetaEntries = useMemo(
     () => getGeocodeMetadataEntries(currentLeg?.to_stop?.geocode_metadata),
     [currentLeg?.to_stop?.geocode_metadata]
@@ -388,7 +393,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             <Pressable
               onLongPress={openJumpMenu}
               delayLongPress={400}
-              style={styles.immersiveStopBadge}
+              style={[styles.immersiveStopBadge, isCurrentLateFreight && styles.immersiveStopBadgeLate]}
               testID="nav-stop-badge"
             >
               <Text style={styles.immersiveStopNum}>{currentStopLabel}</Text>
@@ -550,7 +555,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             activeOpacity={0.8}
             testID="immersive-expand-button"
           >
-            <View style={styles.immersiveMinimalBadge}>
+            <View style={[styles.immersiveMinimalBadge, isCurrentLateFreight && styles.immersiveStopBadgeLate]}>
               <Pressable
                 onLongPress={openJumpMenu}
                 delayLongPress={400}
@@ -645,6 +650,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                       isDone && styles.jumpMenuNumDone,
                       isFailed && styles.jumpMenuNumFailed,
                       isCurrent && styles.jumpMenuNumCurrent,
+                      !isDone && !isFailed && !isCurrent && stopPinNumber(s) == null && !!(s?.id && lateFreightLabels[s.id]) && styles.jumpMenuNumLateFreight,
                     ]}>
                       <Text style={styles.jumpMenuNumText}>{stopPinNumber(s) != null ? stopPinNumber(s) : (s?.id && lateFreightLabels[s.id]) || '—'}</Text>
                     </View>
@@ -775,9 +781,11 @@ const styles = StyleSheet.create({
   jumpMenuRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 4, borderRadius: 10 },
   jumpMenuRowCurrent: { backgroundColor: 'rgba(59,130,246,0.12)' },
   jumpMenuNum: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' },
-  jumpMenuNumCurrent: { backgroundColor: '#3b82f6' },
-  jumpMenuNumDone:    { backgroundColor: '#16a34a' },
-  jumpMenuNumFailed:  { backgroundColor: '#ef4444' },
+  jumpMenuNumCurrent:     { backgroundColor: '#3b82f6' },
+  jumpMenuNumDone:        { backgroundColor: '#16a34a' },
+  jumpMenuNumFailed:      { backgroundColor: '#ef4444' },
+  jumpMenuNumLateFreight: { backgroundColor: '#7c3aed' },
+  immersiveStopBadgeLate: { backgroundColor: '#7c3aed' },
   jumpMenuNumText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   jumpMenuName: { color: '#f3f4f6', fontSize: 14, fontWeight: '600' },
   jumpMenuAddress: { color: '#9ca3af', fontSize: 12, marginTop: 1 },

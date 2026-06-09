@@ -644,7 +644,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           onPress={() => onStopPress(item)}
                           testID={`drag-stop-row-${item.id}`}
                         >
-                          <View style={[styles.stopIndex, item.completed && styles.stopIndexCompleted]}>
+                          <View style={[
+                            styles.stopIndex,
+                            item.completed && styles.stopIndexCompleted,
+                            !item.completed && stopPinNumber(item) === null && dragRouteConfirmed && styles.stopIndexLateFreight,
+                          ]}>
                             {item.completed ? (
                               <Ionicons name="checkmark" size={14} color="#fff" />
                             ) : (stopPinNumber(item) === null && dragRouteConfirmed && dragLateLabels[item.id]) ? (
