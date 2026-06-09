@@ -429,6 +429,25 @@ function extractTurnPoints(coords: number[][] | null): GeoJSON.FeatureCollection
   return { type: 'FeatureCollection', features: turns };
 }
 
+/**
+ * Extract the first pressed GeoJSON feature from a MapLibre source `onPress`
+ * event. MapLibre RN **v11** delivers the features on `event.nativeEvent.features`
+ * (the press is a `NativeSyntheticEvent<PressEventWithFeatures>`). Older
+ * versions exposed them directly on `event.features` or
+ * `event.nativeEvent.payload.features` — we check all three so a stale shape
+ * never silently swallows a pin tap (the "tapping a pin does nothing" bug:
+ * reading only `event.features` returned undefined under v11, so no stop was
+ * ever selected).
+ */
+function firstPressedFeature(e: any): any {
+  return (
+    e?.nativeEvent?.features?.[0] ||
+    e?.features?.[0] ||
+    e?.nativeEvent?.payload?.features?.[0] ||
+    null
+  );
+}
+
 // ─── Stop callout balloon ────────────────────────────────────────────────────
 
 /**
@@ -1199,7 +1218,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const handleClusterPress = useCallback(
       async (e: any) => {
         try {
-          const feat = e?.features?.[0] || e?.nativeEvent?.payload?.features?.[0];
+          const feat = firstPressedFeature(e);
           if (!feat) return;
           const props2 = feat.properties || {};
           if (props2.cluster || props2.point_count != null) {
@@ -1231,7 +1250,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const handleStopsPress = useCallback(
       (e: any) => {
         try {
-          const feat = e?.features?.[0] || e?.nativeEvent?.payload?.features?.[0];
+          const feat = firstPressedFeature(e);
           const id = feat?.properties?.id;
           if (id && onStopClick) onStopClick(String(id));
         } catch {
@@ -1266,7 +1285,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       (e: any) => {
         if (drawingModeRef.current || blockRoadRef.current) return;
         try {
-          const feat = e?.features?.[0] || e?.nativeEvent?.payload?.features?.[0];
+          const feat = firstPressedFeature(e);
           const p = feat?.properties;
           if (p?.id) props.onNogoZoneClick?.(String(p.id), p.name || '');
         } catch {
