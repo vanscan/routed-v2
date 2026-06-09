@@ -39,7 +39,7 @@
     "date-fns": "^4.1.0",
     "expo": "~54.0.35",
     "expo-auth-session": "~7.0.11",
-    "expo-blur": "~15.0.8",
+    "expo-blur": "~56.0.3",
     "expo-build-properties": "~1.0.10",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",

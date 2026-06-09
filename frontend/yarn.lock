@@ -3378,10 +3378,10 @@ expo-auth-session@~7.0.11:
     expo-web-browser "~15.0.11"
     invariant "^2.2.4"
 
-expo-blur@~15.0.8:
-  version "15.0.8"
-  resolved "https://registry.npmjs.org/expo-blur/-/expo-blur-15.0.8.tgz"
-  integrity sha512-rWyE1NBRZEu9WD+X+5l7gyPRszw7n12cW3IRNAb5i6KFzaBp8cxqT5oeaphJapqURvcqhkOZn2k5EtBSbsuU7w==
+expo-blur@~56.0.3:
+  version "56.0.3"
+  resolved "https://registry.yarnpkg.com/expo-blur/-/expo-blur-56.0.3.tgz#4420700813be7ed47298b9280d83fdfb32d04cdb"
+  integrity sha512-KDDtrpWc2tYlm1WCPaOgBtv+YEGqe5ELheFPIgSNgHt28NQUDcfBcFsA9Us2StDh6osmSD6NbKxOt5bU6PcDbQ==
 
 expo-build-properties@~1.0.10:
   version "1.0.10"
