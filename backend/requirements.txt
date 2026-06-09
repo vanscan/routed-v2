@@ -67,7 +67,7 @@ lkh==2.0.0
 # the Click<7 conflict with click 8.x used by fastapi/uvicorn). The three below
 # are needed at import time; Click is only used by lkh's CLI and can be omitted.
 Deprecated>=1.3.1,<1.4.0
-networkx>=2.1,<3.0
+networkx>=3.6.1,<4.0
 tabulate>=0.10.0,<0.11.0
 markdown-it-py==4.2.0
 mccabe==0.7.0
