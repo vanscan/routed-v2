@@ -3383,10 +3383,10 @@ expo-font@~14.0.12:
   dependencies:
     fontfaceobserver "^2.1.0"
 
-expo-haptics@~15.0.8:
-  version "15.0.8"
-  resolved "https://registry.npmjs.org/expo-haptics/-/expo-haptics-15.0.8.tgz"
-  integrity sha512-lftutojy8Qs8zaDzzjwM3gKHFZ8bOOEZDCkmh2Ddpe95Ra6kt2izeOfOfKuP/QEh0MZ1j9TfqippyHdRd1ZM9g==
+expo-haptics@~56.0.3:
+  version "56.0.3"
+  resolved "https://registry.yarnpkg.com/expo-haptics/-/expo-haptics-56.0.3.tgz#55112832e0834ca8f505ee099f70092cfacdd945"
+  integrity sha512-ycoahZJnR9tWAVh/0mJYxbETtHRYaWjiWS8cHlP6aDGU6Q6Y8rZ5NKsuBwWw6HR2Pe30mfVFgbF2HrBR6gtYmw==
 
 expo-image@~56.0.10:
   version "56.0.10"
