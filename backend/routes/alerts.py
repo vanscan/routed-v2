@@ -48,7 +48,6 @@ async def get_alerts(
     lat: float = Query(..., description="Current latitude"),
     lng: float = Query(..., description="Current longitude"),
     radius_km: float = Query(10, description="Search radius in kilometers"),
-    request: Request = None
 ):
     """Get all active alerts within radius of current location"""
     from server import db  # noqa: WPS433
@@ -80,13 +79,13 @@ async def get_alerts(
 
         # Strip internal fields (reported_by, created_at, etc.) before returning.
         return [AlertResponse(**a).model_dump(mode="json") for a in alerts]
-    except Exception as e:
-        logger.error(f"Error getting alerts: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Error getting alerts")
+        raise HTTPException(status_code=500, detail="Failed to load alerts — please try again.")
 
 
 @router.post("/alerts")
-async def create_alert(alert_data: AlertCreate, request: Request, current_user=Depends(_current_user)):
+async def create_alert(alert_data: AlertCreate, current_user=Depends(_current_user)):
     """Report a new alert"""
     from server import db  # noqa: WPS433
     try:
@@ -137,13 +136,13 @@ async def create_alert(alert_data: AlertCreate, request: Request, current_user=D
         logger.info("New alert created: type=%s", alert.type)
 
         return alert.model_dump()
-    except Exception as e:
-        logger.error(f"Error creating alert: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Error creating alert")
+        raise HTTPException(status_code=500, detail="Failed to create alert — please try again.")
 
 
 @router.post("/alerts/{alert_id}/confirm")
-async def confirm_alert(alert_id: str, request: Request, current_user=Depends(_current_user)):
+async def confirm_alert(alert_id: str, current_user=Depends(_current_user)):
     """Confirm an alert still exists (extends its lifetime)"""
     from server import db  # noqa: WPS433
     try:
@@ -170,13 +169,13 @@ async def confirm_alert(alert_id: str, request: Request, current_user=Depends(_c
         return updated
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error confirming alert: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Error confirming alert")
+        raise HTTPException(status_code=500, detail="Failed to confirm alert — please try again.")
 
 
 @router.post("/alerts/{alert_id}/dismiss")
-async def dismiss_alert(alert_id: str, request: Request, current_user=Depends(_current_user)):
+async def dismiss_alert(alert_id: str, current_user=Depends(_current_user)):
     """Mark an alert as no longer valid"""
     from server import db  # noqa: WPS433
     try:
@@ -197,9 +196,9 @@ async def dismiss_alert(alert_id: str, request: Request, current_user=Depends(_c
             return updated
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error dismissing alert: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Error dismissing alert")
+        raise HTTPException(status_code=500, detail="Failed to dismiss alert — please try again.")
 
 
 @router.delete("/alerts/{alert_id}")
@@ -213,17 +212,19 @@ async def delete_alert(alert_id: str, request: Request):
         if not alert:
             raise HTTPException(status_code=404, detail="Alert not found")
 
-        # Only allow deletion by the reporter
-        if alert.get("reported_by") and alert["reported_by"] != user.user_id:
+        # Only allow deletion by the original reporter. A missing reported_by
+        # (legacy / anonymous rows) is NOT deletable via this endpoint —
+        # otherwise any authenticated user could delete those alerts.
+        if alert.get("reported_by") != user.user_id:
             raise HTTPException(status_code=403, detail="Not authorized to delete this alert")
 
         await db.map_alerts.delete_one({"id": alert_id})
         return {"message": "Alert deleted"}
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error deleting alert: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Error deleting alert")
+        raise HTTPException(status_code=500, detail="Failed to delete alert — please try again.")
 
 
 @router.get("/alerts/types")

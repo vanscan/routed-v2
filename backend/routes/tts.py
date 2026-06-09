@@ -60,6 +60,6 @@ async def text_to_speech(request: Request, current_user=Depends(_current_user)):
             _tts_cache.pop(next(iter(_tts_cache)))
         _tts_cache[text] = audio_b64
         return {"audio_base64": audio_b64, "cached": False}
-    except Exception as e:
-        logger.error("TTS generation failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"TTS failed: {str(e)}")
+    except Exception:
+        logger.exception("TTS generation failed")
+        raise HTTPException(status_code=500, detail="Speech generation failed — please try again.")

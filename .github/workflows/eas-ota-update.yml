@@ -59,7 +59,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: yarn install --no-frozen-lockfile
+        # --frozen-lockfile (matches eas-build-android.yml) so an OTA can never
+        # silently ship JS built against different deps than the tested native
+        # binary. If this fails, run `yarn install` locally and commit yarn.lock.
+        run: yarn install --frozen-lockfile
 
       - name: Pre-deploy audit (lightweight)
         run: |

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -41,9 +41,18 @@ class MapAlert(BaseModel):
 
 
 class AlertCreate(BaseModel):
-    type: str
-    latitude: float
-    longitude: float
+    # Constrain to the six known alert types so callers can't pollute the
+    # collection with arbitrary strings (the report UI only ever sends these).
+    type: Literal[
+        "police",
+        "speed_camera_fixed",
+        "speed_camera_mobile",
+        "hazard",
+        "accident",
+        "road_work",
+    ]
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
     description: Optional[str] = None
     speed_limit: Optional[int] = None
     direction: Optional[str] = None
