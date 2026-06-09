@@ -7940,46 +7940,8 @@ async def generoute_status(current_user: User = Depends(get_current_user)):
 # live in routes/routing.py — wired via api_router.include_router(routing_router).
 
 
-# ===================== TTS (Text-to-Speech) =====================
-
-_tts_cache: dict[str, str] = {}  # text -> base64 audio cache
-
-@api_router.post("/tts")
-async def text_to_speech(request: Request, current_user: User = Depends(get_current_user)):
-    """Generate speech audio from navigation instruction text using OpenAI TTS"""
-    body = await request.json()
-    text = body.get("text", "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Missing 'text' field")
-    if len(text) > 500:
-        text = text[:500]
-
-    # Check in-memory cache
-    if text in _tts_cache:
-        return {"audio_base64": _tts_cache[text], "cached": True}
-
-    llm_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not llm_key:
-        raise HTTPException(status_code=500, detail="TTS key not configured")
-
-    try:
-        from emergentintegrations.llm.openai import OpenAITextToSpeech
-        tts = OpenAITextToSpeech(api_key=llm_key)
-        audio_b64 = await tts.generate_speech_base64(
-            text=text,
-            model="tts-1",
-            voice="nova",
-            speed=1.1,
-            response_format="mp3",
-        )
-        # Cache (limit to 200 entries)
-        if len(_tts_cache) > 200:
-            _tts_cache.pop(next(iter(_tts_cache)))
-        _tts_cache[text] = audio_b64
-        return {"audio_base64": audio_b64, "cached": False}
-    except Exception as e:
-        logger.error("TTS generation failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"TTS failed: {str(e)}")
+# TTS (Text-to-Speech) endpoint (/tts) lives in routes/tts.py — wired via
+# api_router.include_router(tts_router) near the other router includes.
 
 # ===================== Health Check =====================
 
@@ -8381,6 +8343,11 @@ api_router.include_router(import_stops_router)
 # from the server namespace (used by the preferred-polyline endpoint).
 from routes.routing import router as routing_router, _extract_steps, _maneuver_instruction  # noqa: F401,E402
 api_router.include_router(routing_router)
+
+# ── TTS (Text-to-Speech) ─────────────────────────────────────────────
+# /api/tts — navigation instruction audio via OpenAI TTS.
+from routes.tts import router as tts_router
+api_router.include_router(tts_router)
 
 _building_tile_db = None
 # Re-resolve here (the earlier assignment is shadowed by this one at module load).
