@@ -966,6 +966,15 @@
     dotenv-expand "~11.0.6"
     getenv "^2.0.0"
 
+"@expo/env@~2.3.0":
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/@expo/env/-/env-2.3.0.tgz#dbdecd1b64b07840f9d5922a48a06c66bea5fe7c"
+  integrity sha512-9HnnIbzwTTdbwSjNLXTk0fPm9ZwMJ7c1/31tsni8HZ8Q62KzYCyspahH+V365vg5J6lr001DzNwBxVWSaYCQLg==
+  dependencies:
+    chalk "^4.0.0"
+    debug "^4.3.4"
+    getenv "^2.0.0"
+
 "@expo/fingerprint@0.15.5":
   version "0.15.5"
   resolved "https://registry.npmjs.org/@expo/fingerprint/-/fingerprint-0.15.5.tgz"
@@ -2545,7 +2554,7 @@ barcode-detector@^3.0.0:
   dependencies:
     zxing-wasm "3.1.0"
 
-base64-js@^1.2.3, base64-js@^1.3.0, base64-js@^1.3.1, base64-js@^1.5.1:
+base64-js@^1.2.3, base64-js@^1.3.1, base64-js@^1.5.1:
   version "1.5.1"
   resolved "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz"
   integrity sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==
@@ -3255,10 +3264,10 @@ expect@^30.0.0:
     jest-mock "30.4.1"
     jest-util "30.4.1"
 
-expo-application@~7.0.8:
-  version "7.0.8"
-  resolved "https://registry.npmjs.org/expo-application/-/expo-application-7.0.8.tgz"
-  integrity sha512-qFGyxk7VJbrNOQWBbE09XUuGuvkOgFS9QfToaK2FdagM2aQ+x3CvGV2DuVgl/l4ZxPgIf3b/MNh9xHpwSwn74Q==
+expo-application@~56.0.3:
+  version "56.0.3"
+  resolved "https://registry.yarnpkg.com/expo-application/-/expo-application-56.0.3.tgz#ec3f39fb0016fd5b7d93f6b2bfbe0581e7628292"
+  integrity sha512-DdGGPlMuM6cSTeKhbvh6OeLr2O/+EI5BHKYrD+Do8sJPYgLwzGrgESELfyjJCpEhFzT+TgKIdmLmWXhNUQnHiw==
 
 expo-asset@~12.0.13:
   version "12.0.13"
@@ -3268,16 +3277,16 @@ expo-asset@~12.0.13:
     "@expo/image-utils" "^0.8.8"
     expo-constants "~18.0.13"
 
-expo-auth-session@~7.0.11:
-  version "7.0.11"
-  resolved "https://registry.npmjs.org/expo-auth-session/-/expo-auth-session-7.0.11.tgz"
-  integrity sha512-AhWtt/m9rb1Po77X/VBFbeE6UTgbm2vXP2iCblUSRsHCw2qD6lO0ulKUB8Xyxy9FtoI9yrNQ1iwCNgIIgo8VYQ==
+expo-auth-session@~56.0.13:
+  version "56.0.13"
+  resolved "https://registry.yarnpkg.com/expo-auth-session/-/expo-auth-session-56.0.13.tgz#930a6458100d015c197f3acb939a92f72ca2702e"
+  integrity sha512-LR8Suq8BHKRFBUcAKTMmZufCcDcr0sQa8rIYit1r7kshrqAy9glIUU4aqHt8tflW/ISN0x1vU+HU8AQaackM0A==
   dependencies:
-    expo-application "~7.0.8"
-    expo-constants "~18.0.13"
-    expo-crypto "~15.0.9"
-    expo-linking "~8.0.12"
-    expo-web-browser "~15.0.11"
+    expo-application "~56.0.3"
+    expo-constants "~56.0.16"
+    expo-crypto "~56.0.4"
+    expo-linking "~56.0.13"
+    expo-web-browser "~56.0.5"
     invariant "^2.2.4"
 
 expo-blur@~56.0.3:
@@ -3308,12 +3317,12 @@ expo-constants@~18.0.13:
     "@expo/config" "~12.0.13"
     "@expo/env" "~2.0.8"
 
-expo-crypto@~15.0.9:
-  version "15.0.9"
-  resolved "https://registry.npmjs.org/expo-crypto/-/expo-crypto-15.0.9.tgz"
-  integrity sha512-SNWKa2fXx7v9gkp1h/7nqXY5XN7qgNDn3yRc2aO0gWGbeMbvob/haMxxsPFe9f51aqH5NjNCqHf2kvLhvAd8KQ==
+expo-constants@~56.0.16:
+  version "56.0.17"
+  resolved "https://registry.yarnpkg.com/expo-constants/-/expo-constants-56.0.17.tgz#8a1900cf536edc69ea57887782b32ec33c7fd1f0"
+  integrity sha512-bU8iU1+7cI7QzfGQVnz2C1nlbXD08YPwD6h8ZEuNspgUuD2prXfmrhrdLe1GjCPYGw4hB3BNjWPjpenNyyymfQ==
   dependencies:
-    base64-js "^1.3.0"
+    "@expo/env" "~2.3.0"
 
 expo-crypto@~56.0.4:
   version "56.0.4"
@@ -3400,6 +3409,14 @@ expo-linear-gradient@^56.0.4:
   version "56.0.4"
   resolved "https://registry.yarnpkg.com/expo-linear-gradient/-/expo-linear-gradient-56.0.4.tgz#80560824dfedf23934cff4cfb8017c78ecc158e3"
   integrity sha512-KUp1dNSRtuMyiExhf6FJf5YUtmw2cRaPytl10HQi7isj5Yac38udmD55T2tglNYTZlvgT5+oflpyFoH15hmOcw==
+
+expo-linking@~56.0.13:
+  version "56.0.13"
+  resolved "https://registry.yarnpkg.com/expo-linking/-/expo-linking-56.0.13.tgz#7eb3bf489e2624690a9684777aaf7cb9167480c2"
+  integrity sha512-38YrpTh6xdiDxmYSDIUffDqev1hIcEggw2fZ3IZhNp2DVLF1xvqsbO6hJD1fuBKN8P34B3Ggc9Yy26fkqdfCOA==
+  dependencies:
+    expo-constants "~56.0.16"
+    invariant "^2.2.4"
 
 expo-linking@~8.0.12:
   version "8.0.12"
