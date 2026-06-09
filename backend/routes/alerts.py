@@ -133,7 +133,7 @@ async def create_alert(alert_data: AlertCreate, request: Request, current_user=D
         )
 
         await db.map_alerts.insert_one(alert.model_dump())
-        logger.info(f"New alert created: {alert.type} at ({alert.latitude}, {alert.longitude})")
+        logger.info("New alert created: type=%s", alert.type)
 
         return alert.model_dump()
     except Exception as e:
