@@ -52,7 +52,7 @@
     "expo-keep-awake": "~15.0.8",
     "expo-linear-gradient": "^15.0.8",
     "expo-linking": "~8.0.12",
-    "expo-location": "^19.0.8",
+    "expo-location": "^56.0.16",
     "expo-navigation-bar": "~5.0.10",
     "expo-router": "~6.0.24",
     "expo-secure-store": "^15.0.8",
