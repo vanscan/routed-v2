@@ -427,7 +427,8 @@ export default function StopsScreen() {
               style={styles.importHeaderButton}
               onPress={() => router.push('/import')}
             >
-              <Ionicons name="cloud-upload-outline" size={18} color="#3b82f6" />
+              <Ionicons name="cloud-upload-outline" size={16} color="#3b82f6" />
+              <Text style={styles.importHeaderButtonText}>Import</Text>
             </TouchableOpacity>
           </View>
 
@@ -603,12 +604,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   importHeaderButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1e293b',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  importHeaderButtonText: {
+    color: '#3b82f6',
+    fontSize: 13,
+    fontWeight: '600',
   },
   swipeHint: {
     flexDirection: 'row',
