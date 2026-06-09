@@ -36,7 +36,7 @@ import { useSupabase } from '../../src/contexts/SupabaseContext';
 import { getAuthToken } from '../../src/utils/authTokenBridge';
 import { isRouteConfirmed as computeRouteConfirmed } from '../../src/utils/stopPinNumber';
 import { useStopsStore, Stop } from '../../src/store/stopsStore';
-import { stopPinNumber } from '../../src/utils/stopPinNumber';
+import { stopPinNumber, stopPinLabel } from '../../src/utils/stopPinNumber';
 import { decimateBreadcrumb, BREADCRUMB_DECIMATE_THRESHOLD } from '../../src/utils/decimateBreadcrumb';
 import { saveBreadcrumb, loadBreadcrumb, clearBreadcrumb } from '../../src/utils/breadcrumbStorage';
 import { ClusterWarningsBanner } from '../../src/components/ClusterWarningsBanner';
@@ -117,6 +117,11 @@ export default function RouteScreen() {
   const [stopsCollapsed, setStopsCollapsed] = useState(false);
   const [collapsedSuburbs, setCollapsedSuburbs] = useState<Set<string>>(new Set());
   const [selectedStopModal, setSelectedStopModal] = useState<any>(null);
+  // Tapping a pin shows the compact on-map callout balloon (driven by
+  // `selectedStopModal`). The full-screen detail sheet — delete / complete /
+  // navigate / notes — only opens when the balloon's "More details" is tapped,
+  // so the two never stack on top of each other.
+  const [showStopDetailSheet, setShowStopDetailSheet] = useState(false);
   const [editingStopAddress, setEditingStopAddress] = useState('');
   const [savingStopAddress, setSavingStopAddress] = useState(false);
   const [regeocodingStop, setRegeocodingStop] = useState(false);
@@ -3209,9 +3214,46 @@ export default function RouteScreen() {
     const clickedStop = [...navStops, ...stops].find((s: any) => s?.id === stopId);
     if (clickedStop) {
       setSelectedStopModal(clickedStop);
+      setShowStopDetailSheet(false);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Recenter on the tapped pin so the balloon (which sits above the pin)
+      // stays clear of the keyboard when the driver edits the address.
+      const lng = clickedStop.display_longitude ?? clickedStop.longitude;
+      const lat = clickedStop.display_latitude ?? clickedStop.latitude;
+      if (typeof lng === 'number' && typeof lat === 'number') {
+        mapRef.current?.flyTo([lng, lat], { duration: 350 });
+      }
     }
   }, [navigationData?.stops, stops]);
+
+  // Assembled callout passed to the native map; null when no pin is selected.
+  // Recomputed as the editable address / busy flags change so the balloon
+  // reflects live state. Coordinates mirror the pin painter (display_* ?? raw).
+  const mapCallout = useMemo(() => {
+    const s = selectedStopModal;
+    if (!s) return null;
+    const lng = s.display_longitude ?? s.longitude;
+    const lat = s.display_latitude ?? s.latitude;
+    if (typeof lng !== 'number' || typeof lat !== 'number') return null;
+    const idx = stops.findIndex((x: any) => x?.id === s.id);
+    return {
+      id: String(s.id),
+      lng,
+      lat,
+      label: stopPinLabel(s, idx, computeRouteConfirmed(stops)),
+      completed: !!s.completed,
+      weight: typeof s.weight === 'number' ? s.weight : null,
+      address: editingStopAddress,
+      needsFix: !!s?.geocode_metadata?.geocode_needs_fix,
+      saving: savingStopAddress,
+      regeocoding: regeocodingStop,
+      onAddressChange: setEditingStopAddress,
+      onSave: handleSaveStopAddressOnly,
+      onRegeocode: handleRegeocodeSelectedStop,
+      onClose: () => { setSelectedStopModal(null); setShowStopDetailSheet(false); },
+      onDetails: () => setShowStopDetailSheet(true),
+    };
+  }, [selectedStopModal, stops, editingStopAddress, savingStopAddress, regeocodingStop, handleSaveStopAddressOnly, handleRegeocodeSelectedStop]);
 
   /**
    * Launch external navigation app (Google Maps, Waze, or system default)
@@ -3885,6 +3927,7 @@ export default function RouteScreen() {
           // visible "camera snapping" tug-of-war every ~250 ms.
           highFreqCameraActive={isNavigating && viewMode === 'navigating'}
           onStopClick={handleMapStopClick}
+          callout={mapCallout}
           onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones(nogoZones); }}
           onBlockRoadTap={handleBlockRoadTap}
           onNogoZoneClick={handleNogoZoneClick}
@@ -4103,7 +4146,10 @@ export default function RouteScreen() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }}
           onStopPress={(stop) => {
+            // From the sidebar list the pin may be off-screen, so open the
+            // full detail sheet directly rather than a map-anchored balloon.
             setSelectedStopModal(stop);
+            setShowStopDetailSheet(true);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           }}
           onProfilePress={() => router.push('/profile')}
@@ -4574,21 +4620,23 @@ export default function RouteScreen() {
         insets={insets}
       />
 
-      {/* Stop Details Modal */}
+      {/* Stop Details Modal — only when the balloon's "More details" is tapped.
+          Dismissing it returns to the on-map callout balloon (keeps the stop
+          selected) rather than clearing the selection entirely. */}
       <Modal
-        visible={!!selectedStopModal}
+        visible={!!selectedStopModal && showStopDetailSheet}
         transparent
         animationType="slide"
-        onRequestClose={() => setSelectedStopModal(null)}
+        onRequestClose={() => setShowStopDetailSheet(false)}
       >
-        <KeyboardAvoidingView 
-          style={styles.stopModalOverlay} 
+        <KeyboardAvoidingView
+          style={styles.stopModalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <TouchableOpacity 
-            style={styles.stopModalBackdrop} 
-            activeOpacity={1} 
-            onPress={() => setSelectedStopModal(null)}
+          <TouchableOpacity
+            style={styles.stopModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowStopDetailSheet(false)}
           />
           <View style={styles.stopModalContent}>
             {selectedStopModal && (
@@ -4606,8 +4654,8 @@ export default function RouteScreen() {
                       #{stops.findIndex(s => s.id === selectedStopModal.id) + 1}
                     </Text>
                   </View>
-                  <TouchableOpacity 
-                    onPress={() => setSelectedStopModal(null)}
+                  <TouchableOpacity
+                    onPress={() => setShowStopDetailSheet(false)}
                     style={styles.stopModalClose}
                   >
                     <Ionicons name="close" size={24} color="#64748b" />
