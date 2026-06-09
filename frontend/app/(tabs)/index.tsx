@@ -19,7 +19,7 @@ import {
   TextInput,
   unstable_batchedUpdates,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -595,6 +595,21 @@ export default function RouteScreen() {
       Speech.stop();
     };
   }, [user]);
+
+  // Refetch whenever the map tab regains focus. The mount-only `[user]`
+  // effect above meant a successful XLS import → "View Stops" → router.back()
+  // landing on THIS tab would not refresh the map: the tab persists (never
+  // remounts) so the effect never re-ran, and the map kept rendering the
+  // pre-import stops. The Stops tab already does this; mirroring it here so
+  // freshly-imported, geocoded stops appear immediately instead of only
+  // after the user manually opens the Stops tab.
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        fetchStops();
+      }
+    }, [user, fetchStops]),
+  );
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
