@@ -288,14 +288,30 @@ type RouteLineProps = {
 const RouteLine = React.memo(function RouteLine({ routeFC, routeIsPreview }: RouteLineProps) {
   return (
     <GeoJSONSource id="route-src" data={routeFC}>
+      {/* Road casing — a wider, darker line drawn UNDER the route so the
+          polyline reads as a bold navigable road with an outline. Skipped in
+          preview mode, where the route is dashed and a solid casing would show
+          through the gaps. Zoom-responsive so it stays proportional. */}
+      {!routeIsPreview && (
+        <Layer
+          id="route-casing"
+          type="line"
+          layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          paint={{
+            'line-color': '#1e3a8a',
+            'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 15, 12, 18, 18],
+            'line-opacity': 0.9,
+          }}
+        />
+      )}
       <Layer
         id="route-line"
         type="line"
         layout={{ 'line-cap': 'round', 'line-join': 'round' }}
         paint={{
           'line-color': '#2563eb',
-          'line-width': 6,
-          'line-opacity': 0.9,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 15, 9, 18, 13],
+          'line-opacity': 0.95,
           ...(routeIsPreview ? { 'line-dasharray': [2, 2] } : {}),
         }}
       />
@@ -1582,7 +1598,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               id="traveled-line"
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              paint={{ 'line-color': '#94a3b8', 'line-width': 4, 'line-opacity': 0.7 }}
+              paint={{ 'line-color': '#94a3b8', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 15, 7, 18, 10], 'line-opacity': 0.7 }}
             />
           </GeoJSONSource>
 
