@@ -38,7 +38,7 @@
     "axios": "^1.17.0",
     "date-fns": "^4.4.0",
     "expo": "~54.0.35",
-    "expo-auth-session": "~7.0.11",
+    "expo-auth-session": "~56.0.13",
     "expo-blur": "~56.0.3",
     "expo-build-properties": "~1.0.10",
     "expo-camera": "~56.0.7",
