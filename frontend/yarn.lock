@@ -1206,6 +1206,11 @@
   resolved "https://registry.npmjs.org/@expo/schema-utils/-/schema-utils-0.1.8.tgz"
   integrity sha512-9I6ZqvnAvKKDiO+ZF8BpQQFYWXOJvTAL5L/227RUbWG1OVZDInFifzCBiqAZ3b67NRfeAgpgvbA7rejsqhY62A==
 
+"@expo/schema-utils@^56.0.0":
+  version "56.0.1"
+  resolved "https://registry.yarnpkg.com/@expo/schema-utils/-/schema-utils-56.0.1.tgz#44b993a64ed8dc0439e7571edf3d70b0f0b78bc4"
+  integrity sha512-CZ/+mYbQmWeOnkCGlWy9K+lFxbJSMFY7+TqBZcKzBSTU5Q7IGRvn/sOG3TdNjIdLPmbA8xe7R/c3UUQ28R9i9w==
+
 "@expo/sdk-runtime-versions@^1.0.0":
   version "1.0.0"
   resolved "https://registry.npmjs.org/@expo/sdk-runtime-versions/-/sdk-runtime-versions-1.0.0.tgz"
@@ -3191,32 +3196,32 @@ expo-dev-client@~6.0.21:
   resolved "https://registry.npmjs.org/expo-dev-client/-/expo-dev-client-6.0.21.tgz"
   integrity sha512-SWI6HD0pa4eJujkYFkvvpezUE1zmJXGLu+34azpu7+QJgO+FLutDYDj8BSTdeH/NYDEClDFjCGqVMcWETvmsCQ==
   dependencies:
-    expo-dev-launcher "6.0.21"
-    expo-dev-menu "7.0.19"
-    expo-dev-menu-interface "2.0.0"
-    expo-manifests "~1.0.11"
-    expo-updates-interface "~2.0.0"
+    expo-dev-launcher "~56.0.19"
+    expo-dev-menu "~56.0.16"
+    expo-dev-menu-interface "~56.0.0"
+    expo-manifests "~56.0.4"
+    expo-updates-interface "~56.0.1"
 
-expo-dev-launcher@6.0.21:
-  version "6.0.21"
-  resolved "https://registry.npmjs.org/expo-dev-launcher/-/expo-dev-launcher-6.0.21.tgz"
-  integrity sha512-QZ9gcKMZbp6EsIhzS0QoGB8Cf4xeVJhjbNgWUwcoBIk8gshoFz8CkCQOnX+HNv2sSY3rdCaNpx3Xo0Rflyq7rA==
+expo-dev-launcher@~56.0.19:
+  version "56.0.19"
+  resolved "https://registry.yarnpkg.com/expo-dev-launcher/-/expo-dev-launcher-56.0.19.tgz#baa983fa9237fab465920138c942f96a453a10a1"
+  integrity sha512-O1oJPNYLtVQT+ByIFVm3VsEdjeyvXVr5qCV4DXKGDNg+rXNqRh4GrmLRkupHb1T3tdgLAJ7FRsZL9XY3GoAyPA==
   dependencies:
-    ajv "^8.11.0"
-    expo-dev-menu "7.0.19"
-    expo-manifests "~1.0.11"
+    "@expo/schema-utils" "^56.0.0"
+    expo-dev-menu "~56.0.16"
+    expo-manifests "~56.0.4"
 
-expo-dev-menu-interface@2.0.0:
-  version "2.0.0"
-  resolved "https://registry.npmjs.org/expo-dev-menu-interface/-/expo-dev-menu-interface-2.0.0.tgz"
-  integrity sha512-BvAMPt6x+vyXpThsyjjOYyjwfjREV4OOpQkZ0tNl+nGpsPfcY9mc6DRACoWnH9KpLzyIt3BOgh3cuy/h/OxQjw==
+expo-dev-menu-interface@~56.0.0:
+  version "56.0.1"
+  resolved "https://registry.yarnpkg.com/expo-dev-menu-interface/-/expo-dev-menu-interface-56.0.1.tgz#2e072832775c5a5fba8fd1630095c5f905f10583"
+  integrity sha512-odATx0ZL/Kis10sKSBiKiGQxAB6coSi/KQtKcMhnQVNno6FkRh5/4e5BqcEvpq2rNMTiQp4ytNAQHtdwbPXvGA==
 
-expo-dev-menu@7.0.19:
-  version "7.0.19"
-  resolved "https://registry.npmjs.org/expo-dev-menu/-/expo-dev-menu-7.0.19.tgz"
-  integrity sha512-ju5MZiBCPhUKKvHy0ElZdnlhq01mkEEiR8jfrgQVvW26aWjzjLiOhppNAyXtvGbhk7WxJim3wYMiqFFrjGdfKA==
+expo-dev-menu@~56.0.16:
+  version "56.0.16"
+  resolved "https://registry.yarnpkg.com/expo-dev-menu/-/expo-dev-menu-56.0.16.tgz#64e322432998f5b35f5a1c848d261febb34ea8ff"
+  integrity sha512-aVgoe+YGhrQnpwiB5BRI7G+uQnGHMUij32bBnEVdc6eJrVZCStxQlV9NeFbbXxrDhLJt6OSqbCHbLR+XToWUUA==
   dependencies:
-    expo-dev-menu-interface "2.0.0"
+    expo-dev-menu-interface "~56.0.0"
 
 expo-document-picker@^14.0.8:
   version "14.0.8"
@@ -3257,6 +3262,11 @@ expo-json-utils@~0.15.0:
   resolved "https://registry.npmjs.org/expo-json-utils/-/expo-json-utils-0.15.0.tgz"
   integrity sha512-duRT6oGl80IDzH2LD2yEFWNwGIC2WkozsB6HF3cDYNoNNdUvFk6uN3YiwsTsqVM/D0z6LEAQ01/SlYvN+Fw0JQ==
 
+expo-json-utils@~56.0.0:
+  version "56.0.0"
+  resolved "https://registry.yarnpkg.com/expo-json-utils/-/expo-json-utils-56.0.0.tgz#ddf903e571c3d985ca670c028d06970926a1d3e0"
+  integrity sha512-lUqyv9aIGDbYTQ5Nux2FnH2/Dz0w5uJ8Pr080eS0StXi2jr5OmuMNErpzUnpfnYOU55xKotd4AHv68PfV/ludg==
+
 expo-keep-awake@~15.0.8:
   version "15.0.8"
   resolved "https://registry.npmjs.org/expo-keep-awake/-/expo-keep-awake-15.0.8.tgz"
@@ -3287,6 +3297,13 @@ expo-manifests@~1.0.11:
   dependencies:
     "@expo/config" "~12.0.13"
     expo-json-utils "~0.15.0"
+
+expo-manifests@~56.0.4:
+  version "56.0.4"
+  resolved "https://registry.yarnpkg.com/expo-manifests/-/expo-manifests-56.0.4.tgz#ae3ac93868cb0fb3940ab43b166a98f82e24a00f"
+  integrity sha512-Fokawl2UkiExIF0bqGoblRFA8lYpROVD+EpvDwSW4LgqQyPwNua1gLSgHZjdl5GsVugfRMMWE3LHaibDyX93hw==
+  dependencies:
+    expo-json-utils "~56.0.0"
 
 expo-modules-autolinking@3.0.26:
   version "3.0.26"
@@ -3409,6 +3426,11 @@ expo-updates-interface@~2.0.0:
   version "2.0.0"
   resolved "https://registry.npmjs.org/expo-updates-interface/-/expo-updates-interface-2.0.0.tgz"
   integrity sha512-pTzAIufEZdVPKql6iMi5ylVSPqV1qbEopz9G6TSECQmnNde2nwq42PxdFBaUEd8IZJ/fdJLQnOT3m6+XJ5s7jg==
+
+expo-updates-interface@~56.0.1:
+  version "56.0.2"
+  resolved "https://registry.yarnpkg.com/expo-updates-interface/-/expo-updates-interface-56.0.2.tgz#39ad3894535901773419a477cb478df95df9e38c"
+  integrity sha512-eWTwSZ9y8vrULG2oBn2TQSSIwBGSq/TxGJ3jY6tuVS2FWH/ASRIiKs3zkUZTRoC3ZuV2alz0mUClYV7nNrFx8g==
 
 expo-updates@~29.0.18:
   version "29.0.18"
