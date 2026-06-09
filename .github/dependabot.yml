@@ -1,0 +1,67 @@
+# Dependabot configuration.
+#
+# The repo had security ALERTS enabled (the "N vulnerabilities" banner) but no
+# dependabot.yml, so Dependabot was never opening update PRs — the backlog just
+# accumulated. This config turns on managed version + security updates for all
+# three ecosystems, delivered as GROUPED PRs so a large backlog arrives as a
+# handful of reviewable PRs instead of dozens of isolated ones.
+#
+# Note on the frontend: most JS advisories are deep-transitive dependencies
+# inside Expo's own toolchain (e.g. expo > @expo/cli > ... > xcode > uuid).
+# Those cannot be fixed by bumping package.json directly — they clear only when
+# the Expo SDK itself updates (a native EAS rebuild). Dependabot will still
+# surface the ones that ARE directly bumpable.
+version: 2
+updates:
+  # ── Backend (Python / pip) ──────────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      backend-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "deps(backend)"
+
+  # ── Frontend (JavaScript / npm + yarn) ──────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    # Expo pins many transitive versions; ignore major bumps of the Expo SDK
+    # and React Native here so Dependabot doesn't fight the managed upgrade
+    # path (those are intentional, native-rebuild changes done via EAS).
+    ignore:
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-native"
+        update-types: ["version-update:semver-major"]
+    groups:
+      frontend-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "deps(frontend)"
+
+  # ── GitHub Actions workflows ────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
