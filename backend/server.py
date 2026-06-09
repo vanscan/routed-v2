@@ -10313,8 +10313,10 @@ async def get_alerts(
         
         # Sort by distance
         alerts.sort(key=lambda x: x["distance_meters"])
-        
-        return alerts
+
+        # Project through AlertResponse to strip internal fields (reported_by,
+        # created_at, last_confirmed_at, etc.) before returning to callers.
+        return [AlertResponse(**a).model_dump(mode="json") for a in alerts]
     except Exception as e:
         logger.error(f"Error getting alerts: {e}")
         raise HTTPException(status_code=500, detail=str(e))

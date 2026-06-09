@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -43,8 +43,11 @@ class StopIn(BaseModel):
     is_depot: bool = False
 
 
+_MAX_STOPS = 150  # Hard cap: OSRM matrix is O(n²); OR-Tools at n=150 is already heavy.
+
+
 class ZipperRequest(BaseModel):
-    stops: list[StopIn] = Field(..., min_length=2)
+    stops: list[StopIn] = Field(..., min_length=2, max_length=_MAX_STOPS)
     return_to_depot: bool = True
     time_limit_s: int = Field(5, ge=1, le=30)
 
@@ -64,7 +67,10 @@ async def _osrm_matrix(stops: list[StopIn]) -> list[list[int]]:
 
 
 @router.post("/zipper")
-async def zipper(req: ZipperRequest):
+async def zipper(req: ZipperRequest, request: Request):
+    from server import get_current_user  # noqa: WPS433
+    await get_current_user(request)
+
     try:
         stops = [
             Stop(s.id, s.lat, s.lon, s.original_sequence, s.is_depot)
