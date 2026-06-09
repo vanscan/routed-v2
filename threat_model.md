@@ -32,10 +32,16 @@ Production-scoping assumptions for future scans:
 ## Scan Anchors
 
 - **Production entry points:** `backend/server.py`, `backend/routes/auth.py`, `backend/routes/stops.py`, `backend/routes/billing.py`, `backend/routes/waitlist.py`, `backend/routes/tiles.py`.
-- **Highest-risk areas:** auth/session parsing in `backend/server.py`, legacy auth exchange in `backend/routes/auth.py`, repository-tracked secrets in `backend/.env` and Docker build inputs, public operational endpoints near the bottom of `backend/server.py`, unauthenticated alert and routing helpers, public `/api/tts`, public `/api/sync-drop/*`, billing/waitlist privilege checks, file export/import paths, and the route-history resume fallback in `backend/server.py`.
+- **Highest-risk areas:** auth/session parsing in `backend/server.py`, especially Google bearer-token audience handling and auto-provisioning; legacy auth exchange and local email registration in `backend/routes/auth.py`; reviewer/paywall bypass checks in `backend/routes/billing.py`; repository-tracked secrets in `backend/.env` and Docker build inputs; public operational endpoints near the bottom of `backend/server.py`; unauthenticated alert and routing helpers; public `/api/route/zipper`, `/api/tts`, and `/api/sync-drop/*`; parcel/address tile proxies in `backend/routes/tiles.py`; billing/waitlist privilege checks; file export/import paths; and the route-history resume fallback in `backend/server.py`.
 - **Public surfaces:** root probes, `/api/health*`, `/api/waitlist/*` public routes, `/api/alerts*`, `/api/directions`, `/api/tts`, `/api/sync-drop/*`, map/tile endpoints, build/debug/meta endpoints, and any unauthenticated download/test routes.
 - **Authenticated surfaces:** stop CRUD, optimize/import jobs, route history, telemetry, van layout, billing status/checkout.
 - **Dev-only areas usually ignorable unless reachable:** Expo/mobile local storage helpers, standalone test pages, benchmark/test harnesses, and scripts under `backend/tests`, `frontend/scripts`, `scripts/`.
+
+## Recent Scan Notes
+
+- 2026-06-09 production-focused review confirmed that bearer-token authentication in `backend/server.py` currently accepts Google ID tokens after an `audience=None` fallback and auto-provisions users without re-applying the signup/allowlist policy from `backend/routes/auth.py`.
+- 2026-06-09 review also confirmed that reviewer Pro access is keyed off raw email membership in `REVIEWER_EMAILS`, while `POST /api/auth/register-email` creates local accounts for arbitrary email strings without mailbox verification. Future scans should continue treating reviewer/paywall bypasses as a first-class elevation-of-privilege hotspot.
+- Public availability risks remain concentrated in unauthenticated compute and cache surfaces such as `POST /api/route/zipper`, parcel/address tile proxies, and public alert feeds that may return over-broad metadata if raw database records are exposed.
 
 ## Threat Categories
 
