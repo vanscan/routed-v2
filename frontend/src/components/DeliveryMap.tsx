@@ -95,6 +95,9 @@ interface DeliveryMapProps {
   initialZoom?: number;
   followDriver?: boolean;
   onStopClick?: (stopId: string) => void;
+  /** Native-only: editable stop callout balloon anchored to the tapped pin.
+   *  The web variant ignores it (the native MapLibre map renders the balloon). */
+  callout?: import('./map/DeliveryMapNative.types').MapCallout | null;
   onCameraIdle?: (center: { lng: number; lat: number }, zoom: number) => void;
   onMapReady?: () => void;
   /** HUD: current speed in km/h */

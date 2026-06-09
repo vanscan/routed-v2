@@ -20,6 +20,34 @@ export type ZipperStop = {
   is_late_freight: boolean;
 };
 
+/**
+ * Data + callbacks for the on-map stop callout balloon. The balloon is
+ * rendered as a MapLibre `Marker` anchored to the stop's coordinate, so it
+ * tracks the pin natively as the map pans/zooms. The editable address state
+ * and the save/regeocode handlers live in the parent screen (index.tsx) and
+ * are threaded in here — the map just renders the card at the right spot.
+ */
+export interface MapCallout {
+  id: string;
+  lng: number;
+  lat: number;
+  /** Pin number/glyph — matches the label painted on the tapped pin. */
+  label: string;
+  completed: boolean;
+  weight?: number | null;
+  /** Current (editable) address value, owned by the parent. */
+  address: string;
+  needsFix?: boolean;
+  saving?: boolean;
+  regeocoding?: boolean;
+  onAddressChange: (text: string) => void;
+  onSave: () => void;
+  onRegeocode: () => void;
+  onClose: () => void;
+  /** Optional — open the full detail sheet (delete / complete / navigate). */
+  onDetails?: () => void;
+}
+
 /** Superset mirror of the WebView map's prop contract. */
 export interface DeliveryMapNativeProps {
   stops: DeliveryStop[];
@@ -32,6 +60,8 @@ export interface DeliveryMapNativeProps {
   initialZoom?: number;
   followDriver?: boolean;
   onStopClick?: (stopId: string) => void;
+  /** When set, renders the editable stop callout balloon anchored to the pin. */
+  callout?: MapCallout | null;
   onCameraIdle?: (center: { lng: number; lat: number }, zoom: number) => void;
   onMapReady?: () => void;
   onLassoComplete?: (stopIds: string[], polygon: number[][]) => void;
