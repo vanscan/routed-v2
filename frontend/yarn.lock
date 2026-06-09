@@ -3320,10 +3320,10 @@ expo-crypto@~56.0.4:
   resolved "https://registry.yarnpkg.com/expo-crypto/-/expo-crypto-56.0.4.tgz#37e9be1f0901185fa83178d802f49695fc71422e"
   integrity sha512-fRNEhoXRXgAWBpe3/hq5X+KXTit3OZqdiAGts1YvNEUHQb+H5591mpPac0Yw+sZg9pXcrjRnzo5AxvZaENpc7g==
 
-expo-dev-client@~6.0.21:
-  version "6.0.21"
-  resolved "https://registry.npmjs.org/expo-dev-client/-/expo-dev-client-6.0.21.tgz"
-  integrity sha512-SWI6HD0pa4eJujkYFkvvpezUE1zmJXGLu+34azpu7+QJgO+FLutDYDj8BSTdeH/NYDEClDFjCGqVMcWETvmsCQ==
+expo-dev-client@~56.0.19:
+  version "56.0.19"
+  resolved "https://registry.yarnpkg.com/expo-dev-client/-/expo-dev-client-56.0.19.tgz#4568f54011e2abe506269e4eee70cdbc2c963511"
+  integrity sha512-Mk2AsYGPBb+G30rwNHZvIE0Mi5Zd0yIZ2UdvIqllZjaWITiLbSqHklTgwY3KUs4/HrusXdZrfX7GqJGcUhOPiw==
   dependencies:
     expo-dev-launcher "~56.0.19"
     expo-dev-menu "~56.0.16"
