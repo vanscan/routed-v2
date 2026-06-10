@@ -76,11 +76,14 @@ async def health_check():
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
+        # Exception class only — raw str(e) can leak connection details
+        # (hosts, URIs) to unauthenticated callers (CodeQL py/stack-trace-exposure).
+        # Full detail is in the log line above.
         return {
             "status": "unhealthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "database": "disconnected",
-            "error": str(e)
+            "error": type(e).__name__
         }
 
 
@@ -121,11 +124,13 @@ async def readiness_probe(response: Response):
             "ping_ms": round((_time.perf_counter() - t0) * 1000, 2),
         }
     except Exception as e:
+        logger.warning("readiness probe mongo ping failed: %s", e)
+        # Exception class only in the response body — see health_check above.
         mongo_block = {
             "connected": False,
             "db_name": os.environ.get("DB_NAME", ""),
             "ping_ms": round((_time.perf_counter() - t0) * 1000, 2),
-            "error": str(e)[:240],
+            "error": type(e).__name__,
         }
 
     # ── Tile cache stats (best-effort, never fail the probe) ───────────
@@ -141,7 +146,8 @@ async def readiness_probe(response: Response):
             "misses": s.get("misses", 0),
         }
     except Exception as e:
-        tile_block = {"error": str(e)[:240]}
+        logger.warning("readiness probe tile-cache stats failed: %s", e)
+        tile_block = {"error": type(e).__name__}
 
     now = datetime.now(timezone.utc)
     uptime = (now - _PROCESS_STARTED_AT).total_seconds()
