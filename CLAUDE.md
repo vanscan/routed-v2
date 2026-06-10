@@ -79,9 +79,9 @@ bash /app/scripts/predeploy.sh
 
 ### Backend (`backend/`)
 
-The entire API lives in a single `server.py` (~11,000 lines). All FastAPI routes, the OSRM matrix service, ML integration, and solver dispatch are defined there. Supporting modules are:
+`server.py` (~2,800 lines) is the app shell: FastAPI app setup, auth helpers, the OSRM/Mapbox matrix builders (with their circuit-breaker state), geocoding glue, ML integration and the router includes. Endpoints live in domain routers under `routes/` (see `routes/ROUTES.md` for the split pattern); the big ones are `routes/optimize.py` (the `/api/optimize` pipeline, async job runner, cluster tighteners) and `routes/benchmark.py`. Moved code resolves server globals with call-time `from server import ...` so `monkeypatch.setattr(server, ...)` in tests and the lazy solver loaders keep working; `server.py` re-imports the moved names for backward-compatible `from server import X` access. Supporting modules are:
 
-- **`solvers/`** — Individual solver implementations. `coord_clustering.py` wraps every solver with same-doorstep super-node deduplication (prevents "Zero-Cost Interleaving" bugs). `pyvrp_tsp_solver.py` wraps PyVRP. `alns_hybrid.py` is the ALNS+SA metaheuristic.
+- **`solvers/`** — Individual solver implementations. `coord_clustering.py` wraps every solver with same-doorstep super-node deduplication (prevents "Zero-Cost Interleaving" bugs). `pyvrp_tsp_solver.py` wraps PyVRP (`pyvrp_adapter.py` is the always-importable shim over it). Engine wrappers: `vroom.py`, `lkh.py`, `elkai.py`, `ortools.py` (+ shared `open_path.py` transform) — availability flags stay in `server.py`. Pure algorithms: `heuristics.py` (NN, Clarke-Wright), `local_search.py` (2-opt/3-opt/Or-opt), `metaheuristics.py` (ILS/SA/GA), `clustering.py` (cluster-first/route-second). `alns_hybrid.py` is the ALNS+SA metaheuristic.
 - **`vrp_solver.py`** — OR-Tools VRP/TSP wrapper with Guided Local Search.
 - **`timefold_solver.py`** — Optional Timefold solver (Java-based, gated by `ENABLE_TIMEFOLD` env).
 - **`osrm_matrix_service.py`** — OSRM routing matrix fetcher with circuit-breaker, adaptive timeouts, and multi-host fallback ordering: loopback → primary remote → `OSRM_URL_PROD` (default `pathpilot-osrm.fly.dev`) → public demo.
@@ -158,7 +158,7 @@ Frontend uses `frontend/.env` with `EXPO_PUBLIC_*` prefix for client-visible var
 - **Map imports**: Import map components without `.native` extension. Metro resolves the correct variant. Web stubs must not import `@maplibre/maplibre-react-native`.
 - **Pre-commit hook**: Husky's `pre-commit` runs `scripts/pre-deploy-audit.sh` and blocks commits that contain secrets or populated `.env` values.
 - **`test_alns_solver.py::test_health_check`**: Pre-existing failing test (endpoint removed). Ignore it.
-- **`server.py` line count**: The file is ~11,000 lines. Use `Grep` to navigate — don't read the whole file.
+- **`server.py` line count**: The file is ~2,800 lines (split into `routes/` + `solvers/` in 2026-06). Use `Grep` to navigate — don't read the whole file. Endpoint code lives in `routes/`; solver algorithms in `solvers/`.
 - **LKH binary path**: Resolved by `install_native_solvers.LKH_BIN_PATH`. Falls back to `/usr/local/bin/LKH`. In containers, the binary is compiled from source during Docker build.
 - **`buildings.db` path**: The tile DB resolves via `_resolve_tile_db_path()` which checks both `/app/tiles/buildings.db` (dev layout) and `/tiles/buildings.db` (container layout). The Dockerfile copies it to `/tiles/buildings.db`.
 
