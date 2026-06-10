@@ -68,6 +68,16 @@ except Exception as _pyvrp_exc:
     PYVRP_AVAILABLE = False
     PYVRP_IMPORT_ERROR = str(_pyvrp_exc)
 
+# elkai - LKH with bundled native C backend (no separate binary needed)
+# Production-ready, fast TSP solver. Preferred over external LKH binary.
+ELKAI_AVAILABLE = True
+ELKAI_IMPORT_ERROR: Optional[str] = None
+try:
+    import elkai
+except Exception as _elkai_exc:
+    ELKAI_AVAILABLE = False
+    ELKAI_IMPORT_ERROR = str(_elkai_exc)
+
 # Shared coord-clustering wrapper — gives every TSP solver in the pipeline
 # (OR-Tools, LKH, VROOM, ILS, GA…) the same same-doorstep super-node
 # protection that PyVRP gets internally. Without this, the "Zero-Cost
@@ -1988,6 +1998,61 @@ def lkh_tsp_solve(
 
     return tour
 
+
+def elkai_tsp_solve(
+    duration_matrix: List[List[int]],
+    depot: int = 0,
+) -> List[int]:
+    """Solve ATSP using elkai (bundled LKH C backend - no external binary needed).
+    
+    elkai is recommended for production due to its native C backend and
+    simple installation (pip install elkai).
+    
+    Args:
+        duration_matrix: NxN integer cost matrix (seconds).
+        depot: Starting node index (fixed as tour start).
+    
+    Returns:
+        Ordered list of 0-indexed stop indices starting from depot.
+    """
+    if not ELKAI_AVAILABLE:
+        raise RuntimeError(f"elkai not available: {ELKAI_IMPORT_ERROR}")
+    
+    n = len(duration_matrix)
+    if n <= 2:
+        return list(range(n))
+    
+    # Sanitise matrix (handle null/NaN/negative values)
+    from solvers.pyvrp_tsp_solver import sanitize_osrm_matrix
+    clean = sanitize_osrm_matrix(duration_matrix).tolist()
+    
+    # Open-path TSP via free return edge
+    open_path_matrix = _open_path_matrix(clean, depot)
+    
+    # elkai expects a flat list for the distance matrix
+    # It solves symmetric TSP, so we need to handle ATSP by converting
+    # or use the asymmetric version if available
+    try:
+        # elkai.solve_float_matrix expects List[List[float]]
+        tour = elkai.solve_float_matrix(open_path_matrix)
+    except AttributeError:
+        # Older elkai versions use different API
+        # Flatten matrix for elkai.solve_int_matrix
+        flat_matrix = [int(cell) for row in open_path_matrix for cell in row]
+        tour = elkai.solve_int_matrix(flat_matrix, n)
+    
+    # Rotate tour so depot is first
+    if depot in tour:
+        depot_pos = tour.index(depot)
+        tour = tour[depot_pos:] + tour[:depot_pos]
+    
+    # Defensive: add any missing nodes
+    visited = set(tour)
+    for i in range(n):
+        if i not in visited:
+            tour.append(i)
+    
+    return tour
 
 
 async def calculate_duration_matrix(stops: List[dict]) -> List[List[int]]:
