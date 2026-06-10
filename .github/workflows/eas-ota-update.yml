@@ -64,6 +64,34 @@ jobs:
         # binary. If this fails, run `yarn install` locally and commit yarn.lock.
         run: yarn install --frozen-lockfile
 
+      - name: Ensure hermesc binary
+        working-directory: frontend
+        # The react-native npm tarball sometimes lands in the yarn cache from
+        # a publish that predates hermesc being bundled (react-native has
+        # republished the same semver with different contents). If the stale
+        # cached tarball is used, linux64-bin/hermesc will be absent and
+        # `eas update` fails with "Cannot find the hermesc executable."
+        # This step ensures the binary is always present and executable,
+        # recovering it from a fresh npm pack if needed.
+        run: |
+          HERMESC="node_modules/react-native/sdks/hermesc/linux64-bin/hermesc"
+          if [ -f "$HERMESC" ]; then
+            chmod +x "$HERMESC"
+            echo "✓ hermesc present ($(stat -c %s $HERMESC) bytes)"
+          else
+            echo "hermesc missing — recovering from npm registry..."
+            RN_VERSION=$(node -e "console.log(require('./node_modules/react-native/package.json').version)")
+            npm pack "react-native@${RN_VERSION}" --quiet
+            mkdir -p "$(dirname "$HERMESC")"
+            tar xzf "react-native-${RN_VERSION}.tgz" \
+              --strip-components=4 \
+              -C "$(dirname "$HERMESC")" \
+              "package/sdks/hermesc/linux64-bin/hermesc"
+            rm -f "react-native-${RN_VERSION}.tgz"
+            chmod +x "$HERMESC"
+            echo "✓ hermesc recovered for react-native ${RN_VERSION}"
+          fi
+
       - name: Pre-deploy audit (lightweight)
         run: |
           # Same checks as scripts/predeploy.sh but inline for CI speed.
