@@ -15,7 +15,7 @@ name: EAS OTA Update on Tag
 # release-signing keystore in EAS Secrets, otherwise Play Store will
 # reject the upload for mismatched signatures.
 #
-# To roll back a bad OTA: `eas update:rollback --branch production`.
+# To roll back a bad OTA: `eas update:rollback --branch production` (local).
 
 on:
   push:

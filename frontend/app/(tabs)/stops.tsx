@@ -539,6 +539,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f172a',
   },
+  // Auth-error banner — bright amber-red so it reads as "act on this".
+  // Sits flush above the empty-state OR the list, never blocking the
+  // user from continuing to use whatever cached stops they may have.
   authBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -694,6 +697,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.08)',
     borderColor: 'rgba(16, 185, 129, 0.3)',
   },
+  // Compact layout applied on top of stopCardCompleted — gives the shrink
+  // effect when the driver taps "Mark Delivered". Smaller padding, smaller
+  // avatar, smaller font, no meta row = card height drops ~96→44 px.
   stopCardCompactCompleted: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -825,6 +831,10 @@ const styles = StyleSheet.create({
   chevron: {
     marginLeft: 8,
   },
+  // Sharpie-marker chip — quiet slate pill that sits before the chevron.
+  // Tabular nums + monospace-like spacing so 1 / 12 / 127 line up. Soft
+  // border and subtly desaturated tone so it reads as "context info"
+  // and never competes with the priority-coloured LEFT badge.
   sharpieChip: {
     flexDirection: 'row',
     alignItems: 'baseline',
