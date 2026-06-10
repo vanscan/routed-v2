@@ -225,6 +225,7 @@ export default function RouteScreen() {
   // flag is specifically about the post-success review window.
   const [hasUnconfirmedOptimization, setHasUnconfirmedOptimization] = useState(false);
   const [showOptBadge, setShowOptBadge] = useState(false);
+  const [optBadgeText, setOptBadgeText] = useState('');
   // ML data-pipeline health badge (sidebar). Refreshes on mount and after every
   // /complete (re-fetched via the same hook below). null = not yet loaded /
   // auth failure → badge silently hides, never crashes the sidebar.
@@ -849,6 +850,33 @@ export default function RouteScreen() {
     return `\n⏱️ Saved ${pretty} (${savedPct.toFixed(0)}%) vs unoptimised`;
   };
 
+  // Builds the short text shown in the 4-second top-center overlay chip
+  // after a successful optimize. Prefers time savings (most driver-legible),
+  // falls back to distance savings, then plain stop count.
+  const buildOptBadgeText = (result: any): string => {
+    const ts = result?.time_savings;
+    const qb = result?.quality_badge;
+    if (ts?.improved && (ts.saved_minutes ?? 0) >= 0.5) {
+      const min = ts.saved_minutes as number;
+      let pretty: string;
+      if (min < 1) {
+        pretty = `${Math.round(ts.saved_seconds ?? 0)}s`;
+      } else if (min < 60) {
+        pretty = `${Math.round(min)} min`;
+      } else {
+        const h = Math.floor(min / 60);
+        const m = Math.round(min - h * 60);
+        pretty = m > 0 ? `${h}h ${m}m` : `${h}h`;
+      }
+      return `Route optimised · saved ${pretty}`;
+    }
+    if (qb?.improved && (qb.saved_km ?? 0) >= 0.1) {
+      return `Route optimised · saved ${(qb.saved_km as number).toFixed(1)} km`;
+    }
+    const n = result?.stops?.length ?? 0;
+    return `Route optimised · ${n} stop${n !== 1 ? 's' : ''}`;
+  };
+
   // Telepathy badge — surfaces when the route was post-processed using
   // learned sequence preferences from past deliveries. Empty string when
   // no swaps were applied so the alert text stays clean.
@@ -1077,6 +1105,10 @@ export default function RouteScreen() {
       // downstream Alert / haptic work so even if a later step throws
       // we still surface the confirm UI with the data we have.
       succeeded = true;
+      // Pre-compute the overlay chip text now while we still hold `result`.
+      // The useEffect that shows the chip fires when hasUnconfirmedOptimization
+      // flips in the finally block — this ensures the text is ready.
+      setOptBadgeText(buildOptBadgeText(result));
 
       // The store already has the optimized stops from optimizeRoute()
       // No need to fetchStops() - it was causing a race condition where
@@ -1572,6 +1604,11 @@ export default function RouteScreen() {
     
     if (result && result.stops) {
       exitRefineMode();
+      // Show the overlay chip for refine runs too (hasUnconfirmedOptimization
+      // is not set in refine mode, so we fire the badge directly here).
+      setOptBadgeText(buildOptBadgeText(result));
+      setShowOptBadge(true);
+      setTimeout(() => setShowOptBadge(false), 4000);
       // Compose the polish-savings line only when the backend actually
       // moved stops. `polish_distance_saved_km` is post-rounded server-side
       // so we just trust it here.
@@ -4224,7 +4261,7 @@ export default function RouteScreen() {
         >
           <Ionicons name="checkmark-circle" size={15} color="#fff" />
           <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
-            {stops.length} stop{stops.length !== 1 ? 's' : ''} optimised
+            {optBadgeText || `Route optimised · ${stops.length} stop${stops.length !== 1 ? 's' : ''}`}
           </Text>
         </View>
       )}
