@@ -30,7 +30,7 @@ if (Platform.OS === 'web') {
   require('maplibre-gl/dist/maplibre-gl.css');
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────────────────
 
 export interface DeliveryStop {
   id: string;
@@ -115,13 +115,13 @@ interface DeliveryMapProps {
   zipperRoute?: unknown[];
 }
 
-// ─── Map Styles ───────────────────────────────────────────────────────────────
+// ─── Map Styles ─────────────────────────────────────────────────────────────────────
 
 import { BACKEND_URL } from '../utils/config';
 
 const OPENFREEMAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
-// ─── Layer Styles (static objects — never recreated) ──────────────────────────
+// ─── Layer Styles (static objects — never recreated) ─────────────────────────────────────
 
 const routeLineLayer: LayerProps = {
   id: 'route-line',
@@ -167,7 +167,7 @@ const traveledLineLayer: LayerProps = {
   },
 };
 
-// ─── Stop pin layers (Method A: stacked circles for classic red pin) ──────────
+// ─── Stop pin layers (Method A: stacked circles for classic red pin) ──────────────────
 // Bottom: red outer pin (#e53e31), Top: white inner dot — pure WebGL, zero DOM markers
 
 const stopPinShadowLayer: LayerProps = {
@@ -248,7 +248,7 @@ const driverArrowLayer: LayerProps = {
   id: 'driver-arrow',
   type: 'symbol',
   layout: {
-    'text-field': '\u25B2',
+    'text-field': '▲',
     'text-size': 24,
     'text-rotate': ['coalesce', ['to-number', ['get', 'bearing']], 0],
     'text-rotation-alignment': 'map',
@@ -274,10 +274,6 @@ const driverPulseLayer: LayerProps = {
 };
 
 // 3D Building extrusion layer (targets OpenMapTiles building source-layer)
-// Uses render_height / render_min_height from vector tiles with:
-//  - Height-based color gradient (low=warm gray, tall=cool steel blue)
-//  - Progressive extrusion: buildings grow from flat to full height as you zoom 13→16
-//  - Filters out hide_3d features (building outlines not meant for 3D)
 const building3dLayer: LayerProps = {
   id: 'building-3d',
   type: 'fill-extrusion',
@@ -288,10 +284,10 @@ const building3dLayer: LayerProps = {
   paint: {
     'fill-extrusion-color': [
       'interpolate', ['linear'], ['coalesce', ['to-number', ['get', 'render_height']], 8],
-      0, '#d4d4d8',   // zinc-300 — low buildings
-      15, '#a1a1aa',  // zinc-400 — mid-rise
-      40, '#78716c',  // stone-500 — tall
-      100, '#64748b', // slate-500 — high-rise
+      0, '#d4d4d8',
+      15, '#a1a1aa',
+      40, '#78716c',
+      100, '#64748b',
     ],
     'fill-extrusion-height': [
       'interpolate', ['linear'], ['zoom'],
@@ -314,8 +310,7 @@ const building3dLayer: LayerProps = {
   },
 };
 
-// ─── Self-hosted building tile loader ──────────────────────────────────────────
-// Fetches GeoJSON tiles from /api/tiles/buildings/{z}/{x}/{y}.json based on viewport
+// ─── Self-hosted building tile loader ──────────────────────────────────────────────────────
 
 const BUILDING_TILE_ZOOM = 14;
 const _tileCache: Record<string, GeoJSON.Feature[]> = {};
@@ -360,7 +355,7 @@ async function fetchBuildingTiles(bounds: { west: number; south: number; east: n
   return { type: 'FeatureCollection', features };
 }
 
-// Self-hosted building extrusion layer (reads from the 'buildings-self' GeoJSON source)
+// Self-hosted building extrusion layer
 const selfHostedBuildingLayer: LayerProps = {
   id: 'buildings-self-3d',
   type: 'fill-extrusion',
@@ -368,10 +363,10 @@ const selfHostedBuildingLayer: LayerProps = {
     'fill-extrusion-color': [
       'interpolate', ['linear'], ['coalesce', ['to-number', ['get', 'render_height']], 8],
       0, '#d4d4d8',
-      6, '#c4b5a0',   // warm — houses
-      15, '#a1a1aa',   // mid-rise
-      40, '#78716c',   // tall
-      100, '#64748b',  // high-rise
+      6, '#c4b5a0',
+      15, '#a1a1aa',
+      40, '#78716c',
+      100, '#64748b',
     ],
     'fill-extrusion-height': [
       'interpolate', ['linear'], ['zoom'],
@@ -391,7 +386,7 @@ const selfHostedBuildingLayer: LayerProps = {
   },
 };
 
-// ─── GeoJSON Builders (pure functions, stable references via useMemo) ─────────
+// ─── GeoJSON Builders (pure functions, stable references via useMemo) ─────────────────
 
 function buildStopsGeoJSON(stops: DeliveryStop[]): GeoJSON.FeatureCollection {
   return {
@@ -416,22 +411,6 @@ function buildStopsGeoJSON(stops: DeliveryStop[]): GeoJSON.FeatureCollection {
   };
 }
 
-/**
- * Build a rendering-safe GeoJSON FeatureCollection for a route polyline.
- *
- * Hardened against the four classic MapLibre line-rendering failure modes:
- *   • Wrong shape — caller accidentally passes a raw `number[][]` as `data`
- *     (fixed here — we always wrap into a FeatureCollection<LineString>).
- *   • Swapped axes — backends that hand us [lat, lng] instead of the spec's
- *     [lng, lat]. We run a cheap heuristic sampler and flip them if so.
- *   • Non-finite or out-of-range values — silently dropped (no `NaN`
- *     coordinates slip through into the WebGL buffer).
- *   • Stale reference — the returned object / array / coordinate tuple are
- *     ALL freshly allocated, so MapLibre's source diff will always trigger
- *     a repaint even when the logical content is unchanged by 1–2 points.
- *
- * For deep docs see `utils/routeGeometry.ts`.
- */
 function buildLineGeoJSON(coordinates: number[][] | null): GeoJSON.FeatureCollection {
   return toRouteFeatureCollection(coordinates, { autoFlipLatLng: true });
 }
@@ -455,7 +434,7 @@ function buildDriverGeoJSON(loc: DriverLocation | null): GeoJSON.FeatureCollecti
   };
 }
 
-// ─── HUD Components ───────────────────────────────────────────────────────────
+// ─── HUD Components ───────────────────────────────────────────────────────────────
 
 function NextTurnHUD({ nextTurn }: { nextTurn: NextTurnInfo }) {
   return (
@@ -552,7 +531,7 @@ const hudStyles = StyleSheet.create({
   },
 });
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Component ───────────────────────────────────────────────────────────────────────────────
 
 const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function DeliveryMap(
   {
@@ -583,12 +562,9 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
   const [selfHostedBuildings, setSelfHostedBuildings] = useState<GeoJSON.FeatureCollection>({ type: 'FeatureCollection', features: [] });
   const loadingTilesRef = useRef(false);
 
-  // Enable 3D buildings automatically when following driver
   useEffect(() => {
     setBuildings3d(followDriver);
   }, [followDriver]);
-
-  // ── Imperative handle ──────────────────────────────────────────────────────
 
   useImperativeHandle(ref, () => ({
     flyTo: (center, opts = {}) => {
@@ -611,12 +587,6 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
       mapRef.current?.fitBounds(bounds, { padding, duration: 500 });
     },
     getMap: () => mapRef.current?.getMap() ?? null,
-
-    // ── Native-only methods — exposed as no-op stubs on web so callers from the
-    //    shared `app/(tabs)/index.tsx` don't crash with "X is not a function".
-    //    These features (parcel tiles, lasso drawing, section polygons,
-    //    imperative WebView messaging) only have implementations inside the
-    //    injected MapLibre HTML in DeliveryMap.native.tsx.
     sendMessage: (_msg: object) => {},
     toggleParcels: (_enabled: boolean) => {},
     setDrawingMode: (_on: boolean) => {},
@@ -629,7 +599,6 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     ) => {},
     removeSectionPolygon: (_sectionId: number) => {},
     clearAllSectionPolygons: () => {},
-    // Additional native-only stubs
     setBlockRoadMode: (_enabled: boolean) => {},
     setNogoZones: (_zones: Array<{ id: string; name?: string; polygon: number[][] }>) => {},
     setRouteConfirmed: (_confirmed: boolean) => {},
@@ -637,11 +606,9 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     setClusters: (_fc: { type: 'FeatureCollection'; features: any[] }) => {},
   }));
 
-  // ── (c) Smooth camera follow with flyTo easing ────────────────────────────
-
   useEffect(() => {
     if (!followDriver || !driverLocation || isUserInteracting.current) return;
-    if (isFlyingRef.current) return; // skip if previous flyTo still in-flight
+    if (isFlyingRef.current) return;
 
     const LOOK_AHEAD = 0.0004;
     const hdg = driverLocation.heading ?? 0;
@@ -657,11 +624,8 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
       essential: true,
     } as any);
 
-    // Reset flying flag after animation completes
     setTimeout(() => { isFlyingRef.current = false; }, 420);
   }, [driverLocation, followDriver]);
-
-  // ── (g) Animated route pulse via line-dasharray cycling ────────────────────
 
   useEffect(() => {
     if (!followDriver) return;
@@ -689,7 +653,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
 
     let lastTime = 0;
     const animate = (time: number) => {
-      if (time - lastTime > 80) { // ~12fps for the dash animation
+      if (time - lastTime > 80) {
         lastTime = time;
         frame = (frame + 1) % dashArraySeq.length;
         if (map.getLayer('route-pulse')) {
@@ -702,8 +666,6 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
 
     return () => cancelAnimationFrame(rafId);
   }, [followDriver]);
-
-  // ── User interaction tracking (touch = pause follow) ───────────────────────
 
   const handleMoveStart = useCallback((evt: ViewStateChangeEvent) => {
     if ((evt as any).originalEvent) {
@@ -721,7 +683,6 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     const center = evt.viewState;
     onCameraIdle?.({ lng: center.longitude, lat: center.latitude }, center.zoom);
 
-    // Load self-hosted building tiles for the visible viewport
     if (buildings3d && center.zoom >= 13 && !loadingTilesRef.current) {
       const map = mapRef.current?.getMap();
       if (map) {
@@ -739,8 +700,6 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     }
   }, [onCameraIdle, buildings3d]);
 
-  // ── Stop click handler ─────────────────────────────────────────────────────
-
   const handleClick = useCallback((evt: MapLayerMouseEvent) => {
     const feature = evt.features?.[0];
     if (feature && feature.properties?.stop_id) {
@@ -748,21 +707,12 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     }
   }, [onStopClick]);
 
-  // ── Memoized GeoJSON ────────────────────────────────────────────────────────
-
   const stopsGeoJSON = useMemo(() => buildStopsGeoJSON(stops), [stops]);
   const routeGeoJSON = useMemo(() => buildLineGeoJSON(routeCoordinates), [routeCoordinates]);
   const traveledGeoJSON = useMemo(() => buildLineGeoJSON(traveledPath), [traveledPath]);
   const driverGeoJSON = useMemo(() => buildDriverGeoJSON(driverLocation), [driverLocation]);
 
-  // ── House numbers in view ──────────────────────────────────────────────────
-  // Watches the camera — when the driver zooms to ≥ 17 the hook fetches point
-  // addresses in the viewport from `/api/housenumbers` and feeds them into the
-  // <HouseNumberLayer /> below. Below zoom 17 the hook returns an empty FC so
-  // the layer is cheap even when panning around at overview scales.
   const houseNumbersFC = useHouseNumbersInView(mapRef, { minZoom: 17 });
-
-  // ── Initial camera ──────────────────────────────────────────────────────────
 
   const initialViewState = useMemo(() => ({
     longitude: initialCenter?.[0] ?? stops[0]?.longitude ?? 153.13,
@@ -770,7 +720,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
     zoom: initialZoom,
     pitch: 0,
     bearing: 0,
-  }), []); // intentionally empty — only read on mount
+  }), []);
 
   const handleLoad = useCallback((_evt: MapLibreEvent) => {
     setStyleLoaded(true);
@@ -795,31 +745,25 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
         attributionControl={false}
         reuseMaps
       >
-        {/* (a) 3D Buildings — base map (openmaptiles) as fallback */}
         {buildings3d && (
           <Layer {...building3dLayer} />
         )}
 
-        {/* Self-hosted building tiles — richer height data from Queensland OSM */}
         {buildings3d && selfHostedBuildings.features.length > 0 && (
           <Source id="buildings-self" type="geojson" data={selfHostedBuildings}>
             <Layer {...selfHostedBuildingLayer} />
           </Source>
         )}
 
-        {/* Route driving line */}
         <Source id="route" type="geojson" data={routeGeoJSON}>
           <Layer {...routeLineLayer} />
-          {/* (g) Animated pulse overlay on route */}
           {followDriver && <Layer {...routePulseLayer} />}
         </Source>
 
-        {/* Traveled path overlay */}
         <Source id="traveled" type="geojson" data={traveledGeoJSON}>
           <Layer {...traveledLineLayer} />
         </Source>
 
-        {/* Delivery stops — stacked WebGL circles (Method A: red pin + white inner) */}
         {styleLoaded && (
           <Source id="stops" type="geojson" data={stopsGeoJSON}>
             <Layer {...stopPinShadowLayer} />
@@ -829,21 +773,16 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
           </Source>
         )}
 
-        {/* Driver location puck */}
         <Source id="driver" type="geojson" data={driverGeoJSON}>
           <Layer {...driverPulseLayer} />
           <Layer {...driverArrowLayer} />
         </Source>
 
-        {/* House/property numbers — hidden below zoom 17.5; data fed by
-            useHouseNumbersInView (fetches /api/housenumbers on moveend). */}
         <HouseNumberLayer features={houseNumbersFC} />
       </Map>
 
-      {/* (e) Next turn instruction HUD */}
       {followDriver && nextTurn && <NextTurnHUD nextTurn={nextTurn} />}
 
-      {/* (d) Speed / ETA / Distance HUD */}
       {followDriver && (
         <SpeedEtaHUD
           speed={speed}
