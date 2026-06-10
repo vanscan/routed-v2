@@ -1713,15 +1713,12 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   parcelToggleBtn: {
-    position: 'absolute',
-    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(15, 23, 42, 0.75)',
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    zIndex: 15,
   },
   parcelToggleBtnText: {
     color: '#94a3b8',

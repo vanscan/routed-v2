@@ -154,6 +154,13 @@ export default function StopsScreen() {
     [reorderStops]
   );
 
+  const getStatusBorderStyle = (stop: Stop) => {
+    if (stop.delivery_status === 'failed' || stop.delivery_status === 'skipped') {
+      return { borderLeftColor: '#f59e0b' };
+    }
+    return { borderLeftColor: 'rgba(255,255,255,0.1)' };
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high':
@@ -185,7 +192,7 @@ export default function StopsScreen() {
             styles.stopCard,
             stop.completed && styles.stopCardCompleted,
             stop.completed && { opacity: 0.62 },
-            !stop.completed && stop.priority === 'high' && styles.stopCardHighPriority,
+            !stop.completed && getStatusBorderStyle(stop),
           ]}
           onPress={() => router.push({ pathname: '/stop-detail', params: { id: stop.id } })}
           activeOpacity={0.8}

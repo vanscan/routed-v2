@@ -203,6 +203,13 @@ export default function RouteScreen() {
     })();
     return () => { cancelled = true; };
   }, [user?.user_id]);
+  useEffect(() => {
+    if (!hasUnconfirmedOptimization || optimizing) return;
+    setShowOptBadge(true);
+    const t = setTimeout(() => setShowOptBadge(false), 4000);
+    return () => clearTimeout(t);
+  }, [hasUnconfirmedOptimization, optimizing]);
+
   const [undoHistory, setUndoHistory] = useState<Array<{type: string; legIndex: number; stopId?: string}>>([]);
   const [isDragMode, setIsDragMode] = useState(false);
   const [nightMode, setNightMode] = useState(false);
@@ -217,6 +224,7 @@ export default function RouteScreen() {
   // Planning-mode JSX. Store-level `optimizing` already gates spinners; this
   // flag is specifically about the post-success review window.
   const [hasUnconfirmedOptimization, setHasUnconfirmedOptimization] = useState(false);
+  const [showOptBadge, setShowOptBadge] = useState(false);
   // ML data-pipeline health badge (sidebar). Refreshes on mount and after every
   // /complete (re-fetched via the same hook below). null = not yet loaded /
   // auth failure → badge silently hides, never crashes the sidebar.
@@ -3998,44 +4006,67 @@ export default function RouteScreen() {
           zipperRoute={zipperRoute.length > 0 ? zipperRoute : undefined}
         />
 
-        {/* No-Go Zone toggle: tap → "block road" mode → next map tap creates a
-            30 m red zone snapped to the nearest road. Active state = solid red.
-            
-            Long-press behaviour:
-              • If there are zones (count > 0) → opens the "Wipe All" confirmation
-                so the escape hatch is always one-action-away (no need to find a
-                zone to tap, which is impossible on a screen that hasn't panned to one).
-              • If there are zero zones → falls back to the hidden OTA-debug check
-                (forceOtaCheck) so we don't lose that diagnostic. */}
-        <TouchableOpacity
-          data-testid="block-road-toggle-btn"
-          testID="block-road-toggle-btn"
-          onPress={toggleBlockRoadMode}
-          onLongPress={nogoZones.length > 0 ? wipeAllNogoZones : forceOtaCheck}
-          delayLongPress={800}
-          activeOpacity={0.85}
-          style={{
-            position: 'absolute',
-            right: 12, bottom: 92,
-            paddingVertical: 10, paddingHorizontal: 14,
-            borderRadius: 999,
-            backgroundColor: blockRoadMode ? '#dc2626' : 'rgba(17,24,39,0.85)',
-            borderWidth: 1, borderColor: blockRoadMode ? '#7f1d1d' : 'rgba(255,255,255,0.18)',
-            flexDirection: 'row', alignItems: 'center',
-            shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
-            elevation: 4,
-          }}
-        >
-          <Ionicons
-            name={blockRoadMode ? 'warning-outline' : 'ban-outline'}
-            size={14}
-            color={blockRoadMode ? '#fca5a5' : '#9ca3af'}
-            style={{ marginRight: 5 }}
-          />
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
-            {blockRoadMode ? 'Tap road to block' : `Block road${nogoZones.length ? ' · ' + nogoZones.length : ''}`}
-          </Text>
-        </TouchableOpacity>
+        {/* Planning-mode toolbar pill — groups Block Road + Refine Route into a
+            single collapsible pill so they don't clutter the bottom-right corner
+            as two separate floating buttons. Block Road is always present; Refine
+            Route appears only when there are ≥2 stops to refine. */}
+        {viewMode === 'planning' && !isRefineMode && (
+          <View
+            style={{
+              position: 'absolute',
+              right: 12,
+              bottom: 92,
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: 'rgba(17,24,39,0.88)',
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.14)',
+              shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+              elevation: 5,
+              overflow: 'hidden',
+            }}
+          >
+            <TouchableOpacity
+              data-testid="block-road-toggle-btn"
+              testID="block-road-toggle-btn"
+              onPress={toggleBlockRoadMode}
+              onLongPress={nogoZones.length > 0 ? wipeAllNogoZones : forceOtaCheck}
+              delayLongPress={800}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: 'row', alignItems: 'center',
+                paddingVertical: 10, paddingHorizontal: 14,
+                backgroundColor: blockRoadMode ? 'rgba(220,38,38,0.9)' : 'transparent',
+              }}
+            >
+              <Ionicons
+                name={blockRoadMode ? 'warning-outline' : 'ban-outline'}
+                size={14}
+                color={blockRoadMode ? '#fca5a5' : '#9ca3af'}
+                style={{ marginRight: 5 }}
+              />
+              <Text style={{ color: blockRoadMode ? '#fef2f2' : '#e2e8f0', fontWeight: '700', fontSize: 12 }}>
+                {blockRoadMode ? 'Tap road to block' : `Block road${nogoZones.length ? ' · ' + nogoZones.length : ''}`}
+              </Text>
+            </TouchableOpacity>
+
+            {stops.length >= 2 && (
+              <>
+                <View style={{ width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 }}
+                  onPress={enterRefineMode}
+                  activeOpacity={0.8}
+                  data-testid="refine-route-pill-btn"
+                >
+                  <Ionicons name="pencil" size={14} color="#93c5fd" style={{ marginRight: 5 }} />
+                  <Text style={{ color: '#e2e8f0', fontWeight: '700', fontSize: 12 }}>Refine Route</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
 
         {/* Last-mile precision HUD — appears at top-centre of the map when
             the driver enters the 150 m approach radius of the upcoming
@@ -4169,17 +4200,33 @@ export default function RouteScreen() {
         />
       )}
 
-      {/* Floating Refine Route Entry Button - on the map, visible in planning mode */}
-      {!isRefineMode && viewMode === 'planning' && stops.length >= 2 && (
-        <TouchableOpacity
-          style={[styles.floatingRefineEntryBtn, { bottom: insets.bottom + 16 }]}
-          onPress={enterRefineMode}
-          activeOpacity={0.85}
-          data-testid="refine-route-btn"
+      {/* Post-optimization badge — transient 4-second flash showing stop count
+          after a successful optimise. Separate from the persistent Confirm Route
+          CTA below; this is purely informational and auto-dismisses. */}
+      {showOptBadge && !optimizing && viewMode === 'planning' && !isRefineMode && (
+        <View
+          style={{
+            position: 'absolute',
+            top: insets.top + 56,
+            alignSelf: 'center',
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(16,185,129,0.92)',
+            borderRadius: 999,
+            paddingVertical: 6,
+            paddingHorizontal: 16,
+            gap: 6,
+            shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+            elevation: 4,
+          }}
+          pointerEvents="none"
+          data-testid="opt-badge"
         >
-          <Ionicons name="pencil" size={18} color="#fff" />
-          <Text style={styles.floatingRefineEntryBtnText}>Refine Route</Text>
-        </TouchableOpacity>
+          <Ionicons name="checkmark-circle" size={15} color="#fff" />
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+            {stops.length} stop{stops.length !== 1 ? 's' : ''} optimised
+          </Text>
+        </View>
       )}
 
       {/* Confirm Route — explicit commit CTA that appears ONLY after a fresh
@@ -4207,21 +4254,38 @@ export default function RouteScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Floating Map Layer Toggle - Parcels */}
+      {/* Floating Map Layer Toggle row — Parcels + Map Style side by side at top-right */}
       {viewMode === 'planning' && !isRefineMode && (
-        <TouchableOpacity
-          style={[styles.parcelToggleBtn, { top: insets.top + 12 }]}
-          onPress={() => {
-            const next = !showParcels;
-            setShowParcels(next);
-            mapRef.current?.toggleParcels(next);
+        <View
+          style={{
+            position: 'absolute',
+            top: insets.top + 12,
+            right: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
           }}
-          activeOpacity={0.8}
-          data-testid="parcel-toggle-btn"
         >
-          <Ionicons name="grid-outline" size={14} color={showParcels ? '#f59e0b' : '#94a3b8'} />
-          <Text style={[styles.parcelToggleBtnText, showParcels && { color: '#f59e0b' }]}>Parcels</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.parcelToggleBtn]}
+            onPress={() => {
+              const next = !showParcels;
+              setShowParcels(next);
+              mapRef.current?.toggleParcels(next);
+            }}
+            activeOpacity={0.8}
+            data-testid="parcel-toggle-btn"
+          >
+            <Ionicons name="grid-outline" size={14} color={showParcels ? '#f59e0b' : '#94a3b8'} />
+            <Text style={[styles.parcelToggleBtnText, showParcels && { color: '#f59e0b' }]}>Parcels</Text>
+          </TouchableOpacity>
+
+          <MapStyleSwitcher
+            currentStyle={mapStyle}
+            onStyleChange={(key) => { setMapStyle(key); }}
+            compact={false}
+          />
+        </View>
       )}
 
       {/* Floating Refine Mode Controls - Positioned over the map */}

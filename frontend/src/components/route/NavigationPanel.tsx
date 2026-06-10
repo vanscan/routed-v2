@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Animated, PanResponder, Modal, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,6 +6,7 @@ import { Stop } from '../../store/stopsStore';
 import { ViewMode } from '../../types/route';
 import { formatDistance, getManeuverIcon, getGeocodeMetadataEntries } from '../../utils/route';
 import { stopPinNumber, buildLateFreightLabels } from '../../utils/stopPinNumber';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // SwipeToDeliver retired on 2026-05-11 per driver request — see comment
 // in the Main Actions row below for the rationale and how to restore.
 // Component file `./SwipeToDeliver.tsx` is intentionally kept on disk
@@ -103,6 +104,31 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   // Long-press-to-jump menu — opened by holding the big stop-number badge.
   // Gives drivers a way to teleport to any stop without swiping through each one.
   const [isJumpOpen, setIsJumpOpen] = useState(false);
+  const [showTeachSwipe, setShowTeachSwipe] = useState(false);
+  const teachOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem('nav_swipe_taught').then((v) => {
+      if (v || !alive) return;
+      const t = setTimeout(() => {
+        if (!alive) return;
+        setShowTeachSwipe(true);
+        Animated.sequence([
+          Animated.timing(teachOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.delay(800),
+          Animated.timing(teachOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+        ]).start(() => {
+          if (!alive) return;
+          setShowTeachSwipe(false);
+          AsyncStorage.setItem('nav_swipe_taught', '1');
+        });
+      }, 1500);
+      return () => clearTimeout(t);
+    });
+    return () => { alive = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const openJumpMenu = () => {
     if (!legs || legs.length <= 1 || !onJumpToStop) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -355,6 +381,26 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             >
               <Ionicons name="chevron-forward" size={22} color="#60a5fa" />
             </Animated.View>
+          )}
+          {/* One-time swipe teach hint — plays once after first navigation
+              session, fades in both chevrons simultaneously so the driver
+              learns the peek gesture without any prompt. Never repeats
+              (AsyncStorage flag 'nav_swipe_taught'). */}
+          {showTeachSwipe && (
+            <>
+              <Animated.View
+                style={[styles.swipeHintLeft, { opacity: teachOpacity }]}
+                pointerEvents="none"
+              >
+                <Ionicons name="chevron-back" size={22} color="#60a5fa" />
+              </Animated.View>
+              <Animated.View
+                style={[styles.swipeHintRight, { opacity: teachOpacity }]}
+                pointerEvents="none"
+              >
+                <Ionicons name="chevron-forward" size={22} color="#60a5fa" />
+              </Animated.View>
+            </>
           )}
           {/* Multi-parcel warning — impossible to miss.
               Shown whenever the current stop shares its coordinates with one
