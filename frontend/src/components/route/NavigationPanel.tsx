@@ -99,8 +99,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   legs,
   onJumpToStop,
 }) => {
-  // Long-press-to-jump menu — opened by holding the big stop-number badge.
-  // Gives drivers a way to teleport to any stop without swiping through each one.
   const [isJumpOpen, setIsJumpOpen] = useState(false);
   const openJumpMenu = () => {
     if (!legs || legs.length <= 1 || !onJumpToStop) return;
@@ -116,20 +114,8 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   };
   const realStops = (stops as any[]).filter((s: any) => !s.is_current_location);
   const totalStops = realStops.length || stops.length;
-  // Bottom-sheet badge must match the map-pin sprite (`stop-${order}`).
-  // Uses shared helper so this never drifts out of alignment with toast /
-  // resume overlay / stop-detail views.
   const currentStop = currentLeg?.to_stop;
-  // Locked Sharpie badge first, then backend planning order. NEVER falls back
-  // to the array index — those reshuffle on re-optimise and the badge must
-  // stay welded to the physical box. Returns null when the stop has no
-  // numeric identity (rare; pre-hydration only).
   const currentStopNumber = stopPinNumber(currentStop);
-  // Late-freight stops have no locked `original_sequence`, so
-  // `stopPinNumber` returns null and the badge would render blank in
-  // driving mode. Resolve a human label ("45A", "45B" …) anchored to the
-  // nearest preceding locked stop — same labels the planning map/sidebar
-  // already show — so the driver sees a consistent badge everywhere.
   const lateFreightLabels = useMemo(
     () => buildLateFreightLabels(stops as any),
     [stops],
@@ -140,9 +126,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     if (id && lateFreightLabels[id]) return lateFreightLabels[id];
     return '';
   }, [currentStopNumber, currentStop, lateFreightLabels]);
-  // True when the CURRENT stop is a late-freight parcel (added after route
-  // lock, no original_sequence). Used to colour the driving badge purple so
-  // the driver sees the same colour as the map pin and sidebar badge.
   const isCurrentLateFreight = currentStopNumber == null &&
     !!((currentStop as any)?.id && lateFreightLabels[(currentStop as any)?.id]);
   const geocodeMetaEntries = useMemo(
@@ -150,13 +133,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     [currentLeg?.to_stop?.geocode_metadata]
   );
 
-  // Identify all stops sharing the same coordinates as the current stop so
-  // we can show drivers when they're about to deliver one of several parcels
-  // at the same address. Previously we showed just a small `x2` badge which
-  // drivers kept missing — they'd deliver one parcel and drive off leaving
-  // the others behind. This memo returns the whole group in route order and
-  // the current parcel's position + progress so the UI can render a loud
-  // "MULTIPLE PARCELS AT THIS ADDRESS · Parcel 2 of 3" banner.
   const colocatedInfo = useMemo(() => {
     const cur = currentLeg?.to_stop;
     if (!cur) return { count: 1, index: 1, doneCount: 0, group: [] as any[] };
@@ -171,40 +147,12 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   }, [currentLeg?.to_stop, realStops]);
   const colocatedCount = colocatedInfo.count;
 
-  // ── Horizontal swipe between stops (preview-only, no completion side-effects)
-  //
-  // UX:
-  //   swipe LEFT  → onPreviewNextStop (advance card to next stop)
-  //   swipe RIGHT → onPreviewPrevStop (go back to previous stop)
-  //
-  // We deliberately do NOT mark the current stop delivered/failed — the driver
-  // keeps full control of its status via the dedicated buttons. This gesture
-  // only changes WHICH card is on screen so the driver can peek at upcoming
-  // or previous stops without losing their place.
-  //
-  // Implementation notes:
-  //   • Uses PanResponder (no extra lib) so it works in Expo Go + EAS builds.
-  //   • `moveX > moveY * 1.4` gate prevents hijacking vertical scrolls on the
-  //     notes or scroll list inside the card.
-  //   • Threshold = 70 px OR flick velocity > 0.4 — matches platform feel.
-  //   • Rubber-bands resistance at ends of the route (no previous/next stop).
-  //   • Light haptic fires on commit; medium haptic if swipe hits end.
   const swipeX = useRef(new Animated.Value(0)).current;
   const swipeResponder = useMemo(
     () => PanResponder.create({
-      // Threshold = 20 px (was 8). 8 px hijacked taps in a moving vehicle —
-      // any finger jitter ≥ 8 px during a tap-release made the PanResponder
-      // claim the gesture, so the Delivered / Failed / Skip TouchableOpacity
-      // children below never fired their onPress. 20 px sits above typical
-      // finger jitter / road-vibration drift but well below Android's tap
-      // slop (~24 px), so a deliberate horizontal drag still works while a
-      // jittery tap reaches the inner buttons. We also require a minimum
-      // ratio of horizontal-vs-vertical motion (1.4x) so vertical scroll
-      // gestures never get confused for a stop-swipe.
       onMoveShouldSetPanResponder: (_e, g) =>
         Math.abs(g.dx) > 20 && Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
       onPanResponderMove: (_e, g) => {
-        // Rubber-band at the edges: damp the drag to 40% when no sibling stop.
         const atEdge =
           (g.dx > 0 && !canPreviewPrev) || (g.dx < 0 && !canPreviewNext);
         swipeX.setValue(atEdge ? g.dx * 0.4 : g.dx);
@@ -215,16 +163,10 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         const committed = fastFlick || farDrag;
         if (committed && g.dx < 0 && canPreviewNext && onPreviewNextStop) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          // Animate card out to the left, swap content while off-screen,
-          // then slide in from the right. The previous version snapped
-          // swipeX to 0 BEFORE swapping content, which caused the panel to
-          // momentarily render the OLD stop's content at x=0 + opacity 1
-          // for one frame (visible as a "flick" — much more obvious with
-          // the now semi-transparent panel that lets the map show through).
           Animated.timing(swipeX, { toValue: -500, duration: 160, useNativeDriver: true })
             .start(() => {
-              onPreviewNextStop();          // 1) swap content while hidden
-              swipeX.setValue(500);          // 2) place off-screen RIGHT
+              onPreviewNextStop();
+              swipeX.setValue(500);
               Animated.timing(swipeX, { toValue: 0, duration: 160, useNativeDriver: true }).start();
             });
           return;
@@ -233,17 +175,15 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           Animated.timing(swipeX, { toValue: 500, duration: 160, useNativeDriver: true })
             .start(() => {
-              onPreviewPrevStop();           // swap content while hidden
-              swipeX.setValue(-500);          // place off-screen LEFT
+              onPreviewPrevStop();
+              swipeX.setValue(-500);
               Animated.timing(swipeX, { toValue: 0, duration: 160, useNativeDriver: true }).start();
             });
           return;
         }
         if (committed) {
-          // Tried to swipe past the first/last stop — warning haptic.
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
-        // Spring back to resting position.
         Animated.spring(swipeX, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
       },
       onPanResponderTerminate: () => {
@@ -253,7 +193,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     [swipeX, canPreviewNext, canPreviewPrev, onPreviewNextStop, onPreviewPrevStop],
   );
 
-  // Subtle opacity fade at the extremes of the drag — signals the swipe is active.
   const swipeOpacity = swipeX.interpolate({
     inputRange: [-200, 0, 200],
     outputRange: [0.6, 1, 0.6],
@@ -262,7 +201,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 
   return (
     <>
-      {/* Minimal Floating Turn Instruction - Tap map to toggle full UI */}
+      {/* Minimal Floating Turn Instruction */}
       <TouchableOpacity 
         style={[styles.immersiveTurnBanner, { top: insets.top + 8 }]}
         onPress={() => setImmersiveMode(!immersiveMode)}
@@ -290,13 +229,13 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         </TouchableOpacity>
       </TouchableOpacity>
 
-      {/* Floating Speed Display - Always visible */}
+      {/* Floating Speed Display */}
       <View style={[styles.immersiveSpeedDisplay, { top: insets.top + 80 }]}>
         <Text style={styles.immersiveSpeedValue}>{speedKmh}</Text>
         <Text style={styles.immersiveSpeedUnit}>km/h</Text>
       </View>
 
-      {/* Compact Stats Row - Always visible */}
+      {/* Compact Stats Row */}
       <View style={[styles.immersiveStatsRow, { top: insets.top + 80 }]}>
         <View style={styles.immersiveStatChip}>
           <Ionicons name="time-outline" size={14} color="#10b981" />
@@ -310,7 +249,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         </View>
       </View>
 
-      {/* Expandable Bottom Panel - Tap to expand */}
+      {/* Expandable Bottom Panel */}
       {!immersiveMode ? (
         <Animated.View
           style={[
@@ -321,9 +260,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
           {...swipeResponder.panHandlers}
           testID="nav-stop-card"
         >
-          {/* Swipe hint chevrons — fade in when the driver starts dragging,
-              so the gesture is discoverable without taking screen real-estate
-              at rest. */}
           {canPreviewPrev && (
             <Animated.View
               style={[
@@ -346,14 +282,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               <Ionicons name="chevron-forward" size={22} color="#60a5fa" />
             </Animated.View>
           )}
-          {/* Multi-parcel warning — impossible to miss.
-              Shown whenever the current stop shares its coordinates with one
-              or more other stops on the route. Drivers were previously relying
-              on the tiny `x2` badge and missing the fact that more than one
-              delivery was parked at the same doorstep. This loud amber banner
-              surfaces the parcel index, weight, a shortened stop ID for
-              disambiguation, and a progress-dot row showing which parcels at
-              this address are already delivered. */}
           {colocatedCount > 1 && currentLeg?.to_stop && (
             <View style={styles.colocatedWarn} data-testid="nav-colocated-warn">
               <View style={styles.colocatedWarnHeader}>
@@ -452,7 +380,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             ) : null}
           </View>
 
-          {/* Notes - Full width, outside the chips row */}
+          {/* Notes */}
           {currentLeg?.to_stop?.notes ? (
             <View style={styles.immersiveNotesBox}>
               <Ionicons name="document-text-outline" size={14} color="#94a3b8" style={{ marginTop: 2 }} />
@@ -460,7 +388,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             </View>
           ) : null}
 
-          {/* Quick Actions — 4 buttons with labels for clarity */}
+          {/* Quick Actions */}
           <View style={styles.immersiveQuickRow}>
             <TouchableOpacity style={styles.immersiveQuickBtn} onPress={onCallCustomer} testID="nav-quick-call">
               <Ionicons name="call" size={18} color="#10b981" />
@@ -494,23 +422,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Main Actions — Failed | Delivered | Skip
-              2026-05-11 — Reverted from slide-to-deliver back to a plain
-              tap button per driver feedback. The slide had two intended
-              benefits (anti-accidental-fire + service-time telemetry
-              signal from the ~500 ms gesture) but in practice drivers
-              found the friction painful at the end of a long shift.
-              Mitigations now:
-                • The button is a TouchableOpacity with `activeOpacity`
-                  and a `Haptics.impactAsync('Heavy')` on press so the
-                  driver still gets tactile confirmation of the fire.
-                • The `SwipeToDeliver` component is preserved at
-                  `./SwipeToDeliver` — to swap back, restore the import
-                  and replace the TouchableOpacity below with the
-                  SwipeToDeliver block from git history (commit before
-                  this revert).
-              `key={currentStop?.id}` retained on the row so any state
-              the panel holds resets cleanly on stop change. */}
+          {/* Main Actions */}
           <View style={styles.immersiveMainActions}>
             <TouchableOpacity style={styles.immersiveFailedBtn} onPress={onMarkFailed} testID="nav-main-failed">
               <Ionicons name="close" size={22} color="#ef4444" />
@@ -539,7 +451,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
           </View>
         </Animated.View>
       ) : (
-        /* Persistent Waypoint Overlay - Compact destination info */
         <Animated.View
           style={[
             styles.immersiveBottomMinimal,
@@ -592,10 +503,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                 console.log('[deliver-btn:onPress] minimal → invoking onMarkDelivered');
                 onMarkDelivered();
               }}
-              // CRITICAL: this button sits inside the parent Animated.View whose
-              // PanResponder owns left/right stop-swipe gestures. Capturing the
-              // responder on touch-start is the only reliable way to keep that
-              // PanResponder from claiming a tap mid-press.
               onStartShouldSetResponderCapture={() => true}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               pointerEvents="auto"
@@ -609,10 +516,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         </Animated.View>
       )}
 
-      {/* Jump-to-stop menu — opened by long-pressing the stop-number badge.
-          Renders every leg as a tappable row showing stop #, name/address, and
-          a small badge if it is already completed. Tapping a row calls
-          onJumpToStop(idx) on the parent (pure navigation; no side effects). */}
+      {/* Jump-to-stop modal */}
       <Modal
         visible={isJumpOpen}
         transparent
@@ -678,8 +582,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   );
 };
 
-// Styles are imported from the parent - these are placeholders that reference the same style names
-// The actual styles are defined in index.tsx's StyleSheet and passed via the component hierarchy
 const styles = StyleSheet.create({
   immersiveTurnBanner: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1e293b', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   immersiveTurnRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
@@ -722,15 +624,7 @@ const styles = StyleSheet.create({
   immersiveSkipBtn: { width: 64, height: 56, borderRadius: 14, backgroundColor: 'rgba(245, 158, 11, 0.12)', justifyContent: 'center', alignItems: 'center', gap: 2 },
   immersiveDeliveredBtn: { flex: 1, height: 56, borderRadius: 14, backgroundColor: '#10b981', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
   immersiveDeliveredBtnLabel: { fontSize: 14, fontWeight: '800', color: '#ffffff', letterSpacing: 0.3 },
-  // Defensive layering for the Delivered buttons. Lifts them above any invisible
-  // overlay sibling (e.g. the gesture-tracking Animated.View, debug/perf overlays,
-  // splash residue) that might intercept touches. zIndex works on iOS, elevation
-  // is the Android equivalent and also raises the touch target Z-order.
-  // Bumped 50→9999 / 12→24 to overshoot any ad-hoc layer in the WebView/map stack.
   deliveredHardenedHitbox: { zIndex: 9999, elevation: 24, position: 'relative' },
-  // Press-state visual feedback — proves to the driver that the DOM element
-  // received the touch even when no API call follows. Dramatic green-darken
-  // + 4 % scale-down so it's unmissable on a moving phone in sunlight.
   deliveredPressed: { backgroundColor: '#047857', transform: [{ scale: 0.96 }] },
   immersiveDeliveredText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   immersiveFailedBtn: { width: 64, height: 56, borderRadius: 14, backgroundColor: 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center', gap: 2 },
@@ -748,9 +642,6 @@ const styles = StyleSheet.create({
   navMultiplierText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   navMultiplierBadgeSmall: { backgroundColor: '#3b82f6', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, marginRight: 4 },
   navMultiplierTextSmall: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  // Colocated-stops warning — sits directly above the stop row inside the
-  // expanded nav card. Uses amber (#f59e0b → #fbbf24) so it's distinct from
-  // the blue info/multiplier chips and the green Delivered CTA.
   colocatedWarn: {
     backgroundColor: 'rgba(251, 191, 36, 0.14)',
     borderLeftWidth: 4,
@@ -769,10 +660,8 @@ const styles = StyleSheet.create({
   colocatedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)' },
   colocatedDotDone: { backgroundColor: '#10b981' },
   colocatedDotCurrent: { backgroundColor: '#fbbf24', width: 10, height: 10, borderRadius: 5 },
-  // Swipe-hint chevrons — absolute-positioned inside the panel, centred vertically.
   swipeHintLeft:  { position: 'absolute', left: 6,  top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
   swipeHintRight: { position: 'absolute', right: 6, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
-  // Jump-to-stop Modal
   jumpMenuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', padding: 16 },
   jumpMenuCard: { backgroundColor: '#111827', borderRadius: 14, padding: 12, marginBottom: 20,
                   borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
