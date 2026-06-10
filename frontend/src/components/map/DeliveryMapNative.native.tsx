@@ -486,7 +486,6 @@ function StopCallout({ callout }: { callout: MapCallout }) {
               <Text style={calloutStyles.weightText}>· {callout.weight} kg</Text>
             ) : null}
           </View>
-          {/* Use onPressOut instead of onPress - works better in MapLibre Markers on Android */}
           <TouchableOpacity
             onPressOut={callout.onClose}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -669,7 +668,12 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const mapHeightRef = useRef<number>(Dimensions.get('window').height);
     // Reactive copy of mapHeightRef used for Camera padding prop during navigation.
     const [mapHeight, setMapHeight] = useState<number>(Dimensions.get('window').height);
+    const [mapWidth, setMapWidth] = useState<number>(Dimensions.get('window').width);
     const wasDrivingRef = useRef(false);
+    // Callout overlay: screen-space position of the selected stop's pin.
+    // Updated by projectCallout() whenever the callout opens or the camera moves.
+    const [calloutScreenPos, setCalloutScreenPos] = useState<{ x: number; y: number } | null>(null);
+    const calloutGeoRef = useRef<{ lng: number; lat: number } | null>(null);
 
     // ── Phase 2 overlay state ──────────────────────────────────────────────
     // GeoJSON fed from backend tiles on camera idle (self-hosted QLD buildings,
@@ -937,6 +941,34 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       },
       [],
     );
+
+    // Projects the current callout's geo position to screen coordinates so the
+    // absolute overlay can be positioned correctly. Called on open and on every
+    // camera-settle so the balloon tracks the pin during panning.
+    const projectCallout = useCallback(async () => {
+      const geo = calloutGeoRef.current;
+      if (!geo || !mapRef.current) { setCalloutScreenPos(null); return; }
+      try {
+        const pt = await (mapRef.current as any).project([geo.lng, geo.lat]);
+        if (Array.isArray(pt) && pt.length >= 2) {
+          setCalloutScreenPos({ x: pt[0] as number, y: pt[1] as number });
+        }
+      } catch {
+        setCalloutScreenPos(null);
+      }
+    }, []);
+
+    useEffect(() => {
+      if (callout) {
+        calloutGeoRef.current = { lng: callout.lng, lat: callout.lat };
+        // Delay to let flyTo settle before projecting.
+        const t = setTimeout(projectCallout, 400);
+        return () => clearTimeout(t);
+      } else {
+        calloutGeoRef.current = null;
+        setCalloutScreenPos(null);
+      }
+    }, [callout?.id, callout?.lng, callout?.lat, projectCallout]);
 
     // ── Phase 3: lasso freehand selection ──────────────────────────────────
     // On release, convert the screen-space path to geo coords via the native
@@ -1218,11 +1250,13 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           }
           // Update pulse ring position to track the camera.
           updatePulseScreenPos();
+          // Re-project callout so the overlay balloon stays over its pin.
+          if (calloutGeoRef.current) projectCallout();
         } catch {
           // ignore malformed region events
         }
       },
-      [onCameraIdle, zoom, refreshOverlays, refreshMsBuildings, updatePulseScreenPos],
+      [onCameraIdle, zoom, refreshOverlays, refreshMsBuildings, updatePulseScreenPos, projectCallout],
     );
 
     // Handle a tap on the delivery-clusters source: expand a cluster bubble or
@@ -1319,11 +1353,12 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
       <View
         style={styles.container}
         onLayout={(e) => {
-          const h = e?.nativeEvent?.layout?.height;
+          const { height: h, width: w } = e?.nativeEvent?.layout ?? {};
           if (typeof h === 'number' && h > 0) {
             mapHeightRef.current = h;
             setMapHeight(h);
           }
+          if (typeof w === 'number' && w > 0) setMapWidth(w);
         }}
       >
         <MapLibreMap
@@ -1782,20 +1817,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             />
           </GeoJSONSource>
 
-          {/* ── Stop callout balloon. Anchored to the tapped stop's coordinate
-              via a native Marker, so it tracks the pin as the map moves. Shows
-              the pin number, weight + status, and an editable address with
-              Save / Re-geocode. ── */}
-          {callout && (
-            <Marker
-              key={`callout-${callout.id}`}
-              lngLat={[callout.lng, callout.lat]}
-              anchor="bottom"
-              offset={[0, -44]}
-            >
-              <StopCallout callout={callout} />
-            </Marker>
-          )}
+          {/* Callout balloon rendered outside MapLibreMap — see absolute overlay below. */}
 
           {/* ── Delivery clusters (zoomed-out overview). Native clustering
               GeoJSON source fed imperatively via setClusters(). Cluster bubbles
@@ -1864,6 +1886,30 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
             minDisplacement={3}
           />
         </MapLibreMap>
+
+        {/* ── Stop callout balloon overlay (screen-space) ───────────────────────
+            Rendered OUTSIDE MapLibreMap so React Native touch handlers on the
+            TextInput and buttons work without native-view interception.
+            Positioned by projecting the stop's geo coordinates to screen px. ── */}
+        {callout && calloutScreenPos && (
+          <View
+            pointerEvents="box-none"
+            style={StyleSheet.absoluteFill}
+          >
+            <View
+              style={{
+                position: 'absolute',
+                // Center horizontally on the pin; clamp to 8px screen margins.
+                left: Math.max(8, Math.min(calloutScreenPos.x - 132, mapWidth - 272)),
+                // Anchor the balloon bottom to 44px above the pin coordinate.
+                bottom: mapHeight - calloutScreenPos.y + 44,
+                width: 264,
+              }}
+            >
+              <StopCallout callout={callout} />
+            </View>
+          </View>
+        )}
 
         {/* ── Animated pulse ring overlay (screen-space) ────────────────────────
             A reanimated View that renders a pulsing ring at the screen position
