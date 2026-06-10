@@ -111,10 +111,14 @@ paths like `/tiles/parcels/*` and clients still hit
 | `housenumbers.py` | **Done** | `/housenumbers`, `/housenumbers/prewarm`         |
 | `auth.py`         | **Done** | `/auth/session`, `/auth/me`, `/auth/logout`      |
 | `stops.py`        | **Done** | `/stops` CRUD, `/stops/{id}/complete/uncomplete`, `/stops/clear`, `/stops/reorder`, `/debug/stops-coords` |
-| `routing.py`      | TODO     | `/optimize`, `/directions`, `/navigation`, solvers |
-| `exports.py`      | TODO     | `/export/*`, `/stops/export/xlsx`                |
-| (geocoding)       | TODO     | `/stops/{id}/regeocode`, `/stops/refresh-suburbs`, `/geocode` |
-| (car)             | TODO     | `/car/stop-action`, `/car/next-stops`            |
+| `optimize.py`     | **Done** | `/optimize`, `/optimize/jobs*`, `/optimize/diagnostics`, `/optimize/tighten-cluster(s)`, `/optimize/algorithms`, `/generoute/status` |
+| `benchmark.py`    | **Done** | `/benchmark`                                     |
+| `geocoding.py`    | **Done** | `/stops/{id}/regeocode`, `/stops/refresh-suburbs` |
+| `car.py`          | **Done** | `/car/stop-action`, `/car/next-stops`            |
+| `health.py`       | **Done** | `/health`, `/healthz`, `/healthz/version` (under `/api`) |
+| `legal.py`        | **Done** | `/privacy`, `/privacy-policy*`, `/terms` (no `/api` prefix, included on `app`) |
+| `routing.py`      | **Done** | `/geocode`, `/directions`, `/navigation`, `/mapbox-token` |
+| `export.py`       | **Done** | `/stops/export/xlsx`                             |
 
 ### Regression tests
 Each domain router should ship with an in-process pytest file:

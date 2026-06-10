@@ -533,8 +533,12 @@ async def apply_nogo_penalty_osrm_aware(
                 matrix[i][j] = float(matrix[i][j]) + _NOGO_PENALTY
                 penalised += 1
             return True
-        except Exception as e:  # noqa: BLE001
-            logger.debug("[nogo-zones] OSRM probe %d→%d skipped: %s", i, j, e)
+        except Exception:  # noqa: BLE001
+            # Static message only. The exception embeds the request URL (which
+            # contains probe coordinates), and even the i/j indices are
+            # unpacked from the same tuples as the coordinates, so CodeQL's
+            # collection taint flags anything derived from `candidates`.
+            logger.debug("[nogo-zones] OSRM probe skipped")
             return True
 
     try:

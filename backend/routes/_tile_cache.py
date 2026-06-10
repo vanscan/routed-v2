@@ -210,7 +210,10 @@ def stats_sync() -> dict:
             "last_vacuum_at": _last_vacuum_at,
         }
     except Exception as e:
-        return {"error": str(e), "path": _DB_PATH}
+        logger.warning("tile_cache stats_sync failed: %s", e)
+        # Class name only — consumers ship this dict to HTTP responses
+        # (/api/healthz), so no raw exception text or filesystem paths here.
+        return {"error": type(e).__name__}
 
 
 # ── Background maintenance ────────────────────────────────────────────────
