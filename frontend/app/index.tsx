@@ -562,7 +562,7 @@ export default function LoginScreen() {
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color={COLOR.accent} />
           <Text style={styles.loadingText}>
-            {(authLoading || googleAuthLoading) ? 'Signing you in…' : backendWaking ? 'Connecting to server…' : 'Booting the cockpit…'}
+            {(authLoading || googleAuthLoading) ? 'Signing you in…' : backendWaking ? 'Connecting to server… (~5 s)' : 'Booting the cockpit…'}
           </Text>
         </View>
       </View>
@@ -649,10 +649,15 @@ export default function LoginScreen() {
           <Pressable
             data-testid="email-login-toggle"
             onPress={() => { setShowEmailLogin(!showEmailLogin); setEmailError(''); }}
-            style={styles.tertiary}
+            style={styles.emailToggleBtn}
             hitSlop={8}
           >
-            <Text style={styles.tertiaryText}>
+            <Ionicons
+              name={showEmailLogin ? 'chevron-up' : 'mail-outline'}
+              size={14}
+              color={COLOR.textDim}
+            />
+            <Text style={styles.emailToggleText}>
               {showEmailLogin ? 'Hide email sign-in' : "Can't sign in with Google? Use email"}
             </Text>
           </Pressable>
@@ -1142,6 +1147,23 @@ const styles = StyleSheet.create({
     color: COLOR.textFaint,
     fontSize: 12.5,
     letterSpacing: 0.4,
+  },
+  emailToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLOR.hairline,
+    borderStyle: 'dashed',
+  },
+  emailToggleText: {
+    color: COLOR.textDim,
+    fontSize: 12.5,
+    letterSpacing: 0.3,
   },
   tertiaryTextFaint: {
     color: COLOR.textFaint,

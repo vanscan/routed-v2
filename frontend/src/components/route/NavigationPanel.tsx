@@ -81,6 +81,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   isRerouting,
   canUndo,
   liveRoute,
+  completedCount,
 
   onStopNavigation,
   onMarkDelivered,
@@ -403,31 +404,33 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               <Text style={styles.compactStopAddress} numberOfLines={1}>
                 {currentLeg?.to_stop?.address || 'Next Stop'}
               </Text>
-              {/* Weight/Distance inline */}
+              {/* Weight/Distance/Progress inline */}
               <View style={styles.compactMetaRow}>
+                <Text style={styles.compactMetaText}>
+                  {completedCount} / {totalStops} stops
+                </Text>
                 {currentLeg?.to_stop?.weight ? (
                   <Text style={styles.compactMetaText}>
-                    <Ionicons name="cube-outline" size={12} color="#f59e0b" /> {currentLeg.to_stop.weight}kg
+                    · {currentLeg.to_stop.weight} kg
                   </Text>
                 ) : null}
                 {liveRoute?.distance ? (
                   <Text style={styles.compactMetaText}>
-                    <Ionicons name="navigate-outline" size={12} color="#3b82f6" /> {formatDistance(liveRoute.distance)}
+                    · {formatDistance(liveRoute.distance)}
                   </Text>
                 ) : null}
               </View>
             </View>
-            {/* More menu button */}
+            {/* Details menu button */}
             <TouchableOpacity 
               style={styles.compactMoreBtn}
               onPress={() => {
-                // Toggle showing full details
                 setImmersiveMode(!immersiveMode);
               }}
               testID="nav-more-btn"
             >
-              <Text style={styles.compactMoreText}>More</Text>
-              <Ionicons name="chevron-down" size={14} color="#64748b" />
+              <Text style={styles.compactMoreText}>Details</Text>
+              <Ionicons name="chevron-down" size={14} color="#cbd5e1" />
             </TouchableOpacity>
           </View>
 
@@ -521,6 +524,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </Text>
               <Text style={styles.immersiveMinimalAddress} numberOfLines={1} testID="immersive-waypoint-address">
                 {currentLeg?.to_stop?.address || `Stop ${currentStopLabel} of ${totalStops}`}
+                {currentLeg?.to_stop?.weight ? `  ·  ${currentLeg.to_stop.weight} kg` : ''}
               </Text>
             </View>
             <Ionicons name="chevron-up" size={16} color="#64748b" />
@@ -745,8 +749,8 @@ const styles = StyleSheet.create({
   compactStopAddress: { fontSize: 15, fontWeight: '700', color: '#fff' },
   compactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   compactMetaText: { fontSize: 12, color: '#94a3b8' },
-  compactMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  compactMoreText: { fontSize: 12, fontWeight: '600', color: '#94a3b8' },
+  compactMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  compactMoreText: { fontSize: 12, fontWeight: '700', color: '#e2e8f0' },
   compactNotesBox: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 },
   compactNotesText: { fontSize: 13, color: '#cbd5e1' },
 });

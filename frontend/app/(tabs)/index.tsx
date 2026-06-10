@@ -4026,6 +4026,12 @@ export default function RouteScreen() {
             elevation: 4,
           }}
         >
+          <Ionicons
+            name={blockRoadMode ? 'warning-outline' : 'ban-outline'}
+            size={14}
+            color={blockRoadMode ? '#fca5a5' : '#9ca3af'}
+            style={{ marginRight: 5 }}
+          />
           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
             {blockRoadMode ? 'Tap road to block' : `Block road${nogoZones.length ? ' · ' + nogoZones.length : ''}`}
           </Text>

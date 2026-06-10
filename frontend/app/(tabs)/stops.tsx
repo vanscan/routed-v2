@@ -184,7 +184,8 @@ export default function StopsScreen() {
           style={[
             styles.stopCard,
             stop.completed && styles.stopCardCompleted,
-            stop.completed && styles.stopCardCompactCompleted,
+            stop.completed && { opacity: 0.62 },
+            !stop.completed && stop.priority === 'high' && styles.stopCardHighPriority,
           ]}
           onPress={() => router.push({ pathname: '/stop-detail', params: { id: stop.id } })}
           activeOpacity={0.8}
@@ -248,18 +249,14 @@ export default function StopsScreen() {
               )}
             </View>
 
-            {/* Secondary info hidden on completed cards so they visibly shrink
-                from ~96 px → ~44 px once the driver taps "Mark Delivered".
-                The address (above) still shows — that's the only piece the
-                driver needs for the scrollback "what did I already drop?" case. */}
-            {!stop.completed && stop.name && (
+            {/* Secondary info — name line always shown (dimmed on completed) */}
+            {stop.name && (
               <Text style={styles.stopAddress} numberOfLines={1}>
                 {stop.name}
               </Text>
             )}
 
-            {/* Meta Info Row — weight · quantity · notes preview · time window.
-                Omitted entirely once the stop is completed (shrink UX). */}
+            {/* Meta Info Row — weight · quantity · notes preview · time window */}
             {!stop.completed && (
               <View style={styles.metaRow}>
               {/* Time Window */}
@@ -335,6 +332,10 @@ export default function StopsScreen() {
   }
 
   const completedCount = stops.filter(s => s.completed).length;
+  const totalWeight = useMemo(
+    () => stops.reduce((sum, s) => sum + (parseFloat(String(s.weight ?? 0)) || 0), 0),
+    [stops],
+  );
 
   return (
     <View style={styles.container}>
@@ -422,6 +423,14 @@ export default function StopsScreen() {
                 <Text style={styles.statNumber}>{stops.length - completedCount}</Text>
                 <Text style={styles.statLabel}>Left</Text>
               </View>
+              {totalWeight > 0 && (
+                <View style={[styles.statBadge, styles.statBadgeWeight]}>
+                  <Text style={[styles.statNumber, styles.statNumberWeight]}>
+                    {totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)}
+                  </Text>
+                  <Text style={styles.statLabel}>kg</Text>
+                </View>
+              )}
             </View>
             <TouchableOpacity
               style={styles.importHeaderButton}
@@ -590,6 +599,12 @@ const styles = StyleSheet.create({
   statBadgeSuccess: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
+  statBadgeWeight: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
+  statNumberWeight: {
+    color: '#f59e0b',
+  },
   statNumber: {
     color: '#f8fafc',
     fontSize: 18,
@@ -630,11 +645,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 6,
+    gap: 8,
   },
   searchWrap: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1e293b',
@@ -687,19 +706,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: 'transparent',
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
   },
   stopCardActive: {
     backgroundColor: '#334155',
     transform: [{ scale: 1.02 }],
     borderColor: '#3b82f6',
   },
+  stopCardHighPriority: {
+    borderLeftColor: '#ef4444',
+  },
   stopCardCompleted: {
     backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+    borderLeftColor: '#10b981',
   },
-  // Compact layout applied on top of stopCardCompleted — gives the shrink
-  // effect when the driver taps "Mark Delivered". Smaller padding, smaller
-  // avatar, smaller font, no meta row = card height drops ~96→44 px.
   stopCardCompactCompleted: {
     paddingVertical: 8,
     paddingHorizontal: 12,
