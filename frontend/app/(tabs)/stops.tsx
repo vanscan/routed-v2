@@ -293,9 +293,9 @@ export default function StopsScreen() {
 
               {/* Weight */}
               {stop.weight && (
-                <View style={styles.metaItem}>
-                  <Ionicons name="scale-outline" size={12} color="#64748b" />
-                  <Text style={styles.metaText}>{stop.weight}kg</Text>
+                <View style={styles.weightPill}>
+                  <Ionicons name="scale-outline" size={11} color="#f59e0b" />
+                  <Text style={styles.weightPillText}>{stop.weight}kg</Text>
                 </View>
               )}
 
@@ -869,6 +869,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   findMissingChipTextActive: { color: '#0f172a' },
+  weightPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 3,
+  },
+  weightPillText: {
+    color: '#f59e0b',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
   // Sort toggle — compact segmented pill sitting beside the Find Missing chip.
   // Uses the same background/border tones as the rest of the filter row.
   sortToggle: {
