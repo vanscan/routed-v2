@@ -46,6 +46,11 @@ export default function StopsScreen() {
   // search row so drivers can combine it with text search if needed.
   const [findMissingOnly, setFindMissingOnly] = useState(false);
 
+  // Sort mode — 'order' keeps the current drive-order sort (sequence_number);
+  // 'priority' floats high-priority pending stops to the top, completed last.
+  // Session-only (resets on tab nav). Works on top of the active filter.
+  const [sortMode, setSortMode] = useState<'order' | 'priority'>('order');
+
   // Filter stops by name/address/notes while preserving each stop's
   // ORIGINAL index — that's the parcel number the driver writes on the box,
   // so it must NOT shift when the list is filtered.
@@ -66,8 +71,18 @@ export default function StopsScreen() {
         !stop.completed && !loadedStopIds.has(stop.id),
       );
     }
+    if (sortMode === 'priority') {
+      // Rank: high=0, medium/default=1, low=2, completed=10 (always last).
+      const rank = (s: Stop): number => {
+        if (s.completed) return 10;
+        if (s.priority === 'high') return 0;
+        if (s.priority === 'low') return 2;
+        return 1; // medium or unset
+      };
+      result = [...result].sort((a, b) => rank(a.stop) - rank(b.stop));
+    }
     return result;
-  }, [stops, searchQuery, findMissingOnly, loadedStopIds]);
+  }, [stops, searchQuery, findMissingOnly, loadedStopIds, sortMode]);
 
   // Counter shown in the Find Missing chip — drives the badge text and
   // the auto-disable when the warehouse is clear.
@@ -478,6 +493,28 @@ export default function StopsScreen() {
                 </TouchableOpacity>
               )}
             </View>
+            {/* Sort toggle — segmented pill: Order (drive sequence) | Priority */}
+            <View style={styles.sortToggle} data-testid="sort-toggle">
+              <TouchableOpacity
+                style={[styles.sortSegment, styles.sortSegmentLeft, sortMode === 'order' && styles.sortSegmentActive]}
+                onPress={() => setSortMode('order')}
+                data-testid="sort-order-btn"
+              >
+                <Text style={[styles.sortSegmentText, sortMode === 'order' && styles.sortSegmentTextActive]}>
+                  Order
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortSegment, styles.sortSegmentRight, sortMode === 'priority' && styles.sortSegmentActive]}
+                onPress={() => setSortMode('priority')}
+                data-testid="sort-priority-btn"
+              >
+                <Text style={[styles.sortSegmentText, sortMode === 'priority' && styles.sortSegmentTextActive]}>
+                  Priority
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Find Missing toggle — single tap shows ONLY parcels still on
                 the warehouse floor (not loaded into the van AND not yet
                 delivered). Closes the loading-audit loop. Self-disables
@@ -832,6 +869,39 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   findMissingChipTextActive: { color: '#0f172a' },
+  // Sort toggle — compact segmented pill sitting beside the Find Missing chip.
+  // Uses the same background/border tones as the rest of the filter row.
+  sortToggle: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 116, 139, 0.35)',
+  },
+  sortSegment: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#1e293b',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortSegmentLeft: {
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(100, 116, 139, 0.35)',
+  },
+  sortSegmentRight: {},
+  sortSegmentActive: {
+    backgroundColor: '#3b82f6',
+  },
+  sortSegmentText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  sortSegmentTextActive: {
+    color: '#fff',
+  },
   stopAddress: {
     color: '#94a3b8',
     fontSize: 13,
