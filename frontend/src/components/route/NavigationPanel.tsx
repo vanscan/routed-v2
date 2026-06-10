@@ -284,6 +284,15 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               {currentStep?.instruction || 'Continue'}
             </Text>
           </View>
+          {/* Stop badge moved to nav bar for visibility */}
+          <Pressable
+            onLongPress={openJumpMenu}
+            delayLongPress={400}
+            style={[styles.navBarStopBadge, isCurrentLateFreight && styles.navBarStopBadgeLate]}
+            testID="nav-bar-stop-badge"
+          >
+            <Text style={styles.navBarStopNum}>#{currentStopLabel}</Text>
+          </Pressable>
         </View>
         <TouchableOpacity style={styles.immersiveExitBtn} onPress={onStopNavigation}>
           <Ionicons name="close" size={22} color="#ef4444" />
@@ -388,111 +397,48 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </View>
             </View>
           )}
-          {/* Stop Info */}
-          <View style={styles.immersiveStopRow}>
-            <Pressable
-              onLongPress={openJumpMenu}
-              delayLongPress={400}
-              style={[styles.immersiveStopBadge, isCurrentLateFreight && styles.immersiveStopBadgeLate]}
-              testID="nav-stop-badge"
-            >
-              <Text style={styles.immersiveStopNum}>{currentStopLabel}</Text>
-              <Text style={styles.immersiveStopOf}>/{totalStops}</Text>
-            </Pressable>
-            {colocatedCount > 1 && (
-              <View style={styles.navMultiplierBadge} data-testid="nav-multiplier-badge">
-                <Text style={styles.navMultiplierText}>x{colocatedCount}</Text>
+          {/* Compact Stop Info - Single line with address */}
+          <View style={styles.compactStopRow}>
+            <View style={styles.compactStopInfo}>
+              <Text style={styles.compactStopAddress} numberOfLines={1}>
+                {currentLeg?.to_stop?.address || 'Next Stop'}
+              </Text>
+              {/* Weight/Distance inline */}
+              <View style={styles.compactMetaRow}>
+                {currentLeg?.to_stop?.weight ? (
+                  <Text style={styles.compactMetaText}>
+                    <Ionicons name="cube-outline" size={12} color="#f59e0b" /> {currentLeg.to_stop.weight}kg
+                  </Text>
+                ) : null}
+                {liveRoute?.distance ? (
+                  <Text style={styles.compactMetaText}>
+                    <Ionicons name="navigate-outline" size={12} color="#3b82f6" /> {formatDistance(liveRoute.distance)}
+                  </Text>
+                ) : null}
               </View>
-            )}
-            <View style={styles.immersiveStopInfo}>
-              <Text style={styles.immersiveStopName} numberOfLines={1}>
-                {currentLeg?.to_stop?.name || currentLeg?.to_stop?.address?.split(',')[0] || 'Next Stop'}
-              </Text>
-              <Text style={styles.immersiveStopAddress} numberOfLines={1}>
-                {currentLeg?.to_stop?.address || ''}
-              </Text>
             </View>
+            {/* More menu button */}
             <TouchableOpacity 
-              style={styles.immersiveVoiceBtn}
-              onPress={onShowRouteOverview}
-              testID="immersive-route-overview-toggle"
+              style={styles.compactMoreBtn}
+              onPress={() => {
+                // Toggle showing full details
+                setImmersiveMode(!immersiveMode);
+              }}
+              testID="nav-more-btn"
             >
-              <Ionicons
-                name="locate"
-                size={20}
-                color="#3b82f6"
-              />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.immersiveVoiceBtn}
-              onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
-              testID="immersive-voice-toggle"
-            >
-              <Ionicons 
-                name={isVoiceEnabled ? "volume-high" : "volume-mute"} 
-                size={20} 
-                color={isVoiceEnabled ? "#3b82f6" : "#64748b"} 
-              />
+              <Text style={styles.compactMoreText}>More</Text>
+              <Ionicons name="chevron-down" size={14} color="#64748b" />
             </TouchableOpacity>
           </View>
 
-          {/* Weight & Quantity Info */}
-          <View style={styles.immersiveDetailsRow}>
-            {currentLeg?.to_stop?.weight ? (
-              <View style={styles.immersiveDetailChip}>
-                <Ionicons name="cube-outline" size={14} color="#f59e0b" />
-                <Text style={styles.immersiveDetailText}>{currentLeg.to_stop.weight} kg</Text>
-              </View>
-            ) : null}
-            {currentLeg?.to_stop?.quantity ? (
-              <View style={styles.immersiveDetailChip}>
-                <Ionicons name="layers-outline" size={14} color="#8b5cf6" />
-                <Text style={styles.immersiveDetailText}>x{currentLeg.to_stop.quantity}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* Notes - Full width, outside the chips row */}
+          {/* Notes - Compact single line if present */}
           {currentLeg?.to_stop?.notes ? (
-            <View style={styles.immersiveNotesBox}>
-              <Ionicons name="document-text-outline" size={14} color="#94a3b8" style={{ marginTop: 2 }} />
-              <Text style={styles.immersiveNotesText}>{currentLeg.to_stop.notes}</Text>
+            <View style={styles.compactNotesBox}>
+              <Text style={styles.compactNotesText} numberOfLines={1}>
+                {currentLeg.to_stop.notes}
+              </Text>
             </View>
           ) : null}
-
-          {/* Quick Actions — 4 buttons with labels for clarity */}
-          <View style={styles.immersiveQuickRow}>
-            <TouchableOpacity style={styles.immersiveQuickBtn} onPress={onCallCustomer} testID="nav-quick-call">
-              <Ionicons name="call" size={18} color="#10b981" />
-              <Text style={styles.immersiveQuickLabel}>Call</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.immersiveQuickBtn} onPress={onShareETA} testID="nav-quick-share">
-              <Ionicons name="share-outline" size={18} color="#3b82f6" />
-              <Text style={styles.immersiveQuickLabel}>Share</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.immersiveQuickBtn}
-              onPress={onReroute}
-              disabled={isRerouting}
-              testID="nav-quick-reroute"
-            >
-              {isRerouting ? (
-                <ActivityIndicator size="small" color="#f59e0b" />
-              ) : (
-                <Ionicons name="refresh" size={18} color="#f59e0b" />
-              )}
-              <Text style={styles.immersiveQuickLabel}>Reroute</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.immersiveQuickBtn, !canUndo && { opacity: 0.4 }]}
-              onPress={onUndoStop}
-              disabled={!canUndo}
-              testID="nav-quick-undo"
-            >
-              <Ionicons name="arrow-undo" size={18} color="#8b5cf6" />
-              <Text style={styles.immersiveQuickLabel}>Undo</Text>
-            </TouchableOpacity>
-          </View>
 
           {/* Main Actions — Failed | Delivered | Skip
               2026-05-11 — Reverted from slide-to-deliver back to a plain
@@ -789,6 +735,20 @@ const styles = StyleSheet.create({
   jumpMenuNumText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   jumpMenuName: { color: '#f3f4f6', fontSize: 14, fontWeight: '600' },
   jumpMenuAddress: { color: '#9ca3af', fontSize: 12, marginTop: 1 },
+  // Nav bar stop badge (moved from bottom card to top navigation)
+  navBarStopBadge: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', marginLeft: 12 },
+  navBarStopBadgeLate: { backgroundColor: '#7c3aed' },
+  navBarStopNum: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  // Compact bottom delivery card styles
+  compactStopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  compactStopInfo: { flex: 1 },
+  compactStopAddress: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  compactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  compactMetaText: { fontSize: 12, color: '#94a3b8' },
+  compactMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  compactMoreText: { fontSize: 12, fontWeight: '600', color: '#94a3b8' },
+  compactNotesBox: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 },
+  compactNotesText: { fontSize: 13, color: '#cbd5e1' },
 });
 
 export default NavigationPanel;
