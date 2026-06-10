@@ -466,7 +466,7 @@ function firstPressedFeature(e: any): any {
 function StopCallout({ callout }: { callout: MapCallout }) {
   const busy = !!callout.saving || !!callout.regeocoding;
   return (
-    <View style={calloutStyles.wrap}>
+    <View style={[calloutStyles.wrap, { pointerEvents: 'box-none' }]}>
       <View style={calloutStyles.card}>
         <View style={calloutStyles.headerRow}>
           <View style={[calloutStyles.badge, callout.completed && calloutStyles.badgeDone]}>
@@ -486,10 +486,12 @@ function StopCallout({ callout }: { callout: MapCallout }) {
               <Text style={calloutStyles.weightText}>· {callout.weight} kg</Text>
             ) : null}
           </View>
+          {/* Use onPressOut instead of onPress - works better in MapLibre Markers on Android */}
           <TouchableOpacity
-            onPress={callout.onClose}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPressOut={callout.onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             testID="stop-callout-close"
+            activeOpacity={0.6}
           >
             <Text style={calloutStyles.closeText}>✕</Text>
           </TouchableOpacity>
@@ -512,9 +514,10 @@ function StopCallout({ callout }: { callout: MapCallout }) {
         <View style={calloutStyles.actionsRow}>
           <TouchableOpacity
             style={[calloutStyles.btn, calloutStyles.saveBtn, busy && calloutStyles.btnDisabled]}
-            onPress={callout.onSave}
+            onPressOut={busy ? undefined : callout.onSave}
             disabled={busy}
             testID="stop-callout-save"
+            activeOpacity={0.7}
           >
             {callout.saving ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -524,9 +527,10 @@ function StopCallout({ callout }: { callout: MapCallout }) {
           </TouchableOpacity>
           <TouchableOpacity
             style={[calloutStyles.btn, calloutStyles.geoBtn, busy && calloutStyles.btnDisabled]}
-            onPress={callout.onRegeocode}
+            onPressOut={busy ? undefined : callout.onRegeocode}
             disabled={busy}
             testID="stop-callout-regeocode"
+            activeOpacity={0.7}
           >
             {callout.regeocoding ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -539,8 +543,9 @@ function StopCallout({ callout }: { callout: MapCallout }) {
         {callout.onDetails ? (
           <TouchableOpacity
             style={calloutStyles.detailsBtn}
-            onPress={callout.onDetails}
+            onPressOut={callout.onDetails}
             testID="stop-callout-details"
+            activeOpacity={0.7}
           >
             <Text style={calloutStyles.detailsText}>More details</Text>
           </TouchableOpacity>
