@@ -106,6 +106,11 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   const [isJumpOpen, setIsJumpOpen] = useState(false);
   const [showTeachSwipe, setShowTeachSwipe] = useState(false);
   const teachOpacity = useRef(new Animated.Value(0)).current;
+  // Slide offsets for the swipe-hint chevrons — left starts off-left, right
+  // starts off-right. Both animate to 0 in parallel with the opacity fade so
+  // the chevrons appear to slide in from the edges.
+  const teachSlideLeft = useRef(new Animated.Value(-14)).current;
+  const teachSlideRight = useRef(new Animated.Value(14)).current;
 
   useEffect(() => {
     let alive = true;
@@ -115,9 +120,19 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         if (!alive) return;
         setShowTeachSwipe(true);
         Animated.sequence([
-          Animated.timing(teachOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-          Animated.delay(800),
-          Animated.timing(teachOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+          // Fade + slide in simultaneously
+          Animated.parallel([
+            Animated.timing(teachOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+            Animated.timing(teachSlideLeft, { toValue: 0, duration: 400, useNativeDriver: true }),
+            Animated.timing(teachSlideRight, { toValue: 0, duration: 400, useNativeDriver: true }),
+          ]),
+          Animated.delay(1200),
+          // Fade + slide out simultaneously
+          Animated.parallel([
+            Animated.timing(teachOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+            Animated.timing(teachSlideLeft, { toValue: -14, duration: 400, useNativeDriver: true }),
+            Animated.timing(teachSlideRight, { toValue: 14, duration: 400, useNativeDriver: true }),
+          ]),
         ]).start(() => {
           if (!alive) return;
           setShowTeachSwipe(false);
@@ -383,19 +398,19 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             </Animated.View>
           )}
           {/* One-time swipe teach hint — plays once after first navigation
-              session, fades in both chevrons simultaneously so the driver
-              learns the peek gesture without any prompt. Never repeats
+              session, fades + slides in both chevrons simultaneously so the
+              driver learns the peek gesture without any prompt. Never repeats
               (AsyncStorage flag 'nav_swipe_taught'). */}
           {showTeachSwipe && (
             <>
               <Animated.View
-                style={[styles.swipeHintLeft, { opacity: teachOpacity }]}
+                style={[styles.swipeHintLeft, { opacity: teachOpacity, transform: [{ translateX: teachSlideLeft }] }]}
                 pointerEvents="none"
               >
                 <Ionicons name="chevron-back" size={22} color="#60a5fa" />
               </Animated.View>
               <Animated.View
-                style={[styles.swipeHintRight, { opacity: teachOpacity }]}
+                style={[styles.swipeHintRight, { opacity: teachOpacity, transform: [{ translateX: teachSlideRight }] }]}
                 pointerEvents="none"
               >
                 <Ionicons name="chevron-forward" size={22} color="#60a5fa" />
@@ -602,6 +617,24 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               <Ionicons name="checkmark" size={26} color="#fff" />
             </Pressable>
           </View>
+          {/* One-time swipe teach hint — same animation plays in minimal mode
+              so drivers who start in compact view also discover the gesture. */}
+          {showTeachSwipe && (
+            <>
+              <Animated.View
+                style={[styles.swipeHintLeft, { opacity: teachOpacity, transform: [{ translateX: teachSlideLeft }] }]}
+                pointerEvents="none"
+              >
+                <Ionicons name="chevron-back" size={22} color="#60a5fa" />
+              </Animated.View>
+              <Animated.View
+                style={[styles.swipeHintRight, { opacity: teachOpacity, transform: [{ translateX: teachSlideRight }] }]}
+                pointerEvents="none"
+              >
+                <Ionicons name="chevron-forward" size={22} color="#60a5fa" />
+              </Animated.View>
+            </>
+          )}
         </Animated.View>
       )}
 
