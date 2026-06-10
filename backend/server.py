@@ -765,7 +765,9 @@ async def _get_or_create_user_from_supabase(payload: dict) -> Optional[User]:
     
     # Determine provider based on token issuer
     issuer = payload.get("iss", "")
-    provider = "google" if "accounts.google.com" in issuer else "supabase"
+    from urllib.parse import urlparse as _urlparse
+    _issuer_host = (_urlparse(issuer).hostname or issuer).lower()
+    provider = "google" if _issuer_host == "accounts.google.com" else "supabase"
     
     user_doc = {
         "user_id": user_id,
@@ -2814,7 +2816,7 @@ async def readiness_check():
 
         return JSONResponse(
             status_code=503,
-            content={"ready": False, "database": "disconnected", "error": str(e)}
+            content={"ready": False, "database": "disconnected", "error": "database_unavailable"}
         )
 
 @app.get("/live")
@@ -2830,9 +2832,12 @@ async def download_temp_file(token: str, current_user: User = Depends(get_curren
     """Authenticated download for exported files. Requires a valid session."""
     import os
     from fastapi.responses import FileResponse
+    base_dir = os.path.realpath(os.path.dirname(__file__))
     safe_token = "".join(c for c in token if c.isalnum())
-    filepath = os.path.join(os.path.dirname(__file__), f"stops_export_{safe_token}.xlsx")
-    if not os.path.exists(filepath):
+    filepath = os.path.realpath(os.path.join(base_dir, f"stops_export_{safe_token}.xlsx"))
+    # Containment check — isalnum filtering already prevents traversal, but
+    # the realpath prefix check makes that provable (CodeQL py/path-injection).
+    if not filepath.startswith(base_dir + os.sep) or not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found or link expired")
     return FileResponse(filepath, filename="stops_export.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

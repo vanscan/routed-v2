@@ -80,9 +80,11 @@ async def optimize_route(
     except Exception as e:
         logger.error("[optimize] Unhandled exception for user=%s algorithm=%s:\n%s",
                      current_user.user_id, request.algorithm, traceback.format_exc())
+        # Class name only — raw str(e) leaks internals to the client
+        # (CodeQL py/stack-trace-exposure); the full traceback is logged above.
         return JSONResponse(
             status_code=500,
-            content={"success": False, "error": str(e)},
+            content={"success": False, "error": f"Optimization failed ({type(e).__name__})"},
         )
 
 
@@ -180,8 +182,11 @@ async def _optimize_route_inner(
     start_index = 0
     current_loc_stop = None
     
-    logger.info("Optimize request: use_current=%s, lat=%s, lng=%s",
-                request.use_current_location, request.current_latitude, request.current_longitude)
+    # Presence only — precise GPS coordinates are private data and don't
+    # belong in the log stream (CodeQL py/clear-text-logging-sensitive-data).
+    logger.info("Optimize request: use_current=%s, has_coords=%s",
+                request.use_current_location,
+                request.current_latitude is not None and request.current_longitude is not None)
     
     if request.use_current_location and request.current_latitude and request.current_longitude:
         # Create a virtual "current location" stop
@@ -2141,7 +2146,7 @@ async def create_optimize_job(
                      current_user.user_id, traceback.format_exc())
         return JSONResponse(
             status_code=500,
-            content={"success": False, "error": f"Optimization kickoff failed: {e}"},
+            content={"success": False, "error": f"Optimization kickoff failed ({type(e).__name__})"},
         )
 
 

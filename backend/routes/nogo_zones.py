@@ -534,7 +534,7 @@ async def apply_nogo_penalty_osrm_aware(
                 penalised += 1
             return True
         except Exception as e:  # noqa: BLE001
-            logger.debug("[nogo-zones] OSRM probe %d→%d skipped: %s", i, j, e)
+            logger.debug("[nogo-zones] OSRM probe %d→%d skipped (%s)", i, j, type(e).__name__)
             return True
 
     try:
