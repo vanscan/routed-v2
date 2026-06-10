@@ -292,8 +292,13 @@ const RouteLine = React.memo(function RouteLine({ routeFC, routeIsPreview }: Rou
           polyline reads as a bold navigable road with an outline. Skipped in
           preview mode, where the route is dashed and a solid casing would show
           through the gaps. Zoom-responsive so it stays proportional. */}
+      {/* key= props are required: maplibre's useFrozenId throws if `id` ever
+          changes on an existing Layer instance. Without keys React reconciles
+          by position, so toggling routeIsPreview shifts siblings up and hands
+          the route-casing instance a different id → crash. */}
       {!routeIsPreview && (
         <Layer
+          key="route-casing"
           id="route-casing"
           type="line"
           layout={{ 'line-cap': 'round', 'line-join': 'round' }}
@@ -305,6 +310,7 @@ const RouteLine = React.memo(function RouteLine({ routeFC, routeIsPreview }: Rou
         />
       )}
       <Layer
+        key="route-line"
         id="route-line"
         type="line"
         layout={{ 'line-cap': 'round', 'line-join': 'round' }}
@@ -317,6 +323,7 @@ const RouteLine = React.memo(function RouteLine({ routeFC, routeIsPreview }: Rou
       />
       {/* Directional arrows along the route line - vector-based with MapLibre */}
       <Layer
+        key="route-arrows"
         id="route-arrows"
         type="symbol"
         layout={{
