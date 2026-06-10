@@ -139,13 +139,20 @@ async def readiness_probe(response: Response):
     try:
         from routes import _tile_cache as _tc
         s = _tc.stats_sync()
-        tile_block = {
-            "rows": s.get("rows", 0),
-            "bytes_on_disk": s.get("bytes_on_disk", 0),
-            "hit_rate": s.get("hit_rate", 0.0),
-            "hits": s.get("hits", 0),
-            "misses": s.get("misses", 0),
-        }
+        if "error" in s:
+            # stats_sync() embeds str(e) + the DB path in its error dict —
+            # don't forward those to unauthenticated callers (CodeQL
+            # py/stack-trace-exposure). Numeric coercion below likewise
+            # guarantees no string from that dict reaches the response.
+            tile_block = {"error": "tile_cache_stats_unavailable"}
+        else:
+            tile_block = {
+                "rows": int(s.get("rows", 0) or 0),
+                "bytes_on_disk": int(s.get("bytes_on_disk", 0) or 0),
+                "hit_rate": float(s.get("hit_rate", 0.0) or 0.0),
+                "hits": int(s.get("hits", 0) or 0),
+                "misses": int(s.get("misses", 0) or 0),
+            }
     except Exception as e:
         logger.warning("readiness probe tile-cache stats failed: %s", e)
         tile_block = {"error": "tile_cache_stats_unavailable"}
