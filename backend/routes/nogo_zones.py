@@ -534,9 +534,11 @@ async def apply_nogo_penalty_osrm_aware(
                 penalised += 1
             return True
         except Exception:  # noqa: BLE001
-            # No exception detail here — httpx errors embed the request URL,
-            # which contains the probe coordinates (private location data).
-            logger.debug("[nogo-zones] OSRM probe %d→%d skipped", i, j)
+            # Static message only. The exception embeds the request URL (which
+            # contains probe coordinates), and even the i/j indices are
+            # unpacked from the same tuples as the coordinates, so CodeQL's
+            # collection taint flags anything derived from `candidates`.
+            logger.debug("[nogo-zones] OSRM probe skipped")
             return True
 
     try:
