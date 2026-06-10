@@ -533,8 +533,10 @@ async def apply_nogo_penalty_osrm_aware(
                 matrix[i][j] = float(matrix[i][j]) + _NOGO_PENALTY
                 penalised += 1
             return True
-        except Exception as e:  # noqa: BLE001
-            logger.debug("[nogo-zones] OSRM probe %d→%d skipped (%s)", i, j, type(e).__name__)
+        except Exception:  # noqa: BLE001
+            # No exception detail here — httpx errors embed the request URL,
+            # which contains the probe coordinates (private location data).
+            logger.debug("[nogo-zones] OSRM probe %d→%d skipped", i, j)
             return True
 
     try:

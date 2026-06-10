@@ -848,7 +848,7 @@ async def _optimize_route_inner(
             optimized_stops = [stops[i] for i in improved_indices]
             if current_loc_stop:
                 optimized_stops = [s for s in optimized_stops if s.get("id") != "current_location"]
-            reasoning = f"Generoute failed ({str(e)[:50]}), used 2-Opt fallback"
+            reasoning = f"Generoute failed ({type(e).__name__}), used 2-Opt fallback"
     
     elif algorithm_used == "mapbox":
         try:
@@ -890,7 +890,7 @@ async def _optimize_route_inner(
             route_indices = _indices_by_identity(stops, nn_result)
             improved_indices = two_opt_improve(route_indices, alns_matrix)
             optimized_stops = [stops[i] for i in improved_indices]
-            reasoning = f"ALNS failed ({str(e)[:80]}), used 2-Opt fallback"
+            reasoning = f"ALNS failed ({type(e).__name__}), used 2-Opt fallback"
 
     elif algorithm_used == "cluster_first":
         cluster_info = []
@@ -911,13 +911,13 @@ async def _optimize_route_inner(
             try:
                 alns_time_limit = max(4, min(15, 8 + len(stops) // 10))
                 optimized_stops = _srv.alns_hybrid_optimize(stops, distance_matrix, start_index=start_index, time_limit_seconds=alns_time_limit)
-                reasoning = f"Cluster-first failed ({str(e)[:50]}), used ALNS fallback"
+                reasoning = f"Cluster-first failed ({type(e).__name__}), used ALNS fallback"
             except Exception:
                 nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
                 route_indices = _indices_by_identity(stops, nn_result)
                 improved_indices = two_opt_improve(route_indices, distance_matrix)
                 optimized_stops = [stops[i] for i in improved_indices]
-                reasoning = f"Cluster-first failed ({str(e)[:50]}), used 2-Opt fallback"
+                reasoning = f"Cluster-first failed ({type(e).__name__}), used 2-Opt fallback"
 
     elif algorithm_used == "vroom":
         try:
@@ -1017,7 +1017,7 @@ async def _optimize_route_inner(
             route_indices = _indices_by_identity(stops, nn_result)
             improved_indices = two_opt_improve(route_indices, distance_matrix)
             optimized_stops = [stops[i] for i in improved_indices]
-            reasoning = f"OR-Tools failed ({str(e)[:80]}), used 2-Opt fallback"
+            reasoning = f"OR-Tools failed ({type(e).__name__}), used 2-Opt fallback"
 
     elif algorithm_used == "pyvrp":
         try:
@@ -1058,7 +1058,7 @@ async def _optimize_route_inner(
                     time_limit_ms=ortools_time_ms,
                 )
                 optimized_stops = [stops[i] for i in indices]
-                reasoning = f"PyVRP failed ({str(e)[:60]}), OR-Tools fallback"
+                reasoning = f"PyVRP failed ({type(e).__name__}), OR-Tools fallback"
             except Exception:
                 nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
                 route_indices = _indices_by_identity(stops, nn_result)
@@ -1099,7 +1099,7 @@ async def _optimize_route_inner(
                 ortools_time_ms = max(2000, min(30000, 2000 + len(stops) * 80))
                 indices = ortools_tsp_solve(solver_matrix, depot=start_index, time_limit_ms=ortools_time_ms)
                 optimized_stops = [stops[i] for i in indices]
-                reasoning = f"VROOM→OR-Tools failed ({str(e)[:60]}), OR-Tools cold-start fallback"
+                reasoning = f"VROOM→OR-Tools failed ({type(e).__name__}), OR-Tools cold-start fallback"
             except Exception:
                 nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
                 route_indices = _indices_by_identity(stops, nn_result)
@@ -1171,7 +1171,7 @@ async def _optimize_route_inner(
             route_indices = _indices_by_identity(stops, nn_result)
             improved_indices = two_opt_improve(route_indices, distance_matrix)
             optimized_stops = [stops[i] for i in improved_indices]
-            reasoning = f"ILS failed ({str(e)[:80]}), used 2-Opt fallback"
+            reasoning = f"ILS failed ({type(e).__name__}), used 2-Opt fallback"
         
     elif algorithm_used == "genetic":
         optimized_stops = await asyncio.to_thread(genetic_algorithm_optimize, stops, distance_matrix, start_index, 
@@ -1203,7 +1203,7 @@ async def _optimize_route_inner(
                     time_limit_ms=max(2000, len(stops) * 80),
                 )
                 optimized_stops = [stops[i] for i in indices]
-                reasoning = f"LKH failed ({str(e)[:50]}), OR-Tools fallback"
+                reasoning = f"LKH failed ({type(e).__name__}), OR-Tools fallback"
             except Exception:
                 nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
                 route_indices = _indices_by_identity(stops, nn_result)
@@ -1312,7 +1312,7 @@ async def _optimize_route_inner(
                 solver_matrix = duration_matrix if duration_matrix else _haversine_duration_matrix(stops)
                 indices = ortools_tsp_solve(solver_matrix, depot=start_index, time_limit_ms=max(2000, len(stops) * 80))
                 optimized_stops = [stops[i] for i in indices]
-                reasoning = f"Timefold failed ({str(e)[:50]}), OR-Tools fallback"
+                reasoning = f"Timefold failed ({type(e).__name__}), OR-Tools fallback"
             except Exception:
                 nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
                 route_indices = _indices_by_identity(stops, nn_result)
@@ -1355,7 +1355,7 @@ async def _optimize_route_inner(
             optimized_stops = _smart_insertion_fallback(
                 stops, solver_matrix, start_index, locked_order_indices
             )
-            reasoning = f"Late Freight smart insertion (deterministic fallback: {str(e)[:60]})"
+            reasoning = f"Late Freight smart insertion (deterministic fallback: {type(e).__name__})"
 
     else:
         # Default to nearest neighbor
@@ -2067,7 +2067,7 @@ async def _run_optimize_job(job_id: str, request: OptimizationRequest, current_u
                 import json as _json_resp
                 payload = _json_resp.loads(result.body.decode("utf-8"))
             except Exception as e:
-                payload = {"_raw_response_decode_error": str(e)}
+                payload = {"_raw_response_decode_error": type(e).__name__}
         else:
             payload = result
         await db.optimize_jobs.update_one(
@@ -2090,7 +2090,7 @@ async def _run_optimize_job(job_id: str, request: OptimizationRequest, current_u
         await db.optimize_jobs.update_one(
             {"job_id": job_id},
             {"$set": {"status": "error",
-                      "error": {"status": 500, "detail": f"Optimize crashed: {e}"},
+                      "error": {"status": 500, "detail": f"Optimize crashed ({type(e).__name__})"},
                       "finished_at": _dt_jobs.now(_tz_jobs.utc)}},
         )
 
