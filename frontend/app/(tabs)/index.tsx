@@ -226,6 +226,7 @@ export default function RouteScreen() {
   const [hasUnconfirmedOptimization, setHasUnconfirmedOptimization] = useState(false);
   const [showOptBadge, setShowOptBadge] = useState(false);
   const [optBadgeText, setOptBadgeText] = useState('');
+  const [lateFreightChipDismissed, setLateFreightChipDismissed] = useState(false);
   // ML data-pipeline health badge (sidebar). Refreshes on mount and after every
   // /complete (re-fetched via the same hook below). null = not yet loaded /
   // auth failure → badge silently hides, never crashes the sidebar.
@@ -459,6 +460,16 @@ export default function RouteScreen() {
   // imperatively into the WebView's maplibre-gl clustering source. Dark-blue
   // bubbles with white stop counts render when zoomed out; the numbered pins
   // take over when zoomed in. Imperative push ⇒ zero map/WebView re-renders.
+
+  // Late-freight count — number of stops with no `original_sequence` once the
+  // route has been confirmed. Drives the HUD re-optimise chip below.
+  const lateFreightCount = useMemo(() => {
+    if (!computeRouteConfirmed(stops)) return 0;
+    return stops.filter(
+      (s) => s.original_sequence == null || Number.isNaN(s.original_sequence as unknown as number),
+    ).length;
+  }, [stops]);
+
   const clusterFC = useMemo(() => ({
     type: 'FeatureCollection' as const,
     features: stops
@@ -929,6 +940,18 @@ export default function RouteScreen() {
     }
     return result;
   };
+
+  // ── Late-freight chip dismissed-state reset ──
+  // When the count grows (a new parcel was just added) un-dismiss the HUD chip
+  // so the driver sees the prompt again. We compare against the previous count
+  // stored in a ref so the effect only fires on increases, not on re-renders.
+  const prevLateFreightCountRef = useRef(0);
+  useEffect(() => {
+    if (lateFreightCount > prevLateFreightCountRef.current) {
+      setLateFreightChipDismissed(false);
+    }
+    prevLateFreightCountRef.current = lateFreightCount;
+  }, [lateFreightCount]);
 
   // ── Late-freight zipper ──
   // When a late freight parcel is added to a locked route, the store sets
@@ -4263,6 +4286,59 @@ export default function RouteScreen() {
           <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
             {optBadgeText || `Route optimised · ${stops.length} stop${stops.length !== 1 ? 's' : ''}`}
           </Text>
+        </View>
+      )}
+
+      {/* Late Freight Re-Optimise HUD chip — appears when new stops have been
+          added to a locked route and the driver hasn't yet dismissed or acted.
+          Amber pill at top-centre; tapping it fires handleOptimize() and hides
+          itself. The × button dismisses without optimising — it won't reappear
+          until the count increases again (new parcel added in the same session). */}
+      {lateFreightCount > 0 && !lateFreightChipDismissed && !optimizing && !hasUnconfirmedOptimization && (
+        <View
+          style={{
+            position: 'absolute',
+            top: insets.top + 56,
+            alignSelf: 'center',
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(217,119,6,0.93)',
+            borderRadius: 999,
+            paddingVertical: 6,
+            paddingLeft: 14,
+            paddingRight: 8,
+            gap: 4,
+            shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+            elevation: 6,
+          }}
+          data-testid="late-freight-chip"
+        >
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+            onPress={() => {
+              setLateFreightChipDismissed(true);
+              handleOptimize();
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+            }}
+            activeOpacity={0.8}
+            data-testid="late-freight-chip-reoptimise"
+          >
+            <Ionicons name="alert-circle-outline" size={15} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+              {lateFreightCount} new stop{lateFreightCount !== 1 ? 's' : ''} added — Re-optimise?
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setLateFreightChipDismissed(true);
+              try { Haptics.selectionAsync(); } catch {}
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ paddingLeft: 6, paddingRight: 2 }}
+            data-testid="late-freight-chip-dismiss"
+          >
+            <Ionicons name="close" size={14} color="rgba(255,255,255,0.85)" />
+          </TouchableOpacity>
         </View>
       )}
 
