@@ -212,6 +212,28 @@ export default function StopDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
       >
+        {/* Undo banner — shown only for completed stops. Prominent amber
+            CTA sits at the very top of the sheet so the driver sees it
+            immediately without scrolling, making it easy to correct a
+            mis-delivered stop with a single tap. */}
+        {stop.completed && (
+          <TouchableOpacity
+            style={styles.undoBanner}
+            onPress={handleComplete}
+            activeOpacity={0.8}
+            testID="stop-detail-undo-banner"
+          >
+            <View style={styles.undoBannerIcon}>
+              <Ionicons name="arrow-undo-circle" size={26} color="#f59e0b" />
+            </View>
+            <View style={styles.undoBannerBody}>
+              <Text style={styles.undoBannerTitle}>Mark as not delivered</Text>
+              <Text style={styles.undoBannerSub}>Tap to undo and move back to active stops</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#f59e0b" />
+          </TouchableOpacity>
+        )}
+
         {/* Main Card */}
         <View style={[styles.mainCard, stop.completed && styles.mainCardCompleted]}>
           {/* Status / Number Header — dual-badge layout:
@@ -292,7 +314,7 @@ export default function StopDetailScreen() {
                   color={stop.completed ? "#f59e0b" : "#10b981"} 
                 />
               </View>
-              <Text style={styles.quickActionText}>{stop.completed ? 'Undo' : 'Complete'}</Text>
+              <Text style={styles.quickActionText}>{stop.completed ? 'Not delivered' : 'Complete'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -460,7 +482,7 @@ export default function StopDetailScreen() {
             color="#fff" 
           />
           <Text style={styles.bottomButtonText}>
-            {stop.completed ? 'Mark as Incomplete' : 'Mark as Complete'}
+            {stop.completed ? 'Mark as not delivered' : 'Mark as Complete'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -499,6 +521,40 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 20,
+  },
+  undoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 20,
+    gap: 12,
+  },
+  undoBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  undoBannerBody: {
+    flex: 1,
+  },
+  undoBannerTitle: {
+    color: '#f59e0b',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  undoBannerSub: {
+    color: '#d97706',
+    fontSize: 12,
+    fontWeight: '500',
   },
   mainCard: {
     backgroundColor: '#1e293b',
