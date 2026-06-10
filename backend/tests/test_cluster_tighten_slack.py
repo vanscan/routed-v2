@@ -39,7 +39,10 @@ import server
 
 
 def _optimize_source() -> str:
-    return inspect.getsource(server.optimize_route)
+    # The auto-tighten call lives in the inner pipeline (the public
+    # `optimize_route` is a thin try/except wrapper around it). The function
+    # body moved to routes/optimize.py but stays re-exported from server.
+    return inspect.getsource(server._optimize_route_inner)
 
 
 def test_auto_tighten_uses_unified_90s_3pct_slack():
@@ -94,7 +97,7 @@ def test_manual_tighten_remains_strict():
     Tighten) must NEVER accept slack >0 — an explicit user request
     must produce a route that's strictly not slower on driving time.
     Verified via the `_osrm_verify_relocation` default signature."""
-    src = inspect.getsource(server)
+    src = inspect.getsource(server._osrm_verify_relocation)
     sig_match = re.search(
         r"async\s+def\s+_osrm_verify_relocation\(\s*"
         r"original_seq:\s*List\[dict\],\s*"
