@@ -4263,7 +4263,7 @@ export default function RouteScreen() {
       {/* Post-optimization badge — transient 4-second flash showing stop count
           after a successful optimise. Separate from the persistent Confirm Route
           CTA below; this is purely informational and auto-dismisses. */}
-      {showOptBadge && !optimizing && viewMode === 'planning' && !isRefineMode && (
+      {showOptBadge && !optimizing && (viewMode === 'planning' || viewMode === 'navigating') && !isRefineMode && (
         <View
           style={{
             position: 'absolute',
