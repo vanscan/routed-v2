@@ -64,32 +64,53 @@ jobs:
         # binary. If this fails, run `yarn install` locally and commit yarn.lock.
         run: yarn install --frozen-lockfile
 
+      - name: Cache hermesc binary
+        id: hermesc-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/hermesc
+          key: hermesc-linux64-${{ hashFiles('frontend/package.json') }}
+
       - name: Ensure hermesc binary
         working-directory: frontend
-        # The react-native npm tarball sometimes lands in the yarn cache from
-        # a publish that predates hermesc being bundled (react-native has
-        # republished the same semver with different contents). If the stale
-        # cached tarball is used, linux64-bin/hermesc will be absent and
-        # `eas update` fails with "Cannot find the hermesc executable."
-        # This step ensures the binary is always present and executable,
-        # recovering it from a fresh npm pack if needed.
+        # RN ≤ 0.72 bundled hermesc in the npm tarball; RN 0.76+ removed it —
+        # the binary is now built from source by Gradle during native Android builds.
+        # For OTA-only CI runs (no Gradle), we must supply it ourselves.
+        # Priority: (1) yarn install already placed it, (2) restored from CI cache,
+        # (3) build from the Hermes source tag declared in sdks/.hermesversion.
         run: |
           HERMESC="node_modules/react-native/sdks/hermesc/linux64-bin/hermesc"
+          CACHE_BIN="$HOME/.cache/hermesc/hermesc"
           if [ -f "$HERMESC" ]; then
             chmod +x "$HERMESC"
-            echo "✓ hermesc present ($(stat -c %s $HERMESC) bytes)"
-          else
-            echo "hermesc missing — recovering from npm registry..."
-            RN_VERSION=$(node -e "console.log(require('./node_modules/react-native/package.json').version)")
-            npm pack "react-native@${RN_VERSION}" --quiet
+            echo "✓ hermesc present ($(stat -c %s "$HERMESC") bytes)"
+          elif [ -f "$CACHE_BIN" ]; then
             mkdir -p "$(dirname "$HERMESC")"
-            tar xzf "react-native-${RN_VERSION}.tgz" \
-              --strip-components=4 \
-              -C "$(dirname "$HERMESC")" \
-              "package/sdks/hermesc/linux64-bin/hermesc"
-            rm -f "react-native-${RN_VERSION}.tgz"
+            cp "$CACHE_BIN" "$HERMESC"
             chmod +x "$HERMESC"
-            echo "✓ hermesc recovered for react-native ${RN_VERSION}"
+            echo "✓ hermesc restored from CI cache ($(stat -c %s "$HERMESC") bytes)"
+          else
+            echo "hermesc missing — building from Hermes source..."
+            HERMES_TAG=$(tr -d '\n' < node_modules/react-native/sdks/.hermesversion)
+            echo "Hermes tag: ${HERMES_TAG}"
+            sudo apt-get install -y --no-install-recommends ninja-build
+            curl -fL "https://github.com/facebook/hermes/tarball/${HERMES_TAG}" \
+              -o /tmp/hermes-src.tar.gz
+            mkdir -p /tmp/hermes-src
+            tar xzf /tmp/hermes-src.tar.gz -C /tmp/hermes-src --strip-components=1
+            rm /tmp/hermes-src.tar.gz
+            cmake /tmp/hermes-src -B /tmp/hermes-build \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DHERMES_BUILD_APPLE_FRAMEWORK=OFF \
+              -DHERMES_ENABLE_TEST_SUITE=OFF \
+              -G Ninja
+            cmake --build /tmp/hermes-build --target hermesc -j$(nproc)
+            mkdir -p "$(dirname "$HERMESC")" "$(dirname "$CACHE_BIN")"
+            cp /tmp/hermes-build/bin/hermesc "$HERMESC"
+            cp /tmp/hermes-build/bin/hermesc "$CACHE_BIN"
+            rm -rf /tmp/hermes-src /tmp/hermes-build
+            chmod +x "$HERMESC"
+            echo "✓ hermesc built from ${HERMES_TAG} ($(stat -c %s "$HERMESC") bytes)"
           fi
 
       - name: Pre-deploy audit (lightweight)
