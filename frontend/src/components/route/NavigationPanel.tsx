@@ -488,6 +488,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               onPress={() => {
                 setImmersiveMode(!immersiveMode);
               }}
+              onStartShouldSetResponderCapture={() => true}
               testID="nav-more-btn"
             >
               <Text style={styles.compactMoreText}>Details</Text>
