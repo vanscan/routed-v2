@@ -23,16 +23,11 @@ const SIDEBAR_WIDTH = 320;
 const COLLAPSED_WIDTH = 56;
 
 interface SidebarProps {
-  // State
   sidebarExpanded: boolean;
   stops: Stop[];
   completedCount: number;
   totalWeight: number;
   routeStats: { distance: number; duration: number } | null;
-  /**
-   * Whether the last optimize call started from the driver's current GPS location.
-   * null = no optimization has run yet, true = ✓ , false = ⚠ (computed without GPS).
-   */
   routeFromCurrent?: boolean | null;
   optimizing: boolean;
   optimizationHubs: OptimizationHub[];
@@ -42,22 +37,14 @@ interface SidebarProps {
   currentLocation: any;
   viewMode: ViewMode;
   isRefineMode: boolean;
-  /** ML data-pipeline health (from GET /api/admin/ml/readiness). Null while
-   *  loading or on auth/network failure — render is skipped, not crashed. */
   mlReadiness?: {
     pairs: number;
     threshold: number;
     status: 'insufficient' | 'trainable' | 'ready';
   } | null;
-  
-  // Animation values
   sidebarWidth: Animated.AnimatedInterpolation<number>;
   contentOpacity: Animated.AnimatedInterpolation<number>;
-  
-  // Insets
   insets: { top: number; bottom: number };
-  
-  // Callbacks
   toggleSidebar: () => void;
   onAddStop: () => void;
   onImport: () => void;
@@ -76,17 +63,10 @@ interface SidebarProps {
   onEnterRefineMode: () => void;
   setStopsCollapsed: (collapsed: boolean) => void;
   setIsDragMode: (mode: boolean) => void;
-  /** Called when the driver finishes a drag-to-reorder gesture. Receives
-   *  the new ordering as an array of stop IDs in the desired drive order.
-   *  Parent should POST to /api/stops/reorder via stopsStore.reorderStops.
-   *  Reordering pre-confirm shifts the optimised drive order; reordering
-   *  post-confirm shifts drive order WITHOUT touching original_sequence
-   *  (Sharpie pin labels stay locked, just visited in a new sequence). */
   onReorder?: (stopIds: string[]) => void;
   getSuburbColor: (suburb?: string) => string;
 }
 
-// --- Grouped Stops List Component ---
 const GroupedStopsList: React.FC<{
   stops: Stop[];
   refreshing: boolean;
@@ -95,21 +75,9 @@ const GroupedStopsList: React.FC<{
   getSuburbColor: (suburb?: string) => string;
 }> = ({ stops, refreshing, onRefresh, onStopPress, getSuburbColor }) => {
   const groups = useMemo(() => groupStopsByLocation(stops), [stops]);
-  // Compute once — true iff any stop carries a Sharpie-locked
-  // `original_sequence`. Used to distinguish "this stop has no pin yet
-  // because the route is unconfirmed" (planning mode → dash badge) from
-  // "this stop has no pin because it was added AFTER lock" (late
-  // freight → amber warning badge with ❗). The map already paints this
-  // distinction via `stopPinLabel`; the sidebar must match so drivers
-  // glancing at the list spot late-freight instantly.
   const routeConfirmed = useMemo(() => computeRouteConfirmed(stops), [stops]);
-
-  // Late-freight slot labels ("45A", "45B") keyed by stop id, computed in
-  // visiting order and anchored to the nearest preceding locked stop. Keeps
-  // the sidebar in lock-step with the map pins (DeliveryMap late_label).
   const lateLabels = useMemo(() => buildLateFreightLabels(stops as any), [stops]);
 
-  // Track the running order index for display
   let runningIndex = 0;
 
   return (
@@ -130,15 +98,8 @@ const GroupedStopsList: React.FC<{
         runningIndex += group.stops.length;
 
         if (group.stops.length === 1) {
-          // Single stop — render normally
           const stop = group.stops[0];
           const pinNum = stopPinNumber(stop);
-          // Late freight = a stop with no Sharpie value on a route that
-          // has already been confirmed. The amber-with-exclamation badge
-          // matches the map's amber-ringed `!` pin (see DeliveryMap
-          // 3-state painter), so a driver scanning the sidebar spots the
-          // late-freight rows instantly without having to cross-check
-          // the map.
           const isLateFreight = pinNum === null && routeConfirmed;
           return (
             <Pressable
@@ -161,7 +122,7 @@ const GroupedStopsList: React.FC<{
                   <Ionicons name="checkmark" size={14} color="#fff" />
                 ) : isLateFreight ? (
                   <Text style={styles.stopIndexText} testID={`late-freight-badge-${stop.id}`}>
-                    {lateLabels[stop.id] ?? '\u2605'}
+                    {lateLabels[stop.id] ?? '★'}
                   </Text>
                 ) : (
                   <Text style={styles.stopIndexText}>{pinNum ?? '—'}</Text>
@@ -191,9 +152,6 @@ const GroupedStopsList: React.FC<{
           );
         }
 
-        // Multi-stop group — consolidated card. Mark the whole group
-        // as late freight if its representative stop is — drivers grab
-        // the entire colocated cluster together when it shows up off-pile.
         const groupHeadPin = stopPinNumber(group.stops[0]);
         const groupIsLateFreight = groupHeadPin === null && routeConfirmed;
         return (
@@ -202,7 +160,6 @@ const GroupedStopsList: React.FC<{
             style={[styles.groupedCard, group.allCompleted && styles.stopItemCompleted]}
             data-testid={`grouped-stop-card-${group.key}`}
           >
-            {/* Group header */}
             <View style={styles.groupedHeader}>
               <View style={[
                 styles.stopIndex,
@@ -212,7 +169,7 @@ const GroupedStopsList: React.FC<{
               ]}>
                 {groupIsLateFreight && !group.allCompleted ? (
                   <Text style={styles.stopIndexText} testID={`late-freight-badge-${group.key}`}>
-                    {(group.stops[0].id && lateLabels[group.stops[0].id]) ? lateLabels[group.stops[0].id] : '\u2605'}
+                    {(group.stops[0].id && lateLabels[group.stops[0].id]) ? lateLabels[group.stops[0].id] : '★'}
                   </Text>
                 ) : (
                   <Text style={styles.stopIndexText}>{groupHeadPin ?? '—'}</Text>
@@ -228,14 +185,12 @@ const GroupedStopsList: React.FC<{
               </View>
             </View>
 
-            {/* Completion progress */}
             {group.completedCount > 0 && group.completedCount < group.stops.length && (
               <View style={styles.groupProgress}>
                 <View style={[styles.groupProgressBar, { width: `${(group.completedCount / group.stops.length) * 100}%` }]} />
               </View>
             )}
 
-            {/* Individual sub-stops */}
             <View style={styles.groupedSubStops}>
               {group.stops.map((stop, i) => (
                 <Pressable
@@ -308,8 +263,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onReorder,
   getSuburbColor,
 }) => {
-  // Late-freight slot labels ("45A", "45B") for the drag-reorder list —
-  // mirrors GroupedStopsList so the badge stays consistent across views.
   const dragLateLabels = useMemo(() => buildLateFreightLabels(stops as any), [stops]);
   const dragRouteConfirmed = useMemo(() => computeRouteConfirmed(stops), [stops]);
   return (
@@ -361,7 +314,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </View>
       </View>
 
-      {/* Stats Summary — merged compact row (counts + route stats inline) */}
+      {/* Stats Summary */}
       <View style={styles.statsCompact}>
         <View style={styles.statCompactItem}>
           <View style={[styles.statCompactIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
@@ -434,7 +387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <Animated.View style={[styles.expandedContent, { opacity: contentOpacity }]}>
         {sidebarExpanded && (
           <>
-            {/* Action Buttons — slim 2-col grid for secondary, full-width for primary */}
+            {/* Action Buttons */}
             <View style={styles.sidebarActions}>
               <View style={styles.actionRow2col}>
                 <TouchableOpacity
@@ -476,9 +429,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Van bin grid configuration — one-tap entry point to the
-                  parcel-finding setup. Persists per-driver, so this only
-                  needs to be set once. */}
               <View style={styles.actionRow2col}>
                 <TouchableOpacity
                   style={[styles.actionBtnMini, styles.actionBtnHalf]}
@@ -555,7 +505,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Clear Hubs Button - Only show when hubs exist */}
               {(optimizationHubs?.length ?? 0) > 0 && (
                 <TouchableOpacity
                   style={styles.actionBtnClearHubs}
@@ -567,7 +516,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </View>
 
-            {/* Hub Hint - Show when no hubs */}
             {optimizationHubs.length === 0 && stops.length >= 2 && !isRefineMode && (
               <View style={styles.hubHintContainer}>
                 <Ionicons name="information-circle-outline" size={14} color="#6b7280" />
@@ -621,11 +569,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     data={stops}
                     keyExtractor={(item) => item.id}
                     onDragEnd={({ data }) => {
-                      // Fire the parent callback with the new order. The
-                      // store's reorderStops action optimistically updates
-                      // local state then POSTs /api/stops/reorder; on
-                      // network failure it auto-reverts. UI feedback is
-                      // immediate; persistence is best-effort.
                       if (onReorder) onReorder(data.map((s) => s.id));
                     }}
                     activationDistance={8}
@@ -1057,12 +1000,6 @@ const styles = StyleSheet.create({
   stopIndexCompleted: {
     backgroundColor: '#10b981',
   },
-  // Late-freight badge: solid purple-500 with a darker purple-700 border so
-  // it visually pops out of the suburb-tinted standard badges. Matches
-  // the purple-500 ring + ★ Unicode BLACK STAR used by the map's 3-state
-  // pin painter (`DeliveryMap.native.tsx::1369`) so map + sidebar tell
-  // the same story. Purple chosen because red/amber/blue/green are all
-  // already in use (locked Sharpie / planning / completed states).
   stopIndexLateFreight: {
     backgroundColor: '#a855f7',
     borderWidth: 1.5,
@@ -1091,8 +1028,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
   },
-
-  // Grouped stop card styles
   groupedCard: {
     backgroundColor: '#ffffff',
     borderRadius: 10,
@@ -1231,16 +1166,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#d1fae5',
     borderColor: '#10b981',
   },
-  // Active drag-row styling — slight tint + subtle elevation so the row
-  // feels lifted off the list while the user moves it.
   stopItemDragging: {
-    backgroundColor: '#eff6ff',  // blue-50
+    backgroundColor: '#eff6ff',
     borderColor: '#1d4ed8',
     borderWidth: 1.5,
     transform: [{ scale: 1.02 }],
   },
-  // Visible grip handle on the right edge — affordance that this row
-  // can be dragged. Only shown in drag mode.
   dragHandle: {
     paddingHorizontal: 4,
     justifyContent: 'center',
