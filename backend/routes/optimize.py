@@ -124,6 +124,8 @@ async def _optimize_route_inner(
         generoute_optimize,
         genetic_algorithm_optimize,
         iterated_local_search,
+        ELKAI_AVAILABLE,
+        elkai_tsp_solve,
         lkh_tsp_solve,
         mapbox_optimize,
         nearest_neighbor_optimize,
@@ -1210,6 +1212,33 @@ async def _optimize_route_inner(
                 improved_indices = two_opt_improve(route_indices, distance_matrix)
                 optimized_stops = [stops[i] for i in improved_indices]
                 reasoning = "LKH+OR-Tools failed, 2-Opt fallback"
+
+    elif algorithm_used == "elkai":
+        try:
+            if not ELKAI_AVAILABLE:
+                raise RuntimeError("elkai not available")
+            solver_matrix = duration_matrix if duration_matrix else _haversine_duration_matrix(stops)
+            indices = cluster_aware_solve(
+                elkai_tsp_solve, solver_matrix, start_index, stops,
+            )
+            optimized_stops = [stops[i] for i in indices]
+            reasoning = f"Elkai LKH (bundled C backend, {len(stops)} stops)"
+        except Exception as e:
+            logger.warning("elkai failed, falling back to OR-Tools: %s", e)
+            try:
+                solver_matrix = duration_matrix if duration_matrix else _haversine_duration_matrix(stops)
+                indices = cluster_aware_solve(
+                    ortools_tsp_solve, solver_matrix, start_index, stops,
+                    time_limit_ms=max(2000, len(stops) * 80),
+                )
+                optimized_stops = [stops[i] for i in indices]
+                reasoning = f"elkai failed ({type(e).__name__}), OR-Tools fallback"
+            except Exception:
+                nn_result = nearest_neighbor_optimize(stops, distance_matrix, start_index)
+                route_indices = _indices_by_identity(stops, nn_result)
+                improved_indices = two_opt_improve(route_indices, distance_matrix)
+                optimized_stops = [stops[i] for i in improved_indices]
+                reasoning = "elkai+OR-Tools failed, 2-Opt fallback"
 
     elif algorithm_used == "vroom_lkh_3opt":
         try:
