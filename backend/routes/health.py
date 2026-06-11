@@ -102,6 +102,11 @@ async def readiness_probe(response: Response):
       • tile_cache — row count + bytes on disk + hit rate (from the
         existing stats_sync()). Useful for spotting cold-pod vs warm-pod
         traffic differences in the deploy panel without log diving.
+      • solvers — availability flag per optimizer engine, read from the
+        guarded-import flags in server.py. One curl tells you whether the
+        deployed image actually has the solver an app build is about to
+        request (a stale deploy silently falls back otherwise). Booleans
+        only — the *_IMPORT_ERROR strings stay server-side.
       • status — 'ok' if mongo ping succeeded, 'degraded' otherwise.
         HTTP 503 on degraded so the K8s probe can mark the pod
         unready and pull it out of the load-balancer rotation.
@@ -157,6 +162,23 @@ async def readiness_probe(response: Response):
         logger.warning("readiness probe tile-cache stats failed: %s", e)
         tile_block = {"error": "tile_cache_stats_unavailable"}
 
+    # ── Solver availability (best-effort, never fail the probe) ─────────
+    solvers_block: Dict[str, Any]
+    try:
+        import server as _srv  # noqa: WPS433
+        solvers_block = {
+            "vroom": bool(_srv.VROOM_AVAILABLE),
+            "lkh": bool(_srv.LKH_AVAILABLE),
+            "elkai": bool(_srv.ELKAI_AVAILABLE),
+            "ortools": bool(_srv.ORTOOLS_AVAILABLE),
+            "pyvrp": bool(_srv.PYVRP_AVAILABLE),
+            "alns": bool(_srv.ALNS_AVAILABLE),
+            "timefold": bool(_srv.TIMEFOLD_AVAILABLE),
+        }
+    except Exception as e:
+        logger.warning("readiness probe solver flags failed: %s", e)
+        solvers_block = {"error": "solver_flags_unavailable"}
+
     now = datetime.now(timezone.utc)
     uptime = (now - _PROCESS_STARTED_AT).total_seconds()
     status = "ok" if mongo_ok else "degraded"
@@ -175,6 +197,7 @@ async def readiness_probe(response: Response):
         },
         "mongo": mongo_block,
         "tile_cache": tile_block,
+        "solvers": solvers_block,
     }
 
 
