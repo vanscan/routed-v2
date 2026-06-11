@@ -146,6 +146,4 @@ postgrest==2.31.0
 realtime==2.31.0
 storage3==2.31.0
 
-# Optional: elkai - LKH solver with bundled C backend (requires build tools)
-# Install with: pip install elkai (needs cmake, scikit-build-core)
-# elkai>=2.0.1
+elkai>=2.0.1
