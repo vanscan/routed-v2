@@ -93,6 +93,7 @@ async def _optimize_route_inner(
     current_user: User = Depends(_current_user)
 ):
     import server as _srv  # noqa: WPS433
+    from routes._route_constraints import parse_start_time  # noqa: WPS433
     from server import (  # noqa: WPS433,F811
         LKH_AVAILABLE,
         OSRM_URL,
@@ -131,7 +132,6 @@ async def _optimize_route_inner(
         optimize_segment,
         or_opt_improve,
         ortools_tsp_solve,
-        parse_start_time,
         pyvrp_tsp_solve,
         solve_nearest_neighbor,
         three_opt_improve,
