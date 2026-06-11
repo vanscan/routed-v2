@@ -34,7 +34,7 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.routedopt.app",
-      "versionCode": 129,
+      "versionCode": 127,
       "runtimeVersion": {
         "policy": "appVersion"
       }
@@ -59,7 +59,7 @@
             "targetSdkVersion": 35,
             "minSdkVersion": 24,
             "buildToolsVersion": "35.0.0",
-            "kotlinVersion": "2.2.10"
+            "kotlinVersion": "2.0.21"
           }
         }
       ],
