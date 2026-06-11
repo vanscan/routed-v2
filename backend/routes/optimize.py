@@ -106,7 +106,6 @@ async def _optimize_route_inner(
         _osrm_distance_matrix,
         _osrm_duration_matrix,
         _smart_insertion_fallback,
-        _srv,
         _traffic_multiplier,
         apply_traffic_multiplier,
         assign_stops_to_hub_segments,
