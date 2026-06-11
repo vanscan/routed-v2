@@ -76,6 +76,7 @@
       "./plugins/withHardwareAcceleration.js",
       "./plugins/withMapLibreVulkan.js",
       "./plugins/withAdiRegistration.js",
+      "./plugins/withKotlinVersion.js",
       [
         "expo-camera",
         {
