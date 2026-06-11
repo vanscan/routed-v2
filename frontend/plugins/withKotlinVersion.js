@@ -14,6 +14,15 @@
  * Fix: inject `ext.kotlinVersion` at the project level in android/build.gradle so
  * ExpoRootProjectPlugin.extra.has("kotlinVersion") returns true, causing it to use
  * the correct version and auto-derive a compatible KSP version via KSPLookup.
+ * async-storage's config.gradle reads the same `rootProject.ext.kotlinVersion` to
+ * pick its own KSP version.
+ *
+ * IMPORTANT: the value must EQUAL the Kotlin compiler React Native actually puts on
+ * the root buildscript classpath (react-native/gradle/libs.versions.toml — 2.1.20
+ * for RN 0.81). `android.kotlinVersion` cannot raise the real compiler version; it
+ * only feeds these ext/KSP lookups. Pinning higher (e.g. 2.2.10) makes async-storage
+ * request KSP 2.2.10-2.0.2 against the 2.1.20 compiler and configure fails with
+ * "ksp-2.2.10-2.0.2 is too new for kotlin-2.1.20".
  */
 const { withProjectBuildGradle } = require('@expo/config-plugins');
 
@@ -30,7 +39,7 @@ module.exports = (config) => {
     // gradle.afterProject, which is after the whole build.gradle is evaluated).
     cfg.modResults.contents = cfg.modResults.contents.replace(
       /(^buildscript\s*\{[\s\S]*?^\})/m,
-      `$1\n\n${MARKER}\next.kotlinVersion = findProperty('android.kotlinVersion') ?: '2.2.10'`
+      `$1\n\n${MARKER}\next.kotlinVersion = findProperty('android.kotlinVersion') ?: '2.1.20'`
     );
 
     return cfg;
