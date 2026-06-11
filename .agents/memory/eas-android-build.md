@@ -20,6 +20,34 @@ Verify `grep -c package-firewall frontend/yarn.lock` returns 0.
 **Why:** the sandbox proxies npm through an internal firewall host; that host is
 private to Replit and unreachable from Expo's build infra.
 
+## The stale `resolutions` override trap (frozen-lockfile fails even when all ranges resolve)
+A yarn v1 `resolutions` entry in `frontend/package.json` that forces a version
+**absent from `yarn.lock`** makes `yarn install --frozen-lockfile` fail with
+`Your lockfile needs to be updated` — even when every direct/transitive dependency
+range IS present in the lock. yarn fires a *fresh* network resolution to apply the
+override (visible in `--verbose` as a `GET .../<pkg>` for the overridden package,
+then the abort), which frozen-lockfile forbids.
+
+**How to diagnose:** `yarn install --frozen-lockfile --verbose 2>&1 | grep "GET http"`
+— the package(s) it fetches right before the abort are the unsatisfied override(s).
+Forcing a version also cascades: e.g. `@react-navigation/native` 7.3.0 pulls
+`@react-navigation/core@^7.19.0` + a new `standard-navigation` dep not in the lock.
+
+**Fix (lowest risk):** if the override is stale collateral from a reverted bump,
+remove the `resolutions` entry so the lock's existing resolved version is honored
+(changes zero resolved versions). Only honor the override (upgrade the lock) if the
+forced version is genuinely intended — that changes runtime versions.
+
+**Why:** a frozen lock must already contain the exact resolution the override demands;
+otherwise yarn must resolve fresh, which `--frozen-lockfile` treats as "out of date".
+
+## versionCode drift from failed `eas build` attempts
+`app.json` `android.versionCode` is auto-incremented locally by EAS at build start,
+*before* the build can fail on the sandbox's git-clone/disk-quota blockers. So even a
+build that never leaves the sandbox bumps it. Keep commits scoped: reset versionCode
+to the deliberate baseline if a stray bump appears in the working diff but you didn't
+intend it.
+
 ## How to submit a build from this repl (all required together)
 ```
 cd frontend && EAS_SKIP_AUTO_FINGERPRINT=1 EAS_NO_VCS=1 \
