@@ -39,35 +39,38 @@ updates:
     # any of them without a full EAS binary rebuild causes JS/native mismatches
     # that crash the app on device. Ignore ALL version updates — upgrades must
     # go through a deliberate SDK upgrade cycle, not Dependabot automation.
+    #
+    # Wildcards, not an enumerated list: the 2026-06-11 incident happened
+    # because an explicit list missed expo-font/-splash-screen/-status-bar/
+    # -system-ui/-web-browser/-document-picker/-build-properties,
+    # react-native-worklets and @react-native-community/netinfo — Dependabot
+    # bumped them to SDK 56 versions on an SDK 54 binary and the OTA crashed
+    # every device on launch (PR #88 reverted it).
     ignore:
       # Core React Native runtime — native binary is compiled against these
       - dependency-name: "react-native"
       - dependency-name: "react"
       - dependency-name: "react-dom"
-      # Expo SDK toolchain — preset version is tightly coupled to the SDK
+      # Expo SDK — covers expo itself and every expo-* module; all are
+      # SDK-versioned and must move together with a new binary
       - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
       - dependency-name: "babel-preset-expo"
-      # Expo SDK 54-pinned native modules — JS must match the compiled binary
-      - dependency-name: "expo-auth-session"
-      - dependency-name: "expo-blur"
-      - dependency-name: "expo-camera"
-      - dependency-name: "expo-crypto"
-      - dependency-name: "expo-dev-client"
-      - dependency-name: "expo-haptics"
-      - dependency-name: "expo-image"
-      - dependency-name: "expo-keep-awake"
-      - dependency-name: "expo-linear-gradient"
-      - dependency-name: "expo-location"
-      - dependency-name: "expo-task-manager"
-      - dependency-name: "expo-updates"
-      # React Native ecosystem — v3 RNGH removed Swipeable; map layer id crash at v12+
+      # Native modules under org scopes — JS must match the compiled binary
+      - dependency-name: "@react-native-community/*"
+      - dependency-name: "@react-native-async-storage/*"
+      - dependency-name: "@react-native-google-signin/*"
+      - dependency-name: "@maplibre/maplibre-react-native"
+      # React Native ecosystem native modules — v3 RNGH removed Swipeable;
+      # map layer id crash at v12+; worklets enforces exact JS/native match
       - dependency-name: "react-native-gesture-handler"
       - dependency-name: "react-native-reanimated"
+      - dependency-name: "react-native-worklets"
       - dependency-name: "react-native-safe-area-context"
       - dependency-name: "react-native-screens"
       - dependency-name: "react-native-svg"
       - dependency-name: "react-native-webview"
-      - dependency-name: "@maplibre/maplibre-react-native"
     groups:
       frontend-dependencies:
         patterns:
