@@ -178,6 +178,11 @@ async def readiness_probe(response: Response):
     }
 
 
+@router.get("/")
+async def api_root():
+    return {"message": "Circuit Route Optimizer API", "status": "healthy"}
+
+
 @router.get("/healthz/version")
 async def readiness_version():
     """Lightweight version-only sub-path for load balancers / monitoring

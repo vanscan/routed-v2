@@ -578,78 +578,8 @@ from solvers.pipeline import (  # noqa: E402
 # TTS (Text-to-Speech) endpoint (/tts) lives in routes/tts.py — wired via
 # api_router.include_router(tts_router) near the other router includes.
 
-# ===================== Health Check =====================
-
-@api_router.get("/")
-async def root():
-    return {"message": "Circuit Route Optimizer API", "status": "healthy"}
-
-# Map Alerts endpoints (/alerts/*) live in routes/alerts.py — wired in via
-# api_router.include_router(alerts_router) near the other router includes.
-
-@api_router.get("/traffic/info")
-async def traffic_info():
-    """Return current traffic multiplier and schedule."""
-    from datetime import datetime, timezone
-    now_hour = datetime.now(timezone.utc).hour
-    return {
-        "current_hour_utc": now_hour,
-        "current_multiplier": _traffic_multiplier(now_hour),
-        "schedule": {
-            "night_free_flow": {"hours": "20:00-05:00", "multiplier": 1.00},
-            "early_morning": {"hours": "05:00-07:00", "multiplier": 1.10},
-            "am_peak": {"hours": "07:00-09:00", "multiplier": 1.35},
-            "post_am_peak": {"hours": "09:00-10:00", "multiplier": 1.15},
-            "midday": {"hours": "10:00-15:00", "multiplier": 1.05},
-            "school_run": {"hours": "15:00-16:00", "multiplier": 1.20},
-            "pm_peak": {"hours": "16:00-18:00", "multiplier": 1.40},
-            "post_pm_peak": {"hours": "18:00-20:00", "multiplier": 1.15},
-        }
-    }
-
-@api_router.get("/cache/stats")
-async def cache_stats():
-    """Return hit/miss stats for in-memory caches."""
-    return {
-        "osrm_matrix": _osrm_matrix_cache.stats(),
-        "osrm_distance": _osrm_distance_cache.stats(),
-        "directions": _directions_cache.stats(),
-    }
-
-
-# Van Layout endpoints (/van-layout) live in routes/van_layout.py — wired via
-# api_router.include_router(van_layout_router). ALLOWED_VAN_SHAPES is
-# re-imported below for backward-compatible `from server import` access.
-
-
-@api_router.get("/auth/debug")
-async def auth_debug(request: Request):
-    """Debug endpoint to check auth configuration and token status."""
-    auth_header = request.headers.get("Authorization", "")
-    has_token = auth_header.startswith("Bearer ") and len(auth_header) > 10
-    
-    result = {
-        "supabase_configured": bool(SUPABASE_JWT_SECRET),
-        "supabase_jwt_secret_length": len(SUPABASE_JWT_SECRET) if SUPABASE_JWT_SECRET else 0,
-        "has_auth_header": has_token,
-    }
-    
-    if has_token:
-        token = auth_header.split(" ")[1]
-        result["token_prefix"] = token[:20] + "..." if len(token) > 20 else token
-        result["token_length"] = len(token)
-        
-        # Try to decode
-        payload = _decode_supabase_jwt(token)
-        if payload:
-            result["jwt_valid"] = True
-            result["jwt_email"] = payload.get("email")
-            result["jwt_sub"] = payload.get("sub")
-        else:
-            result["jwt_valid"] = False
-            result["jwt_error"] = "Failed to decode - check SUPABASE_JWT_SECRET"
-    
-    return result
+# ── GET /, /traffic/info, /cache/stats moved to routes/health.py + routes/meta.py ──
+# /auth/debug moved to routes/auth.py — all wired via api_router below.
 
 # /api/health, /api/healthz and /api/healthz/version moved to
 # routes/health.py — wired via api_router.include_router(health_router).

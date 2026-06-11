@@ -519,3 +519,36 @@ async def get_ml_building_side_model(current_user=Depends(get_current_user)):
         "user_id": current_user.user_id,
         "model": summarize_model(doc),
     }
+
+
+@router.get("/traffic/info")
+async def traffic_info():
+    """Return current traffic multiplier and schedule."""
+    from datetime import datetime, timezone
+    from server import _traffic_multiplier  # noqa: WPS433
+    now_hour = datetime.now(timezone.utc).hour
+    return {
+        "current_hour_utc": now_hour,
+        "current_multiplier": _traffic_multiplier(now_hour),
+        "schedule": {
+            "night_free_flow": {"hours": "20:00-05:00", "multiplier": 1.00},
+            "early_morning": {"hours": "05:00-07:00", "multiplier": 1.10},
+            "am_peak": {"hours": "07:00-09:00", "multiplier": 1.35},
+            "post_am_peak": {"hours": "09:00-10:00", "multiplier": 1.15},
+            "midday": {"hours": "10:00-15:00", "multiplier": 1.05},
+            "school_run": {"hours": "15:00-16:00", "multiplier": 1.20},
+            "pm_peak": {"hours": "16:00-18:00", "multiplier": 1.40},
+            "post_pm_peak": {"hours": "18:00-20:00", "multiplier": 1.15},
+        }
+    }
+
+
+@router.get("/cache/stats")
+async def cache_stats():
+    """Return hit/miss stats for in-memory caches."""
+    from server import _osrm_matrix_cache, _osrm_distance_cache, _directions_cache  # noqa: WPS433
+    return {
+        "osrm_matrix": _osrm_matrix_cache.stats(),
+        "osrm_distance": _osrm_distance_cache.stats(),
+        "directions": _directions_cache.stats(),
+    }
