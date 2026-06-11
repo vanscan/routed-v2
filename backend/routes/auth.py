@@ -670,30 +670,8 @@ class ForceSetPasswordRequest(BaseModel):
 # The secure alternative is to use Google OAuth or implement proper email verification
 
 
-@router.get("/auth/debug")
-async def auth_debug(request: Request):
-    """Debug endpoint to check auth configuration and token status."""
-    from server import SUPABASE_JWT_SECRET, _decode_supabase_jwt  # noqa: WPS433
-    auth_header = request.headers.get("Authorization", "")
-    has_token = auth_header.startswith("Bearer ") and len(auth_header) > 10
-
-    result = {
-        "supabase_configured": bool(SUPABASE_JWT_SECRET),
-        "supabase_jwt_secret_length": len(SUPABASE_JWT_SECRET) if SUPABASE_JWT_SECRET else 0,
-        "has_auth_header": has_token,
-    }
-
-    if has_token:
-        token = auth_header.split(" ")[1]
-        result["token_prefix"] = token[:20] + "..." if len(token) > 20 else token
-        result["token_length"] = len(token)
-        payload = _decode_supabase_jwt(token)
-        if payload:
-            result["jwt_valid"] = True
-            result["jwt_email"] = payload.get("email")
-            result["jwt_sub"] = payload.get("sub")
-        else:
-            result["jwt_valid"] = False
-            result["jwt_error"] = "Failed to decode - check SUPABASE_JWT_SECRET"
-
-    return result
+# REMOVED: Insecure GET /auth/debug endpoint.
+# It was unauthenticated and leaked the Supabase JWT secret length, bearer-token
+# prefixes, and a token-validity oracle (jwt_valid/jwt_email/jwt_sub) to any
+# internet caller — an information-disclosure risk per the project threat model.
+# Auth configuration/token debugging should be done from trusted server logs.
