@@ -34,7 +34,7 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "package": "com.routedopt.app",
-      "versionCode": 128,
+      "versionCode": 129,
       "runtimeVersion": {
         "policy": "appVersion"
       }
@@ -59,7 +59,7 @@
             "targetSdkVersion": 35,
             "minSdkVersion": 24,
             "buildToolsVersion": "35.0.0",
-            "kotlinVersion": "2.0.21"
+            "kotlinVersion": "2.1.20"
           }
         }
       ],
@@ -76,6 +76,7 @@
       "./plugins/withHardwareAcceleration.js",
       "./plugins/withMapLibreVulkan.js",
       "./plugins/withAdiRegistration.js",
+      "./plugins/withKotlinVersion.js",
       [
         "expo-camera",
         {
