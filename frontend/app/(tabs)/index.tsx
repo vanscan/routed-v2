@@ -554,6 +554,7 @@ export default function RouteScreen() {
     { id: 'auto', name: '🤖 Auto Select', desc: 'Best for your route size — VROOM+LKH+3opt at 11+ stops, VROOM under' },
     { id: 'vroom_lkh_3opt', name: '🏆 VROOM + LKH-3', desc: 'Full pipeline — highest quality (slowest)' },
     { id: 'vroom', name: '🚀 VROOM', desc: 'Industry-standard VRP — fast, great default' },
+    { id: 'elkai', name: '📍 Elkai (LKH)', desc: 'Lin-Kernighan heuristic — fast, high-quality TSP solver' },
     { id: 'pyvrp', name: '🧬 PyVRP', desc: 'Hybrid genetic solver — state of the art results' },
     { id: 'ortools', name: '🧠 OR-Tools', desc: 'Google constraint solver — handles time windows + capacity' },
   ];
