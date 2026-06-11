@@ -78,3 +78,27 @@ bytes are `8b1e5f00` (NOT gzip 1f8b). Decode with Node:
 `.config/npm/node_global/lib/node_modules/eas-cli/build/vcs/local.js` was patched to
 early-return false for paths containing control chars or `@@` so archiving doesn't
 crash on corrupt filenames in the tree.
+
+## Corrupt yarn.lock → MISLEADING SyntaxError line number
+A stray char committed into `yarn.lock` (e.g. a digit prepended to an entry key like
+`7"@react-navigation/native@^7.1.8":`, from a botched merge/edit) makes
+`yarn install` die with `SyntaxError: Unknown token` at a line number that is WRONG
+(yarn's tokenizer position drifts). Find the real spot with `rg -n '^[0-9]' yarn.lock`
+— a bare digit at column 0 is never valid at the top level of a lockfile.
+
+## Regenerating yarn.lock in-sandbox: use --ignore-scripts
+A plain (non-frozen) `yarn install` is hard-killed in this repl by the `prepare`
+script (`git config core.hooksPath .husky`): the git-protection wrapper intercepts
+the `.git` write and kills the process *before* the script's `|| true` can swallow
+it. The kill strands `/home/runner/workspace/.git/config.lock`, which CANNOT be
+`rm`'d (wrapper blocks all `.git` writes) but is harmless — it only blocks future
+`git config`, not commits/checkpoints. To regen the lock, run
+`yarn install --ignore-scripts` (yarn writes yarn.lock during resolution, before any
+script runs). On EAS there is no wrapper, so `prepare`/`postinstall` run fine.
+A frozen-lockfile sync mismatch (a package.json range not satisfied by the lock)
+shows as `Your lockfile needs to be updated`; verbose `GET http...` lines name the
+unsatisfied package. **Dedup caveat:** an incremental regen keeps the *existing*
+resolution and adds the new one, leaving two versions of the same package — merge
+the ranges onto the higher version by hand (e.g. `"pkg@^a", "pkg@^b":`) or the split
+copy can cause runtime bugs (notably a dual @react-navigation/native breaks
+expo-router's navigation context).
