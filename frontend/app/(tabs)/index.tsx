@@ -1995,7 +1995,19 @@ export default function RouteScreen() {
           // full re-render of this component — 3× the work per GPS tick.
           unstable_batchedUpdates(() => {
             setCurrentLocation(newLocation);
-            setCurrentSpeed(Math.round((location.coords.speed || 0) * 3.6));
+            // Android fused / interpolated fixes routinely report coords.speed = 0
+            // even at speed, which would peg the HUD at 0 km/h and make pause
+            // detection think the van is parked while driving. The nav camera hook
+            // derives a reliable speed from GPS deltas and publishes it (km/h) to
+            // cameraSpeedRef, so coalesce with it here. We only reach this branch
+            // when actually moving (the stationary gate above returns ~0), so the
+            // hook's value isn't pinned high after a stop.
+            setCurrentSpeed(
+              Math.max(
+                Math.round((location.coords.speed || 0) * 3.6),
+                cameraSpeedRef.current || 0,
+              ),
+            );
           });
           
           // Add to traveled path

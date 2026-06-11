@@ -17,6 +17,24 @@
 import { useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
 
+// Great-circle distance in metres between two lng/lat points. Used to derive
+// speed from consecutive GPS fixes when the OS doesn't report coords.speed.
+function haversineMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371000; // Earth radius (m)
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 interface NavigationCameraOptions {
   /** Activate / deactivate the hook without unmounting. */
   enabled: boolean;
@@ -46,9 +64,21 @@ export function useNavigationCamera(
   // useless, and it was rotating the puck while the driver was stopped.
   const hasGpsCourseRef = useRef(false);
 
+  // Previous GPS fix used to derive speed when the OS doesn't report it.
+  // (Android fused / interpolated fixes routinely return coords.speed = 0,
+  //  which would pin the speed-adaptive camera zoom at street level forever.)
+  const prevFixRef = useRef<{ lat: number; lng: number; t: number } | null>(null);
+  // EMA-smoothed speed (m/s). Raw 250 ms deltas carry ~±4 m/s of noise from
+  // 1 m GPS jitter, so we low-pass them before they drive the camera zoom.
+  const emaSpeedRef = useRef(0);
+
   // Speed threshold below which we FREEZE the bearing. Google Maps uses ~2 km/h
   // (~0.56 m/s); we use 1.4 m/s (~5 km/h) so brief coasting doesn't jitter.
   const MOVING_SPEED_MPS = 1.4;
+  // Low-pass factor for the derived speed (smaller = smoother / laggier).
+  const SPEED_EMA_ALPHA = 0.2;
+  // Cap on derived speed (~162 km/h) to reject GPS teleports between fixes.
+  const MAX_DERIVED_SPEED_MPS = 45;
 
   // Keep a stable reference so the async callbacks don't close over stale fns
   const sendRef  = useRef(sendMessage);
@@ -66,6 +96,8 @@ export function useNavigationCamera(
       posSubRef.current  = null;
       headSubRef.current = null;
       hasGpsCourseRef.current = false;
+      prevFixRef.current = null;
+      emaSpeedRef.current = 0;
       if (__DEV__) console.log('[NAV_CAM] Hook disabled or map not ready - subscriptions cleared');
       return;
     }
@@ -105,7 +137,29 @@ export function useNavigationCamera(
           lastFireRef.current = now;
 
           const { latitude, longitude, speed, heading: gpsHeading } = location.coords;
-          const speedMps = Math.max(0, speed ?? 0);
+
+          // ── Speed: trust the OS value when present, but Android fused /
+          //    interpolated fixes routinely report 0 (or null), which would
+          //    pin the speed-adaptive camera zoom at street level forever.
+          //    Derive a fallback from the distance/time delta between
+          //    consecutive fixes, take whichever is larger, then EMA-smooth
+          //    out GPS jitter. (This also re-engages GPS-course bearing once
+          //    moving, instead of leaning on the unreliable magnetometer.) ──
+          const osSpeed = Math.max(0, speed ?? 0);
+          let derived = 0;
+          const prevFix = prevFixRef.current;
+          if (prevFix) {
+            const dt = (now - prevFix.t) / 1000; // seconds
+            if (dt > 0) {
+              const raw = haversineMeters(prevFix.lat, prevFix.lng, latitude, longitude) / dt;
+              if (raw <= MAX_DERIVED_SPEED_MPS) derived = raw;
+            }
+          }
+          prevFixRef.current = { lat: latitude, lng: longitude, t: now };
+          const instantSpeed = Math.max(osSpeed, derived);
+          emaSpeedRef.current =
+            SPEED_EMA_ALPHA * instantSpeed + (1 - SPEED_EMA_ALPHA) * emaSpeedRef.current;
+          const speedMps = Math.max(0, emaSpeedRef.current);
 
           optsRef.current.onSpeedUpdate?.(Math.round(speedMps * 3.6));
 
@@ -152,6 +206,8 @@ export function useNavigationCamera(
       posSubRef.current  = null;
       headSubRef.current = null;
       hasGpsCourseRef.current = false;
+      prevFixRef.current = null;
+      emaSpeedRef.current = 0;
     };
   // Only re-run when enabled/mapReady flip — not on every render
   // eslint-disable-next-line react-hooks/exhaustive-deps
