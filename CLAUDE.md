@@ -161,6 +161,7 @@ Frontend uses `frontend/.env` with `EXPO_PUBLIC_*` prefix for client-visible var
 - **`server.py` line count**: The file is ~2,800 lines (split into `routes/` + `solvers/` in 2026-06). Use `Grep` to navigate — don't read the whole file. Endpoint code lives in `routes/`; solver algorithms in `solvers/`.
 - **LKH binary path**: Resolved by `install_native_solvers.LKH_BIN_PATH`. Falls back to `/usr/local/bin/LKH`. In containers, the binary is compiled from source during Docker build.
 - **`buildings.db` path**: The tile DB resolves via `_resolve_tile_db_path()` which checks both `/app/tiles/buildings.db` (dev layout) and `/tiles/buildings.db` (container layout). The Dockerfile copies it to `/tiles/buildings.db`.
+- **`kotlinVersion` in `app.json` is load-bearing — do NOT change it**: `@react-native-async-storage/async-storage` 3.x forces `kotlin-gradle-plugin:2.2.10` onto the Gradle buildscript classpath, so the effective Kotlin compiler is always 2.2.10. The `expo-build-properties` pin `"kotlinVersion": "2.2.10"` keeps the Compose compiler plugin and KSP (via `plugins/withKotlinVersion.js` → ExpoRootProjectPlugin KSPLookup) aligned with it. Pinning anything else (2.0.x/2.1.x) makes Expo derive a mismatched KSP version and the EAS Android build dies in `:react-native-async-storage_async-storage:kspReleaseKotlin` with an internal compiler error. This has been accidentally reverted before (commit cd59390) — if async-storage is upgraded and bundles a newer Kotlin, bump the pin (and the fallback in `withKotlinVersion.js`) to match, never downgrade it.
 
 ---
 
