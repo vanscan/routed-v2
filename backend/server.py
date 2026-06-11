@@ -817,11 +817,13 @@ api_router.include_router(car_router)
 from routes.health import router as health_router
 api_router.include_router(health_router)
 
-# ── Optimization endpoints moved to routes/optimize.py ───────────────────
-# /optimize (sync), /optimize/jobs*, /optimize/diagnostics,
-# /optimize/tighten-cluster(s), /optimize/algorithms, /generoute/status.
-# The helpers are re-imported so existing `from server import X` call sites
-# (tests, startup hook) keep working.
+# ── Optimization endpoints ────────────────────────────────────────────────
+# Core solver cascade: routes/optimize.py
+# Tighten helpers + endpoints: routes/optimize_tighten.py
+# Async job store + endpoints: routes/optimize_jobs.py
+#
+# Helpers are re-imported here so existing `from server import X` call
+# sites (tests, startup hook) keep working without any changes.
 from routes.optimize import (  # noqa: F401,E402
     router as optimize_router,
     optimize_route,
@@ -836,6 +838,12 @@ from routes.optimize import (  # noqa: F401,E402
     _ensure_optimize_jobs_indexes,
 )
 api_router.include_router(optimize_router)
+
+from routes.optimize_tighten import router as optimize_tighten_router  # noqa: F401,E402
+api_router.include_router(optimize_tighten_router)
+
+from routes.optimize_jobs import router as optimize_jobs_router  # noqa: F401,E402
+api_router.include_router(optimize_jobs_router)
 
 # ── Benchmark endpoint moved to routes/benchmark.py ──────────────────────
 # POST /benchmark + route-quality metric helpers (re-exported for
