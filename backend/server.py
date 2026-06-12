@@ -214,6 +214,12 @@ client = AsyncIOMotorClient(
     retryReads=True
 )
 db = client[os.environ['DB_NAME']]
+
+# Holds strong references to long-running background tasks (e.g. async import
+# jobs and optimize runs) so they are not garbage-collected before completion.
+# See asyncio.create_task docs: callers must keep a reference to the task.
+_OPTIMIZE_RUNNER_TASKS: set = set()
+
 APP_START_TIME = datetime.now(timezone.utc)
 DB_READY_GRACE_SECONDS = int(os.environ.get('DB_READY_GRACE_SECONDS', '300'))
 
@@ -599,7 +605,7 @@ api_router.include_router(tiles_router)
 from routes.ms_buildings import router as ms_buildings_router
 api_router.include_router(ms_buildings_router)
 
-# ── House-number endpoints moved to routes/housenumbers.py ───────────────
+# ── House-number endpoints moved to routes/housenumbers.py ──���────────────
 # Handles /api/housenumbers and /api/housenumbers/prewarm. Own caches +
 # circuit breakers — no shared state with server.py.
 from routes.housenumbers import router as housenumbers_router
