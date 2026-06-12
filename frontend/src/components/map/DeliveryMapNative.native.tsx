@@ -44,6 +44,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -628,6 +629,91 @@ const calloutStyles = StyleSheet.create({
   },
 });
 
+// ─── Multi-stop chooser balloon ──────────────────────────────────────────────
+
+/** One row per stop sharing the tapped doorstep coordinate. */
+type MultiStopItem = {
+  id: string;
+  label: string;
+  address: string;
+  completed: boolean;
+};
+
+/**
+ * Interactive balloon shown when a tapped pin is one of several stops at the
+ * same doorstep (the "stacked numbers" pins). Lists every stop in the group;
+ * tapping a row selects that stop through the normal single-stop flow. Pure
+ * presentation, same screen-space overlay treatment as StopCallout.
+ */
+function MultiStopCallout({
+  items,
+  onPick,
+  onClose,
+}: {
+  items: MultiStopItem[];
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <View style={[calloutStyles.wrap, { pointerEvents: 'box-none' }]}>
+      <View style={calloutStyles.card}>
+        <View style={calloutStyles.headerRow}>
+          <Text style={multiStyles.title}>{items.length} stops at this address</Text>
+          <TouchableOpacity
+            onPressOut={onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            testID="multi-stop-callout-close"
+            activeOpacity={0.6}
+          >
+            <Text style={calloutStyles.closeText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={multiStyles.list} bounces={false}>
+          {items.map((it, idx) => (
+            <TouchableOpacity
+              key={it.id}
+              style={[multiStyles.row, idx === items.length - 1 && multiStyles.rowLast]}
+              onPressOut={() => onPick(it.id)}
+              testID={`multi-stop-row-${it.id}`}
+              activeOpacity={0.7}
+            >
+              <View style={[calloutStyles.badge, it.completed && calloutStyles.badgeDone]}>
+                <Text style={calloutStyles.badgeText}>{it.label}</Text>
+              </View>
+              <Text style={multiStyles.rowAddress} numberOfLines={1}>
+                {it.address}
+              </Text>
+              <View
+                style={[
+                  calloutStyles.statusDot,
+                  { backgroundColor: it.completed ? '#10b981' : '#f59e0b' },
+                ]}
+              />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+      {/* Downward tail pointing at the shared pin coordinate. */}
+      <View style={calloutStyles.tail} />
+    </View>
+  );
+}
+
+const multiStyles = StyleSheet.create({
+  title: { flex: 1, fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  // ~4.5 rows visible before scrolling kicks in.
+  list: { maxHeight: 200 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e8f0',
+  },
+  rowLast: { borderBottomWidth: 0 },
+  rowAddress: { flex: 1, fontSize: 12, color: '#334155', marginHorizontal: 8 },
+});
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps>(
@@ -674,6 +760,12 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     // Updated by projectCallout() whenever the callout opens or the camera moves.
     const [calloutScreenPos, setCalloutScreenPos] = useState<{ x: number; y: number } | null>(null);
     const calloutGeoRef = useRef<{ lng: number; lat: number } | null>(null);
+    // Multi-stop chooser: set when a tapped pin shares its doorstep coordinate
+    // with other stops ("stacked numbers" pins). Same overlay/projection
+    // treatment as the single-stop callout above.
+    const [multiPick, setMultiPick] = useState<{ lng: number; lat: number; ids: string[] } | null>(null);
+    const [multiPickScreenPos, setMultiPickScreenPos] = useState<{ x: number; y: number } | null>(null);
+    const multiPickGeoRef = useRef<{ lng: number; lat: number } | null>(null);
 
     // ── Phase 2 overlay state ──────────────────────────────────────────────
     // GeoJSON fed from backend tiles on camera idle (self-hosted QLD buildings,
@@ -792,6 +884,37 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     onLassoCompleteRef.current = props.onLassoComplete;
 
     // Derived GeoJSON — memoised so GPS / camera ticks don't rebuild them.
+    // Rows for the multi-stop chooser balloon. Labels are read back from the
+    // pin FeatureCollection so the balloon numbers always match what's painted
+    // on the map (locked sequence vs planning order vs late-freight slot).
+    const multiPickItems = useMemo<MultiStopItem[]>(() => {
+      if (!multiPick) return [];
+      const byId = new Map((stops || []).map((s) => [String(s.id), s]));
+      const labelById = new Map<string, string>();
+      for (const f of stopsToFeatureCollection(stops || [], routeConfirmed).features) {
+        const p: any = f.properties;
+        if (p?.id) labelById.set(String(p.id), String(p.label ?? ''));
+      }
+      return multiPick.ids
+        .map((id) => {
+          const s = byId.get(id);
+          if (!s) return null;
+          return {
+            id,
+            label: labelById.get(id) || '•',
+            address: s.address || '',
+            completed: !!s.completed,
+          };
+        })
+        .filter((it): it is MultiStopItem => it !== null)
+        .sort((a, b) => {
+          const na = parseInt(a.label, 10);
+          const nb = parseInt(b.label, 10);
+          if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+          return a.label.localeCompare(b.label);
+        });
+    }, [multiPick, stops, routeConfirmed]);
+
     const stopsFC = useMemo(() => {
       const fc = stopsToFeatureCollection(stops, routeConfirmed);
       if (__DEV__ && fc.features.length > 0) {
@@ -969,6 +1092,37 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         setCalloutScreenPos(null);
       }
     }, [callout?.id, callout?.lng, callout?.lat, projectCallout]);
+
+    // Same projection treatment for the multi-stop chooser balloon.
+    const projectMultiPick = useCallback(async () => {
+      const geo = multiPickGeoRef.current;
+      if (!geo || !mapRef.current) { setMultiPickScreenPos(null); return; }
+      try {
+        const pt = await (mapRef.current as any).project([geo.lng, geo.lat]);
+        if (Array.isArray(pt) && pt.length >= 2) {
+          setMultiPickScreenPos({ x: pt[0] as number, y: pt[1] as number });
+        }
+      } catch {
+        setMultiPickScreenPos(null);
+      }
+    }, []);
+
+    useEffect(() => {
+      if (multiPick) {
+        multiPickGeoRef.current = { lng: multiPick.lng, lat: multiPick.lat };
+        const t = setTimeout(projectMultiPick, 50);
+        return () => clearTimeout(t);
+      } else {
+        multiPickGeoRef.current = null;
+        setMultiPickScreenPos(null);
+      }
+    }, [multiPick, projectMultiPick]);
+
+    // The parent opening the single-stop callout (row pick here, or any other
+    // selection path) supersedes the chooser.
+    useEffect(() => {
+      if (callout?.id) setMultiPick(null);
+    }, [callout?.id]);
 
     // ── Phase 3: lasso freehand selection ──────────────────────────────────
     // On release, convert the screen-space path to geo coords via the native
@@ -1252,11 +1406,12 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           updatePulseScreenPos();
           // Re-project callout so the overlay balloon stays over its pin.
           if (calloutGeoRef.current) projectCallout();
+          if (multiPickGeoRef.current) projectMultiPick();
         } catch {
           // ignore malformed region events
         }
       },
-      [onCameraIdle, zoom, refreshOverlays, refreshMsBuildings, updatePulseScreenPos, projectCallout],
+      [onCameraIdle, zoom, refreshOverlays, refreshMsBuildings, updatePulseScreenPos, projectCallout, projectMultiPick],
     );
 
     // Handle a tap on the delivery-clusters source: expand a cluster bubble or
@@ -1298,12 +1453,34 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
         try {
           const feat = firstPressedFeature(e);
           const id = feat?.properties?.id;
-          if (id && onStopClick) onStopClick(String(id));
+          if (!id) return;
+          // Same-doorstep group check: stops sharing the pressed stop's
+          // coordinate key (same rounding as computeOverlapOffsets) render as
+          // a stacked "multiple numbers" pin — open the chooser balloon so
+          // each stop stays reachable instead of only the topmost feature.
+          const pressed = (stops || []).find((s) => String(s.id) === String(id));
+          if (pressed && Number.isFinite(pressed.latitude) && Number.isFinite(pressed.longitude)) {
+            const [plng, plat] = stopLngLat(pressed);
+            const key = `${plng.toFixed(5)},${plat.toFixed(5)}`;
+            const group = (stops || []).filter((s) => {
+              if (!Number.isFinite(s.latitude) || !Number.isFinite(s.longitude)) return false;
+              const [lng, lat] = stopLngLat(s);
+              return `${lng.toFixed(5)},${lat.toFixed(5)}` === key;
+            });
+            if (group.length > 1) {
+              // Dismiss an open single-stop callout so the balloons don't stack.
+              callout?.onClose?.();
+              setMultiPick({ lng: plng, lat: plat, ids: group.map((s) => String(s.id)) });
+              return;
+            }
+          }
+          setMultiPick(null);
+          if (onStopClick) onStopClick(String(id));
         } catch {
           // ignore
         }
       },
-      [onStopClick],
+      [onStopClick, stops, callout],
     );
 
     // Map-level tap: in block-road mode the next tap becomes a no-go zone
@@ -1907,6 +2084,34 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               }}
             >
               <StopCallout callout={callout} />
+            </View>
+          </View>
+        )}
+
+        {/* ── Multi-stop chooser balloon (screen-space) ─────────────────────────
+            Shown when a tapped pin shares its doorstep with other stops. Hidden
+            while the single-stop callout is open so the balloons never stack. ── */}
+        {multiPick && multiPickScreenPos && !callout && multiPickItems.length > 1 && (
+          <View
+            pointerEvents="box-none"
+            style={StyleSheet.absoluteFill}
+          >
+            <View
+              style={{
+                position: 'absolute',
+                left: Math.max(8, Math.min(multiPickScreenPos.x - 132, mapWidth - 272)),
+                bottom: mapHeight - multiPickScreenPos.y + 44,
+                width: 264,
+              }}
+            >
+              <MultiStopCallout
+                items={multiPickItems}
+                onPick={(id) => {
+                  setMultiPick(null);
+                  onStopClick?.(id);
+                }}
+                onClose={() => setMultiPick(null)}
+              />
             </View>
           </View>
         )}
