@@ -361,13 +361,28 @@ async def _run_import_inner(
         archived_at_iso = datetime.now(timezone.utc).isoformat()
         # `started_at` heuristic: earliest non-null arrived_at on any
         # completed stop, falling back to earliest created_at, falling
-        # back to archived_at.
+        # back to archived_at. Stops written by different app/backend
+        # versions store these as ISO strings OR datetimes (pymongo also
+        # returns naive UTC datetimes), and min() over mixed types raises
+        # TypeError — which used to 500 the whole import for any user
+        # with completed stops. Coerce everything to aware datetimes.
+        def _coerce_started_at(value):
+            if hasattr(value, "isoformat"):
+                dt = value
+            else:
+                try:
+                    dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+
         candidate_starts = [s.get("arrived_at") for s in completed if s.get("arrived_at")]
         if not candidate_starts:
             candidate_starts = [s.get("created_at") for s in completed if s.get("created_at")]
-        started_at_iso = min(candidate_starts).isoformat() if candidate_starts and hasattr(min(candidate_starts), "isoformat") else (
-            min(candidate_starts) if candidate_starts else archived_at_iso
-        )
+        coerced_starts = [c for c in (_coerce_started_at(v) for v in candidate_starts) if c is not None]
+        started_at_iso = min(coerced_starts).isoformat() if coerced_starts else archived_at_iso
         archive_doc = {
             "id": str(uuid.uuid4()),
             "user_id": current_user.user_id,
