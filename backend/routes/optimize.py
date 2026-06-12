@@ -309,7 +309,7 @@ async def _optimize_route_inner(
         else:
             # ── Fallback: Mapbox for duration-sensitive solvers, road distance for others ──
             logger.info("OSRM unavailable, building fallback matrices for %s (%d stops)", algorithm_used, len(stops))
-            if algorithm_used in ("vroom", "ortools", "lkh", "elkai", "vroom_lkh_3opt", "vroom_ortools", "timefold"):
+            if algorithm_used in ("vroom", "ortools", "lkh", "elkai", "ortools_smart_insertion", "vroom_lkh_3opt", "vroom_ortools", "timefold"):
                 duration_matrix = await calculate_duration_matrix(stops)
                 distance_matrix = calculate_distance_matrix(stops)
             elif algorithm_used == "alns" and len(stops) > 25:
