@@ -187,17 +187,14 @@ def ortools_tsp_solve(
     # PATH_CHEAPEST_ARC + GUIDED_LOCAL_SEARCH slot them into the cheapest gaps
     # freely. This never mutates any stop's `original_sequence` value.
     if locked_order and len(locked_order) >= 2:
-        def _unit_callback(from_index: int, to_index: int) -> int:
-            return 1
-        unit_idx = routing.RegisterTransitCallback(_unit_callback)
-        routing.AddDimension(unit_idx, 0, N, True, "Position")
+        routing.AddConstantDimension(1, N, True, "Position")
         position_dim = routing.GetDimensionOrDie("Position")
         solver = routing.solver()
         for a, b in zip(locked_order, locked_order[1:]):
             if 0 <= a < n and 0 <= b < n:
                 solver.Add(
                     position_dim.CumulVar(manager.NodeToIndex(a))
-                    <= position_dim.CumulVar(manager.NodeToIndex(b))
+                    < position_dim.CumulVar(manager.NodeToIndex(b))
                 )
 
     # ── Search strategy ──
