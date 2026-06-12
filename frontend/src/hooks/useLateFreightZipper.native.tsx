@@ -19,6 +19,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { GeoJSONSource, Layer } from "@maplibre/maplibre-react-native";
+import { getAuthToken } from '../utils/authTokenBridge';
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL || "https://api.getrouted.xyz";
 
@@ -52,9 +53,13 @@ export function useLateFreightZipper() {
       setInserting(true);
       setError(null);
       try {
+        const token = await getAuthToken();
         const res = await fetch(`${API}/api/route/zipper`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ stops, return_to_depot: false, time_limit_s: 5 }),
         });
         const data: ZipperResponse = await res.json();
