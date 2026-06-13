@@ -2,3 +2,4 @@
 - [Replit publish setup](deployment.md) — publishes static Expo web export to frontend/dist pointed at external api.getrouted.xyz; .env files wiped by git sync + Emergent tunnel vars break local serving.
 - [EAS Android build](eas-android-build.md) — regenerating yarn.lock in sandbox bakes in unreachable package-firewall.replit.local URLs → fix to registry.npmjs.org; submit flags + brotli logs.
 - [Android nav speed](nav-speed-derivation.md) — expo-location coords.speed is 0/null on Android fused fixes; derive speed from GPS deltas (haversine/dt, capped, EMA) for zoom/HUD/pause/bearing.
+- [Dangling server imports](dangling-server-imports.md) — route-module refactors leave lazy `from server import X` that 500 at call time; includes AST audit script + edit-persistence trap.
