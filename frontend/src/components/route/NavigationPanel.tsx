@@ -339,6 +339,18 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             <Text style={styles.navBarStopNum}>#{currentStopLabel}</Text>
           </Pressable>
         </View>
+        <TouchableOpacity
+          style={styles.immersiveVoiceBtn}
+          onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
+          onStartShouldSetResponderCapture={() => true}
+          testID="nav-voice-btn"
+        >
+          <Ionicons
+            name={isVoiceEnabled ? 'volume-high' : 'volume-mute'}
+            size={18}
+            color={isVoiceEnabled ? '#10b981' : '#ef4444'}
+          />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.immersiveExitBtn} onPress={onStopNavigation}>
           <Ionicons name="close" size={22} color="#ef4444" />
         </TouchableOpacity>
