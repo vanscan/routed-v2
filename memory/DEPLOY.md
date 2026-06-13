@@ -14,6 +14,8 @@
 
 **95% of frontend changes ship via OTA.** Only rebuild the binary when `app.json`, native deps, icons, or splash change.
 
+> **Note — Vercel web preview (QA only, not a shipped surface).** A Vercel project (`routr`) is wired to this repo via the GitHub App (no `vercel.json` in-repo — it's configured in the Vercel dashboard). On every push/PR it builds the Expo static web export (`app.json` → `bundler: metro`, `output: static`) and posts a per-PR preview URL. Useful for fast, free, no-install smoke tests of UI, screen logic, API wiring, and the optimizer round-trip. **Caveat:** web renders the `maplibre-gl` WebGL map (`src/components/DeliveryMap.tsx`), NOT the native `@maplibre/maplibre-react-native` SDK the Android app ships. So a green web preview does NOT validate native-map behavior (GPS puck, native gestures, the 250 ms driving camera, native cadastral/no-go layers, lasso) — those must still be verified on an EAS build. RouTeD ships to the Play Store (Android); the web build is a dev/QA convenience, not a supported product channel.
+
 ---
 
 ## ✅ Pre-flight (always run first)
