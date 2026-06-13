@@ -4218,6 +4218,13 @@ export default function RouteScreen() {
             const clamped = Math.max(0, Math.min(idx, max));
             setCurrentLegIndex(clamped);
           }}
+          onShowDetails={() => {
+            const stop = currentLeg?.to_stop;
+            if (stop) {
+              setSelectedStopModal(stop);
+              setShowStopDetailSheet(true);
+            }
+          }}
         />
       )}
 
