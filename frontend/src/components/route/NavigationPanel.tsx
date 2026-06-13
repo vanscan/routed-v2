@@ -307,14 +307,28 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 
   return (
     <>
-      {/* Navigation banner — tap to toggle full UI */}
+      {/* Floating Turn Instruction — tap to toggle full UI */}
       <TouchableOpacity
         style={[styles.immersiveTurnBanner, { top: insets.top + 8 }]}
         onPress={() => setImmersiveMode(!immersiveMode)}
         activeOpacity={0.9}
       >
-        {/* Row 1: stop badge + address + voice + exit */}
-        <View style={styles.bannerAddressRow}>
+        <View style={styles.immersiveTurnRow}>
+          <View style={styles.immersiveTurnIconBox}>
+            <Ionicons
+              name={currentStep ? getManeuverIcon(currentStep.type, currentStep.modifier) as any : 'arrow-up'}
+              size={28}
+              color="#fff"
+            />
+          </View>
+          <View style={styles.immersiveTurnDetails}>
+            <Text style={styles.immersiveTurnDist}>
+              {currentStep?.distance ? formatDistance(currentStep.distance) : '--'}
+            </Text>
+            <Text style={styles.immersiveTurnText} numberOfLines={1}>
+              {currentStep?.instruction || 'Continue'}
+            </Text>
+          </View>
           <Pressable
             onLongPress={openJumpMenu}
             delayLongPress={400}
@@ -323,41 +337,22 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
           >
             <Text style={styles.navBarStopNum}>#{currentStopLabel}</Text>
           </Pressable>
-          <Text style={styles.bannerAddressText} numberOfLines={1}>
-            {currentLeg?.to_stop?.address || 'Next Stop'}
-          </Text>
-          <TouchableOpacity
-            style={styles.immersiveVoiceBtn}
-            onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
-            onStartShouldSetResponderCapture={() => true}
-            testID="nav-voice-btn"
-          >
-            <Ionicons
-              name={isVoiceEnabled ? 'volume-high' : 'volume-mute'}
-              size={18}
-              color={isVoiceEnabled ? '#10b981' : '#ef4444'}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.immersiveExitBtn} onPress={onStopNavigation} onStartShouldSetResponderCapture={() => true}>
-            <Ionicons name="close" size={22} color="#ef4444" />
-          </TouchableOpacity>
         </View>
-        {/* Row 2: maneuver icon + distance + instruction */}
-        <View style={styles.bannerTurnRow}>
-          <View style={styles.bannerTurnIconSm}>
-            <Ionicons
-              name={currentStep ? getManeuverIcon(currentStep.type, currentStep.modifier) as any : 'arrow-up'}
-              size={16}
-              color="#fff"
-            />
-          </View>
-          <Text style={styles.bannerTurnDistSm}>
-            {currentStep?.distance ? formatDistance(currentStep.distance) : '--'}
-          </Text>
-          <Text style={styles.bannerTurnInstrSm} numberOfLines={1}>
-            {currentStep?.instruction || 'Continue'}
-          </Text>
-        </View>
+        <TouchableOpacity
+          style={styles.immersiveVoiceBtn}
+          onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
+          onStartShouldSetResponderCapture={() => true}
+          testID="nav-voice-btn"
+        >
+          <Ionicons
+            name={isVoiceEnabled ? 'volume-high' : 'volume-mute'}
+            size={18}
+            color={isVoiceEnabled ? '#10b981' : '#ef4444'}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.immersiveExitBtn} onPress={onStopNavigation} onStartShouldSetResponderCapture={() => true}>
+          <Ionicons name="close" size={22} color="#ef4444" />
+        </TouchableOpacity>
       </TouchableOpacity>
 
       {/* Floating Speed Display - Always visible */}
@@ -478,6 +473,11 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </View>
             </View>
           )}
+          {/* Address — prominent at top of card */}
+          <Text style={styles.compactStopAddress} numberOfLines={1}>
+            {currentLeg?.to_stop?.address || 'Next Stop'}
+          </Text>
+
           {/* Detail chips + Details button */}
           <View style={styles.compactStopRow}>
             <View style={styles.bottomChipsRow}>
@@ -766,7 +766,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 // Styles are imported from the parent - these are placeholders that reference the same style names
 // The actual styles are defined in index.tsx's StyleSheet and passed via the component hierarchy
 const styles = StyleSheet.create({
-  immersiveTurnBanner: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1e293b', borderRadius: 16, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  immersiveTurnBanner: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1e293b', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   immersiveTurnRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   immersiveTurnIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   immersiveTurnDetails: { flex: 1 },
