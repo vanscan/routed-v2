@@ -62,7 +62,7 @@ See `memory/DEPLOY.md` for the full three-layer deploy playbook. Summary:
 
 | Layer | Trigger |
 |---|---|
-| **Backend** | Emergent UI → "Save to GitHub" → "Native Deploy" (NOT `git push`) |
+| **Backend** | `git push` to `main` → Coolify auto-deploys via GitHub webhook (Vultr VPS, Dockerfile build, see `COOLIFY_SETUP.md`) |
 | **Android binary (AAB)** | `cd frontend && eas build --platform android --profile production` (from laptop, not container) |
 | **JS bundle (OTA)** | `git tag v2026.XX.XX && git push --tags` (triggers `eas-ota-update.yml`) or `cd frontend && yarn update:prod` |
 

@@ -121,17 +121,19 @@ EXPO_PUBLIC_BACKEND_URL=https://YOUR_COOLIFY_DOMAIN \
 
 ## 2 — Updating later (each deploy)
 
-### Path A — Once GitHub Save-to-Github is fixed (the normal path)
+### Path A — `git push` auto-deploy (the normal path)
 
-1. In Emergent chat, click **Save to GitHub**
-   - Pushes changes to `github.com/xmltvg-create/RouTeD`
-2. In Coolify dashboard → your app → click **Redeploy**
-3. ~3-5 min build → live
+1. Push backend changes to `main`:
+   ```bash
+   git push origin main
+   ```
+2. Coolify's GitHub webhook auto-triggers a redeploy. ~3-5 min build → live.
+3. No dashboard click needed — `git push` IS the deploy trigger.
 
-**Optional: auto-deploy on push**
+**Webhook wiring (one-time, already done):**
 In Coolify: Application → Webhooks → **copy the webhook URL**
-Then on GitHub: Repo Settings → Webhooks → Add webhook → paste the URL → events: "Just the push event"
-After this, every Save-to-Github auto-triggers a Coolify redeploy. Zero-click updates.
+Then on GitHub: Repo Settings → Webhooks → Add webhook → paste the URL → events: "Just the push event".
+If a push ever fails to trigger a build, click **Redeploy** manually in the Coolify dashboard and re-check the webhook delivery log on GitHub.
 
 ### Path B — Manual sync (when GitHub is still broken)
 

@@ -8,11 +8,13 @@
 
 | Layer | Where | How | Cadence |
 |---|---|---|---|
-| **Backend (FastAPI)** | Emergent K8s pod | Emergent UI → "Native Deploy" | When `server.py` / `.env` / deps change |
+| **Backend (FastAPI)** | Coolify on Vultr VPS | `git push` to `main` → Coolify auto-deploys via GitHub webhook | When `server.py` / `.env` / deps change |
 | **Android binary** (AAB) | Google Play Store | `eas build --platform android --profile production` | Once per release cycle (~monthly) |
 | **JS bundle** (OTA) | Expo CDN | `eas update --branch production` OR push tag `v*.*.*` | Daily, instant |
 
 **95% of frontend changes ship via OTA.** Only rebuild the binary when `app.json`, native deps, icons, or splash change.
+
+> **Note — Vercel web preview (QA only, not a shipped surface).** A Vercel project (`routr`) is wired to this repo via the GitHub App (no `vercel.json` in-repo — it's configured in the Vercel dashboard). On every push/PR it builds the Expo static web export (`app.json` → `bundler: metro`, `output: static`) and posts a per-PR preview URL. Useful for fast, free, no-install smoke tests of UI, screen logic, API wiring, and the optimizer round-trip. **Caveat:** web renders the `maplibre-gl` WebGL map (`src/components/DeliveryMap.tsx`), NOT the native `@maplibre/maplibre-react-native` SDK the Android app ships. So a green web preview does NOT validate native-map behavior (GPS puck, native gestures, the 250 ms driving camera, native cadastral/no-go layers, lasso) — those must still be verified on an EAS build. RouTeD ships to the Play Store (Android); the web build is a dev/QA convenience, not a supported product channel.
 
 ---
 
@@ -31,18 +33,20 @@ Flags:
 
 ---
 
-## 🚀 Step 1 — Backend (Native Deploy)
+## 🚀 Step 1 — Backend (Coolify on push)
 
-1. In Emergent chat: click **Save to GitHub** *(NOT `git push` from terminal — Emergent's button handles `.git/.emergent` metadata)*
-2. Click **Deploy → Native Deploy** in Emergent UI
-3. Watch the **fresh** logs in the deploy modal (refresh before tailing — old logs lie)
-4. Smoke-test:
+1. Push your backend changes to `main`:
    ```bash
-   curl -s https://<your-prod-url>/api/health
-   # → {"status":"ok"} expected
+   git push origin main
+   ```
+2. Coolify's GitHub webhook auto-triggers a redeploy (Dockerfile build, ~3–5 min). Watch the build log in the Coolify dashboard → your app → Deployments.
+3. Smoke-test:
+   ```bash
+   curl -s https://api.getrouted.xyz/api/health
+   # → {"status":"healthy","database":"connected"} expected
    ```
 
-🚫 **Never use the deployment subagent** — it corrupts `.gitignore` silently and is permanently banned in this codebase.
+If the webhook ever stops firing, trigger a manual **Redeploy** from the Coolify dashboard. Full setup (VPS, env vars, webhook wiring, troubleshooting) lives in `COOLIFY_SETUP.md`.
 
 ---
 
@@ -145,12 +149,12 @@ cd frontend && eas update:rollback --branch production
 
 | Symptom | Action |
 |---|---|
-| Backend returns 502 / 503 | Emergent Native Deploy logs → look for `MongoDB connection` |
+| Backend returns 502 / 503 | Coolify dashboard → Deployments → build/runtime logs → look for `MongoDB connection` |
 | EAS build "enableProguard" error | Old cached log — refresh page, trigger new build |
 | Play Store rejects with versionCode error | Bump `android.versionCode` in `app.json` |
 | App crashes after OTA | `eas update:rollback --branch production` |
-| "Save to GitHub" "No space left on device" | `cd /app && git repack -ad && rm -rf .git/objects/pack/tmp_pack*` |
-| ".gitignore corrupted" / env files stripped | `bash /app/scripts/gitignore-autoheal.sh` |
+| Coolify build fails on `emergentintegrations` | Dockerfile must include `--extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/` — see `COOLIFY_SETUP.md` §6 |
+| `/api/tiles/buildings/metadata` "not available" | `tiles/buildings.db` didn't copy — check `.dockerignore` doesn't exclude `tiles/` |
 | Pytest failing on `test_alns_solver.py::test_health_check` | Pre-existing — endpoint doesn't exist; ignore |
 
 ---
@@ -160,17 +164,15 @@ cd frontend && eas update:rollback --branch production
 ```text
 First release (Play Store launch):
   1. bash /app/scripts/predeploy.sh
-  2. Save to GitHub                            ← Emergent button
-  3. Deploy → Native Deploy                    ← backend
-  4. cd frontend && eas build … production     ← AAB on your laptop
-  5. Upload .aab → Play Console
-  6. Real-device smoke test
+  2. git push origin main                       ← Coolify auto-deploys backend
+  3. cd frontend && eas build … production      ← AAB on your laptop
+  4. Upload .aab → Play Console
+  5. Real-device smoke test
 
 Subsequent releases (95% of the time):
   1. bash /app/scripts/predeploy.sh
-  2. Save to GitHub
-  3. Deploy → Native Deploy                    ← only if backend changed
-  4. git tag vYYYY.MM.DD && git push --tags    ← GH Action ships OTA (30s)
+  2. git push origin main                       ← only if backend changed (Coolify auto-deploys)
+  3. git tag vYYYY.MM.DD && git push --tags     ← GH Action ships OTA (30s)
 ```
 
 ---
