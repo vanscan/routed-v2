@@ -307,29 +307,14 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 
   return (
     <>
-      {/* Minimal Floating Turn Instruction - Tap map to toggle full UI */}
-      <TouchableOpacity 
+      {/* Navigation banner — tap to toggle full UI */}
+      <TouchableOpacity
         style={[styles.immersiveTurnBanner, { top: insets.top + 8 }]}
         onPress={() => setImmersiveMode(!immersiveMode)}
         activeOpacity={0.9}
       >
-        <View style={styles.immersiveTurnRow}>
-          <View style={styles.immersiveTurnIconBox}>
-            <Ionicons 
-              name={currentStep ? getManeuverIcon(currentStep.type, currentStep.modifier) as any : 'arrow-up'} 
-              size={28} 
-              color="#fff" 
-            />
-          </View>
-          <View style={styles.immersiveTurnDetails}>
-            <Text style={styles.immersiveTurnDist}>
-              {currentStep?.distance ? formatDistance(currentStep.distance) : '--'}
-            </Text>
-            <Text style={styles.immersiveTurnText} numberOfLines={1}>
-              {currentStep?.instruction || 'Continue'}
-            </Text>
-          </View>
-          {/* Stop badge moved to nav bar for visibility */}
+        {/* Row 1: stop badge + address + voice + exit */}
+        <View style={styles.bannerAddressRow}>
           <Pressable
             onLongPress={openJumpMenu}
             delayLongPress={400}
@@ -338,22 +323,41 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
           >
             <Text style={styles.navBarStopNum}>#{currentStopLabel}</Text>
           </Pressable>
+          <Text style={styles.bannerAddressText} numberOfLines={1}>
+            {currentLeg?.to_stop?.address || 'Next Stop'}
+          </Text>
+          <TouchableOpacity
+            style={styles.immersiveVoiceBtn}
+            onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
+            onStartShouldSetResponderCapture={() => true}
+            testID="nav-voice-btn"
+          >
+            <Ionicons
+              name={isVoiceEnabled ? 'volume-high' : 'volume-mute'}
+              size={18}
+              color={isVoiceEnabled ? '#10b981' : '#ef4444'}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.immersiveExitBtn} onPress={onStopNavigation} onStartShouldSetResponderCapture={() => true}>
+            <Ionicons name="close" size={22} color="#ef4444" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.immersiveVoiceBtn}
-          onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
-          onStartShouldSetResponderCapture={() => true}
-          testID="nav-voice-btn"
-        >
-          <Ionicons
-            name={isVoiceEnabled ? 'volume-high' : 'volume-mute'}
-            size={18}
-            color={isVoiceEnabled ? '#10b981' : '#ef4444'}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.immersiveExitBtn} onPress={onStopNavigation}>
-          <Ionicons name="close" size={22} color="#ef4444" />
-        </TouchableOpacity>
+        {/* Row 2: maneuver icon + distance + instruction */}
+        <View style={styles.bannerTurnRow}>
+          <View style={styles.bannerTurnIconSm}>
+            <Ionicons
+              name={currentStep ? getManeuverIcon(currentStep.type, currentStep.modifier) as any : 'arrow-up'}
+              size={16}
+              color="#fff"
+            />
+          </View>
+          <Text style={styles.bannerTurnDistSm}>
+            {currentStep?.distance ? formatDistance(currentStep.distance) : '--'}
+          </Text>
+          <Text style={styles.bannerTurnInstrSm} numberOfLines={1}>
+            {currentStep?.instruction || 'Continue'}
+          </Text>
+        </View>
       </TouchableOpacity>
 
       {/* Floating Speed Display - Always visible */}
@@ -474,30 +478,33 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </View>
             </View>
           )}
-          {/* Compact Stop Info - Single line with address */}
+          {/* Detail chips + Details button */}
           <View style={styles.compactStopRow}>
-            <View style={styles.compactStopInfo}>
-              <Text style={styles.compactStopAddress} numberOfLines={1}>
-                {currentLeg?.to_stop?.address || 'Next Stop'}
-              </Text>
-              {/* Weight/Distance/Progress inline */}
-              <View style={styles.compactMetaRow}>
-                <Text style={styles.compactMetaText}>
-                  {completedCount} / {totalStops} stops
-                </Text>
-                {currentLeg?.to_stop?.weight ? (
-                  <Text style={styles.compactMetaText}>
-                    · {currentLeg.to_stop.weight} kg
-                  </Text>
-                ) : null}
-                {liveRoute?.distance ? (
-                  <Text style={styles.compactMetaText}>
-                    · {formatDistance(liveRoute.distance)}
-                  </Text>
-                ) : null}
-              </View>
+            <View style={styles.bottomChipsRow}>
+              {currentLeg?.to_stop?.weight ? (
+                <View style={styles.bottomChip}>
+                  <Ionicons name="cube-outline" size={11} color="#94a3b8" />
+                  <Text style={styles.bottomChipText}>{currentLeg.to_stop.weight} kg</Text>
+                </View>
+              ) : null}
+              {currentLeg?.to_stop?.mobile_number ? (
+                <TouchableOpacity
+                  style={[styles.bottomChip, styles.bottomChipBlue]}
+                  onPress={onCallCustomer}
+                  onStartShouldSetResponderCapture={() => true}
+                  testID="nav-phone-chip"
+                >
+                  <Ionicons name="call-outline" size={11} color="#60a5fa" />
+                  <Text style={[styles.bottomChipText, styles.bottomChipTextBlue]}>{currentLeg.to_stop.mobile_number}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {liveRoute?.distance ? (
+                <View style={styles.bottomChip}>
+                  <Text style={styles.bottomChipText}>{formatDistance(liveRoute.distance)}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.compactMetaText}>{completedCount}/{totalStops}</Text>
             </View>
-            {/* Details menu button */}
             <TouchableOpacity
               style={styles.compactMoreBtn}
               onPress={() => {
@@ -515,14 +522,33 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Notes - Compact single line if present */}
+          {/* Notes — full text, no truncation */}
           {currentLeg?.to_stop?.notes ? (
             <View style={styles.compactNotesBox}>
-              <Text style={styles.compactNotesText} numberOfLines={1}>
+              <Ionicons name="document-text-outline" size={13} color="#60a5fa" style={{ marginTop: 1 }} />
+              <Text style={styles.compactNotesText}>
                 {currentLeg.to_stop.notes}
               </Text>
             </View>
           ) : null}
+
+          {/* Quick actions: Call (if phone) / Share ETA / Overview */}
+          <View style={styles.bottomQuickRow}>
+            {currentLeg?.to_stop?.mobile_number ? (
+              <TouchableOpacity style={styles.bottomQuickBtn} onPress={onCallCustomer} onStartShouldSetResponderCapture={() => true} testID="nav-quick-call">
+                <Ionicons name="call-outline" size={14} color="#60a5fa" />
+                <Text style={styles.bottomQuickLabel}>Call</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.bottomQuickBtn} onPress={onShareETA} onStartShouldSetResponderCapture={() => true} testID="nav-quick-eta">
+              <Ionicons name="share-outline" size={14} color="#60a5fa" />
+              <Text style={styles.bottomQuickLabel}>Share ETA</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bottomQuickBtn} onPress={onShowRouteOverview} onStartShouldSetResponderCapture={() => true} testID="nav-quick-overview">
+              <Ionicons name="map-outline" size={14} color="#60a5fa" />
+              <Text style={styles.bottomQuickLabel}>Overview</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Main Actions — Failed | Delivered | Skip
               2026-05-11 — Reverted from slide-to-deliver back to a plain
@@ -605,8 +631,18 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </Text>
               <Text style={styles.immersiveMinimalAddress} numberOfLines={1} testID="immersive-waypoint-address">
                 {currentLeg?.to_stop?.address || `Stop ${currentStopLabel} of ${totalStops}`}
-                {currentLeg?.to_stop?.weight ? `  ·  ${currentLeg.to_stop.weight} kg` : ''}
               </Text>
+              <View style={styles.minimalChipRow}>
+                {currentLeg?.to_stop?.weight ? (
+                  <View style={styles.minimalChip}><Text style={styles.minimalChipText}>{currentLeg.to_stop.weight} kg</Text></View>
+                ) : null}
+                {liveRoute?.distance ? (
+                  <View style={styles.minimalChip}><Text style={styles.minimalChipText}>{formatDistance(liveRoute.distance)}</Text></View>
+                ) : null}
+                {etaToNextStop ? (
+                  <View style={[styles.minimalChip, styles.minimalChipEta]}><Text style={[styles.minimalChipText, styles.minimalChipTextEta]}>{etaToNextStop}</Text></View>
+                ) : null}
+              </View>
             </View>
             <Ionicons name="chevron-up" size={16} color="#64748b" />
           </TouchableOpacity>
@@ -730,7 +766,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 // Styles are imported from the parent - these are placeholders that reference the same style names
 // The actual styles are defined in index.tsx's StyleSheet and passed via the component hierarchy
 const styles = StyleSheet.create({
-  immersiveTurnBanner: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1e293b', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  immersiveTurnBanner: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1e293b', borderRadius: 16, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   immersiveTurnRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   immersiveTurnIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   immersiveTurnDetails: { flex: 1 },
@@ -843,15 +879,37 @@ const styles = StyleSheet.create({
   navBarStopBadgeLate: { backgroundColor: '#7c3aed' },
   navBarStopNum: { fontSize: 14, fontWeight: '800', color: '#fff' },
   // Compact bottom delivery card styles
-  compactStopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  compactStopRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
   compactStopInfo: { flex: 1 },
   compactStopAddress: { fontSize: 15, fontWeight: '700', color: '#fff' },
   compactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-  compactMetaText: { fontSize: 12, color: '#94a3b8' },
-  compactMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  compactMoreText: { fontSize: 12, fontWeight: '700', color: '#e2e8f0' },
-  compactNotesBox: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 },
-  compactNotesText: { fontSize: 13, color: '#cbd5e1' },
+  compactMetaText: { fontSize: 11, color: '#64748b' },
+  compactMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, flexShrink: 0 },
+  compactMoreText: { fontSize: 11, fontWeight: '700', color: '#e2e8f0' },
+  compactNotesBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  compactNotesText: { fontSize: 12, color: '#cbd5e1', flex: 1, lineHeight: 18 },
+  // Banner: two-row layout
+  bannerAddressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
+  bannerAddressText: { flex: 1, fontSize: 13, fontWeight: '700', color: '#f8fafc' },
+  bannerTurnRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  bannerTurnIconSm: { width: 24, height: 24, borderRadius: 6, backgroundColor: 'rgba(59,130,246,0.35)', justifyContent: 'center', alignItems: 'center' },
+  bannerTurnDistSm: { fontSize: 11, color: '#93c5fd', fontWeight: '700', minWidth: 32 },
+  bannerTurnInstrSm: { flex: 1, fontSize: 12, color: '#e2e8f0' },
+  // Bottom card: chips + quick actions
+  bottomChipsRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginRight: 8 },
+  bottomChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
+  bottomChipBlue: { backgroundColor: 'rgba(96,165,250,0.1)', borderWidth: 1, borderColor: 'rgba(96,165,250,0.3)' },
+  bottomChipText: { fontSize: 10, color: '#94a3b8' },
+  bottomChipTextBlue: { color: '#93c5fd' },
+  bottomQuickRow: { flexDirection: 'row', gap: 7, marginBottom: 10 },
+  bottomQuickBtn: { flex: 1, height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', borderRadius: 9 },
+  bottomQuickLabel: { fontSize: 10, fontWeight: '600', color: '#64748b' },
+  // Minimal strip chip row
+  minimalChipRow: { flexDirection: 'row', gap: 4, marginTop: 3, flexWrap: 'wrap' },
+  minimalChip: { backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  minimalChipEta: { backgroundColor: 'rgba(16,185,129,0.15)' },
+  minimalChipText: { fontSize: 9, color: '#cbd5e1', fontWeight: '600' },
+  minimalChipTextEta: { color: '#34d399' },
 });
 
 export default NavigationPanel;
