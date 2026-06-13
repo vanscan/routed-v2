@@ -63,11 +63,6 @@ interface SidebarProps {
   onImport: () => void;
   onExport: () => void;
   onOptimize: () => void;
-  /** Manual late-freight zipper trigger — slots newly-added (unsequenced)
-   *  stops into the locked route without re-optimizing confirmed stops. */
-  onLateFreight: () => void;
-  /** True while the late-freight zipper is running (shows a spinner). */
-  lateFreightInserting?: boolean;
   onShowAlgorithmPicker: () => void;
   onBenchmark: () => void;
   onStartNavigation: () => void;
@@ -79,6 +74,9 @@ interface SidebarProps {
   onHistoryPress: () => void;
   onRefresh: () => void;
   onEnterRefineMode: () => void;
+  onLateFreight: () => void;
+  lateFreightCount?: number;
+  zipperInserting?: boolean;
   setStopsCollapsed: (collapsed: boolean) => void;
   setIsDragMode: (mode: boolean) => void;
   /** Called when the driver finishes a drag-to-reorder gesture. Receives
@@ -297,8 +295,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onImport,
   onExport,
   onOptimize,
-  onLateFreight,
-  lateFreightInserting,
   onShowAlgorithmPicker,
   onBenchmark,
   onStartNavigation,
@@ -310,6 +306,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onHistoryPress,
   onRefresh,
   onEnterRefineMode,
+  onLateFreight,
+  lateFreightCount = 0,
+  zipperInserting = false,
   setStopsCollapsed,
   setIsDragMode,
   onReorder,
@@ -319,18 +318,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // mirrors GroupedStopsList so the badge stays consistent across views.
   const dragLateLabels = useMemo(() => buildLateFreightLabels(stops as any), [stops]);
   const dragRouteConfirmed = useMemo(() => computeRouteConfirmed(stops), [stops]);
-  // Late-freight button eligibility: a locked route (some stop carries a
-  // Sharpie `original_sequence`) that also has at least one unsequenced
-  // newly-added parcel waiting to be slotted in.
-  const canLateFreight = useMemo(() => {
-    const hasLocked = stops.some(
-      (s) => typeof s.original_sequence === 'number' && !Number.isNaN(s.original_sequence),
-    );
-    const hasLateFreight = stops.some(
-      (s) => s.original_sequence === null || s.original_sequence === undefined,
-    );
-    return hasLocked && hasLateFreight;
-  }, [stops]);
   return (
     <Animated.View 
       style={[
@@ -522,6 +509,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </TouchableOpacity>
               </View>
 
+              {/* Late Freight Button — manually triggers the zipper solver to
+                  slot any late-added parcels into the cheapest gap in the
+                  confirmed route order. Badge shows count when detected. */}
+              <TouchableOpacity
+                style={[
+                  styles.actionBtnLateFreight,
+                  (stops.length === 0 || zipperInserting) && styles.actionBtnDisabled,
+                ]}
+                onPress={onLateFreight}
+                disabled={stops.length === 0 || zipperInserting}
+                data-testid="late-freight-btn"
+              >
+                {zipperInserting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="flash" size={16} color="#fff" />
+                )}
+                <Text style={styles.actionBtnPrimaryText}>
+                  {zipperInserting ? 'Zipping…' : 'Late Freight'}
+                </Text>
+                {lateFreightCount > 0 && !zipperInserting && (
+                  <View style={styles.lateFreightBadge}>
+                    <Text style={styles.lateFreightBadgeText}>{lateFreightCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
               {/* Optimize Button with Algorithm Selector */}
               <View style={styles.optimizeButtonContainer}>
                 <TouchableOpacity
@@ -552,27 +566,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Ionicons name="chevron-down" size={14} color="#fff" />
                 </TouchableOpacity>
               </View>
-
-              {/* Late Freight — a SEPARATE optimization from the full Optimize
-                  pass above. Slots newly-added (unsequenced) parcels into the
-                  locked route via the zipper, preserving the confirmed Sharpie
-                  order. Only enabled once the route is locked AND late freight
-                  is waiting; otherwise greyed (nothing to insert). */}
-              <TouchableOpacity
-                style={[styles.actionBtnLateFreight, (!canLateFreight || lateFreightInserting) && styles.actionBtnDisabled]}
-                onPress={onLateFreight}
-                disabled={!canLateFreight || lateFreightInserting}
-                testID="late-freight-btn"
-              >
-                {lateFreightInserting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="git-branch" size={16} color="#fff" />
-                )}
-                <Text style={styles.actionBtnPrimaryText}>
-                  {lateFreightInserting ? 'Inserting...' : 'Late Freight'}
-                </Text>
-              </TouchableOpacity>
 
               <View style={styles.actionRow2col}>
                 <TouchableOpacity
@@ -746,6 +739,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </TouchableOpacity>
           <TouchableOpacity style={styles.collapsedBtn} onPress={onImport}>
             <Ionicons name="cloud-upload-outline" size={22} color="#8b5cf6" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.collapsedBtn, (stops.length === 0 || zipperInserting) && styles.collapsedBtnDisabled]}
+            onPress={onLateFreight}
+            disabled={stops.length === 0 || zipperInserting}
+          >
+            <Ionicons name="flash" size={22} color="#f59e0b" />
+            {lateFreightCount > 0 && (
+              <View style={styles.lateFreightBadgeCollapsed}>
+                <Text style={styles.lateFreightBadgeText}>{lateFreightCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.collapsedBtn, stops.length < 2 && styles.collapsedBtnDisabled]}
@@ -935,6 +940,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
   },
+  actionBtnLateFreight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d97706',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+  },
+  lateFreightBadge: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    marginLeft: 4,
+  },
+  lateFreightBadgeCollapsed: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    minWidth: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  lateFreightBadgeText: {
+    color: '#92400e',
+    fontSize: 10,
+    fontWeight: '800',
+  },
   actionBtnStart: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1026,19 +1068,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  // Late-freight zipper button — amber to read as a distinct, secondary
-  // optimization from the primary blue Optimize button above it.
-  actionBtnLateFreight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f59e0b',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    gap: 6,
-    marginTop: 8,
   },
   stopsSection: {
     flex: 1,

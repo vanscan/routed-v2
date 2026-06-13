@@ -62,16 +62,29 @@ export function useLateFreightZipper() {
           },
           body: JSON.stringify({ stops, return_to_depot: false, time_limit_s: 5 }),
         });
-        const data: ZipperResponse = await res.json();
-        if (mine !== reqId.current) return null;   // a newer request superseded us
-        if (!data.ok) {
-          setError(data.error);
-          return null;
+        // Parse body regardless of status so we can surface the real reason.
+        let data: any;
+        try { data = await res.json(); } catch { data = {}; }
+        if (mine !== reqId.current) return null;   // a newer request superseded us — no error
+        if (!res.ok || !data.ok) {
+          // Pydantic 422 → detail array; our typed errors → data.error string.
+          const reason: string =
+            data?.error ||
+            (Array.isArray(data?.detail)
+              ? data.detail.map((d: any) => d?.msg ?? d).join('; ')
+              : data?.detail) ||
+            `HTTP ${res.status}`;
+          setError(reason);
+          throw new Error(reason);  // let the caller's catch show the real message
         }
         setRoute(data.route);
         return data.route;
       } catch (e: any) {
-        if (mine === reqId.current) setError(e?.message ?? "network");
+        if (mine === reqId.current) {
+          const msg: string = e?.message ?? "network error";
+          setError(msg);
+          throw e;  // re-throw so caller's catch handles it
+        }
         return null;
       } finally {
         if (mine === reqId.current) setInserting(false);

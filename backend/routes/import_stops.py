@@ -241,7 +241,8 @@ async def process_import(
     we skip the job pattern and return the result inline (fast enough to
     beat the 100s Cloudflare ceiling).
     """
-    from server import db, _OPTIMIZE_RUNNER_TASKS  # noqa: WPS433
+    from server import db  # noqa: WPS433
+    from routes.optimize_jobs import _OPTIMIZE_RUNNER_TASKS  # noqa: WPS433
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")

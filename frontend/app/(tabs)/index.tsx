@@ -61,6 +61,7 @@ import { useNavigationTTS } from '../../src/hooks/useNavigationTTS';
 import { useNavigationCamera } from '../../src/hooks/useNavigationCamera';
 import { useGeofenceArrival, GeofenceStop } from '../../src/hooks/useGeofenceArrival';
 import { LastMilePrecisionHUD } from '../../src/components/LastMilePrecisionHUD';
+import { NAV_HEADER_CLEARANCE, CARD_SHOW_RADIUS_M, CARD_HIDE_RADIUS_M } from '../../src/components/route/nav/navTheme';
 import { MapStyleSwitcher, MAP_STYLES, MapStyleKey } from '../../src/components/map/MapStyleSwitcher';
 import { useLateFreightZipper } from '../../src/hooks/useLateFreightZipper';
 
@@ -954,78 +955,85 @@ export default function RouteScreen() {
     prevLateFreightCountRef.current = lateFreightCount;
   }, [lateFreightCount]);
 
-  // ── Late-freight zipper (shared trigger) ──
-  // Fired both automatically (when a late freight parcel lands on a locked
-  // route, via `lateFreightScanPending`) and manually (the "Late Freight"
-  // button in the planning sidebar). The OR-Tools zipper keeps locked Sharpie
-  // stop order intact and slots each new parcel into its cheapest gap, labelling
-  // it "23A", "23B" etc.; reorderStops() then updates the drive order and the
-  // pin labels re-derive automatically. Returns false when there is nothing to
-  // insert / no GPS so the manual caller can surface a hint.
-  const runLateFreightZipper = useCallback(async (): Promise<boolean> => {
-    const gps = currentLocationRef.current;
-    const currentStops = useStopsStore.getState().stops;
-    if (!gps || currentStops.length === 0) return false;
+  // ── Late-freight zipper ──
+  // When a late freight parcel is added to a locked route, the store sets
+  // `lateFreightScanPending`. On returning to this screen we invoke the
+  // Late Freight Zipper: the OR-Tools solver keeps locked Sharpie stop order
+  // intact and slots each new parcel into its cheapest gap, labelling it
+  // "23A", "23B" etc. On success, reorderStops() updates the drive order
+  // and the pin labels re-derive automatically.
+  useEffect(() => {
+    if (!lateFreightScanPending) return;
+    useStopsStore.setState({ lateFreightScanPending: false });
+    (async () => {
+      try {
+        const gps = currentLocationRef.current;
+        if (!gps || stops.length === 0) return;
 
-    // Build input: depot from GPS, then all current stops preserving
-    // original_sequence for locked ones (null for late freight).
-    const zipStops = [
-      { id: '__depot__', lat: gps.latitude, lon: gps.longitude, original_sequence: null, is_depot: true },
-      ...currentStops.map((s) => ({
-        id: s.id,
-        lat: s.latitude,
-        lon: s.longitude,
-        original_sequence: s.original_sequence ?? null,
-      })),
-    ];
+        // Build input: depot from GPS, then all current stops preserving
+        // original_sequence for locked ones (null for late freight).
+        const zipStops = [
+          { id: '__depot__', lat: gps.latitude, lon: gps.longitude, original_sequence: null, is_depot: true },
+          ...stops.map((s) => ({
+            id: s.id,
+            lat: s.latitude,
+            lon: s.longitude,
+            original_sequence: s.original_sequence ?? null,
+          })),
+        ];
 
+        const result = await zip(zipStops);
+        if (result) {
+          const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
+          await reorderStops(ordered);
+          setResumeToast('Route updated with late freight');
+        }
+      } catch (e) {
+        console.warn('[late-freight] zipper failed:', (e as Error)?.message || e);
+      }
+    })();
+    // zip and reorderStops are stable; re-fire only when the pending flag flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lateFreightScanPending]);
+
+  const handleLateFreight = useCallback(async () => {
+    if (stops.length === 0) return;
     try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // GPS fallback chain: live ref → first stop position (driver is already on-route)
+      const gpsRaw = currentLocationRef.current;
+      const depot = gpsRaw
+        ? { latitude: gpsRaw.latitude, longitude: gpsRaw.longitude }
+        : { latitude: stops[0].latitude, longitude: stops[0].longitude };
+      // Only send uncompleted stops — completed ones are already delivered and
+      // don't need re-sequencing. This also keeps the payload well under the
+      // backend's OSRM matrix cap on large routes.
+      const pendingStops = stops.filter((s) => !s.completed);
+      if (pendingStops.length === 0) return;
+      const zipStops = [
+        { id: '__depot__', lat: depot.latitude, lon: depot.longitude, original_sequence: null, is_depot: true },
+        ...pendingStops.map((s) => ({
+          id: s.id,
+          lat: s.latitude,
+          lon: s.longitude,
+          original_sequence: s.original_sequence ?? null,
+        })),
+      ];
       const result = await zip(zipStops);
       if (result) {
         const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
         await reorderStops(ordered);
         setResumeToast('Route updated with late freight');
-        return true;
       }
+      // null means superseded by a newer tap — silently ignore
     } catch (e) {
-      console.warn('[late-freight] zipper failed:', (e as Error)?.message || e);
+      const msg = (e as Error)?.message || 'Unknown error';
+      console.warn('[late-freight] manual zip failed:', msg);
+      Alert.alert('Late Freight failed', msg);
     }
-    return false;
-  }, [zip, reorderStops]);
-
-  // ── Late-freight zipper (automatic) ──
-  useEffect(() => {
-    if (!lateFreightScanPending) return;
-    useStopsStore.setState({ lateFreightScanPending: false });
-    void runLateFreightZipper();
-    // runLateFreightZipper is stable; re-fire only when the pending flag flips.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lateFreightScanPending]);
-
-  // ── Late-freight zipper (manual button in the planning sidebar) ──
-  // Separate from the full "Optimize" pass: this only slots unsequenced late
-  // freight into the locked route, never re-ordering confirmed stops.
-  const handleLateFreight = useCallback(async () => {
-    const currentStops = useStopsStore.getState().stops;
-    const hasLocked = currentStops.some(
-      (s) => typeof s.original_sequence === 'number' && !Number.isNaN(s.original_sequence),
-    );
-    const hasLateFreight = currentStops.some(
-      (s) => s.original_sequence === null || s.original_sequence === undefined,
-    );
-    if (!hasLocked || !hasLateFreight) {
-      Alert.alert(
-        'No late freight',
-        'Late freight insertion needs a locked route with at least one newly-added stop. Optimize and start your route first, then add parcels.',
-      );
-      return;
-    }
-    if (!currentLocationRef.current) {
-      Alert.alert('Location needed', 'Turn on location so late freight can be slotted from your current position.');
-      return;
-    }
-    await runLateFreightZipper();
-  }, [runLateFreightZipper]);
+  // zip and reorderStops are stable refs from the hook/store.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops]);
 
   const handleExportXlsx = async () => {
     try {
@@ -3198,7 +3206,8 @@ export default function RouteScreen() {
         proximityNotifiedRef.current = currentLegIndexRef.current;
         handleArrivalAtStop();
       }
-      if (immersiveMode) setImmersiveMode(false);
+      // Card visibility is owned by the proximity effect below (20m show /
+      // 40m hide), decoupled from this 100m arrival announcement.
     },
   });
 
@@ -3207,6 +3216,39 @@ export default function RouteScreen() {
     if (viewMode === 'navigating') geofenceResetAll();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
+
+  // ── Proximity-driven action-card visibility ──────────────────────────────
+  // The bottom action card is hidden while driving (immersiveMode=true) and
+  // slides up automatically within CARD_SHOW_RADIUS_M of the current stop,
+  // then hides once the driver passes beyond CARD_HIDE_RADIUS_M (or the leg
+  // advances). We act only on zone *crossings* (far→near shows, near→far
+  // hides) so a manual dismiss/summon via the header persists within a zone,
+  // and the 20-in/40-out hysteresis stops GPS wander from flapping the card.
+  const cardZoneRef = useRef<'near' | 'far'>('far');
+  useEffect(() => {
+    // New stop: reset to far + hidden so the card re-arms for the next approach.
+    cardZoneRef.current = 'far';
+    if (viewMode === 'navigating') setImmersiveMode(true);
+  }, [currentLegIndex, viewMode]);
+  useEffect(() => {
+    if (viewMode !== 'navigating' || !currentLocation || !geofenceActiveStop) return;
+    if (typeof geofenceActiveStop.latitude !== 'number' || typeof geofenceActiveStop.longitude !== 'number') return;
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(geofenceActiveStop.latitude - currentLocation.latitude);
+    const dLng = toRad(geofenceActiveStop.longitude - currentLocation.longitude);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(currentLocation.latitude)) * Math.cos(toRad(geofenceActiveStop.latitude)) *
+      Math.sin(dLng / 2) ** 2;
+    const dist = 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    let zone = cardZoneRef.current;
+    if (dist <= CARD_SHOW_RADIUS_M) zone = 'near';
+    else if (dist > CARD_HIDE_RADIUS_M) zone = 'far';
+    if (zone !== cardZoneRef.current) {
+      cardZoneRef.current = zone;
+      setImmersiveMode(zone === 'far'); // far → hidden(true), near → shown(false)
+    }
+  }, [currentLocation, geofenceActiveStop, viewMode]);
 
   const sidebarWidth = sidebarAnim.interpolate({
     inputRange: [0, 1],
@@ -4186,6 +4228,7 @@ export default function RouteScreen() {
           driverHeading={currentLocation?.heading}
           targetLat={geofenceActiveStop?.latitude}
           targetLng={geofenceActiveStop?.longitude}
+          topOffset={insets.top + NAV_HEADER_CLEARANCE}
         />
 
       </View>
@@ -4286,7 +4329,8 @@ export default function RouteScreen() {
           onExport={handleExportXlsx}
           onOptimize={handleOptimize}
           onLateFreight={handleLateFreight}
-          lateFreightInserting={zipperInserting}
+          lateFreightCount={lateFreightCount}
+          zipperInserting={zipperInserting}
           onShowAlgorithmPicker={() => setShowAlgorithmPicker(true)}
           onBenchmark={() => setShowBenchmarkModal(true)}
           onStartNavigation={startNavigation}
@@ -4682,7 +4726,12 @@ export default function RouteScreen() {
       {pausedSeconds !== null && (
         <Animated.View
           pointerEvents="none"
-          style={[styles.pausedPill, { opacity: pausedPillOpacity }]}
+          style={[
+            styles.pausedPill,
+            { opacity: pausedPillOpacity },
+            // Clear the taller unified nav header while navigating.
+            viewMode === 'navigating' && { top: insets.top + NAV_HEADER_CLEARANCE },
+          ]}
           data-testid="paused-indicator-pill"
         >
           <Ionicons name="pause-circle" size={14} color="#fbbf24" />

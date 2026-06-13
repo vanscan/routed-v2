@@ -51,6 +51,10 @@ waitForPort = 5000
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5001
+externalPort = 3001
+
 [deployment]
 deploymentTarget = "static"
 run = ["bash", "-c", "cd backend && uvicorn server:app --host 0.0.0.0 --port 8000 & cd frontend && npx expo start --web --port 5000 --host localhost --no-dev"]
