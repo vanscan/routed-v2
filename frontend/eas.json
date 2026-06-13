@@ -50,9 +50,22 @@
     }
   },
   "submit": {
+    "Production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": false
+      }
+    },
     "production": {
       "android": {
-        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": false
+      }
+    },
+    "playstore": {
+      "android": {
         "track": "internal",
         "releaseStatus": "draft",
         "changesNotSentForReview": false
@@ -60,7 +73,6 @@
     },
     "internal": {
       "android": {
-        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "internal",
         "releaseStatus": "completed",
         "changesNotSentForReview": false
@@ -68,7 +80,6 @@
     },
     "alpha": {
       "android": {
-        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "alpha",
         "releaseStatus": "completed",
         "changesNotSentForReview": false
@@ -76,7 +87,6 @@
     },
     "beta": {
       "android": {
-        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "beta",
         "releaseStatus": "completed",
         "changesNotSentForReview": false
