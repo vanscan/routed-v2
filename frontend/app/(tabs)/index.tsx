@@ -1023,12 +1023,12 @@ export default function RouteScreen() {
         const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
         await reorderStops(ordered);
         setResumeToast('Route updated with late freight');
-      } else {
-        Alert.alert('Late Freight', 'Could not re-sequence stops. Check your connection and try again.');
       }
+      // null means superseded by a newer tap — silently ignore
     } catch (e) {
-      console.warn('[late-freight] manual zip failed:', (e as Error)?.message || e);
-      Alert.alert('Late Freight', 'Something went wrong — please try again.');
+      const msg = (e as Error)?.message || 'Unknown error';
+      console.warn('[late-freight] manual zip failed:', msg);
+      Alert.alert('Late Freight failed', msg);
     }
   // zip and reorderStops are stable refs from the hook/store.
   // eslint-disable-next-line react-hooks/exhaustive-deps
