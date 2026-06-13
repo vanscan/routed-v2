@@ -74,6 +74,9 @@ interface SidebarProps {
   onHistoryPress: () => void;
   onRefresh: () => void;
   onEnterRefineMode: () => void;
+  onLateFreight: () => void;
+  lateFreightCount?: number;
+  zipperInserting?: boolean;
   setStopsCollapsed: (collapsed: boolean) => void;
   setIsDragMode: (mode: boolean) => void;
   /** Called when the driver finishes a drag-to-reorder gesture. Receives
@@ -303,6 +306,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onHistoryPress,
   onRefresh,
   onEnterRefineMode,
+  onLateFreight,
+  lateFreightCount = 0,
+  zipperInserting = false,
   setStopsCollapsed,
   setIsDragMode,
   onReorder,
@@ -502,6 +508,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Text style={styles.actionBtnMiniText}>Load Van</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Late Freight Button — manually triggers the zipper solver to
+                  slot any late-added parcels into the cheapest gap in the
+                  confirmed route order. Badge shows count when detected. */}
+              <TouchableOpacity
+                style={[
+                  styles.actionBtnLateFreight,
+                  (stops.length === 0 || zipperInserting) && styles.actionBtnDisabled,
+                ]}
+                onPress={onLateFreight}
+                disabled={stops.length === 0 || zipperInserting}
+                data-testid="late-freight-btn"
+              >
+                {zipperInserting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="flash" size={16} color="#fff" />
+                )}
+                <Text style={styles.actionBtnPrimaryText}>
+                  {zipperInserting ? 'Zipping…' : 'Late Freight'}
+                </Text>
+                {lateFreightCount > 0 && !zipperInserting && (
+                  <View style={styles.lateFreightBadge}>
+                    <Text style={styles.lateFreightBadgeText}>{lateFreightCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
 
               {/* Optimize Button with Algorithm Selector */}
               <View style={styles.optimizeButtonContainer}>
@@ -708,6 +741,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Ionicons name="cloud-upload-outline" size={22} color="#8b5cf6" />
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.collapsedBtn, (stops.length === 0 || zipperInserting) && styles.collapsedBtnDisabled]}
+            onPress={onLateFreight}
+            disabled={stops.length === 0 || zipperInserting}
+          >
+            <Ionicons name="flash" size={22} color="#f59e0b" />
+            {lateFreightCount > 0 && (
+              <View style={styles.lateFreightBadgeCollapsed}>
+                <Text style={styles.lateFreightBadgeText}>{lateFreightCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.collapsedBtn, stops.length < 2 && styles.collapsedBtnDisabled]}
             onPress={onOptimize}
             disabled={stops.length < 2 || optimizing}
@@ -894,6 +939,43 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
+  },
+  actionBtnLateFreight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d97706',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+  },
+  lateFreightBadge: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    marginLeft: 4,
+  },
+  lateFreightBadgeCollapsed: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    minWidth: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  lateFreightBadgeText: {
+    color: '#92400e',
+    fontSize: 10,
+    fontWeight: '800',
   },
   actionBtnStart: {
     flexDirection: 'row',

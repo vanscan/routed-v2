@@ -995,6 +995,33 @@ export default function RouteScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lateFreightScanPending]);
 
+  const handleLateFreight = useCallback(async () => {
+    const gps = currentLocationRef.current;
+    if (!gps || stops.length === 0) return;
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const zipStops = [
+        { id: '__depot__', lat: gps.latitude, lon: gps.longitude, original_sequence: null, is_depot: true },
+        ...stops.map((s) => ({
+          id: s.id,
+          lat: s.latitude,
+          lon: s.longitude,
+          original_sequence: (s as any).original_sequence ?? null,
+        })),
+      ];
+      const result = await zip(zipStops);
+      if (result) {
+        const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
+        await reorderStops(ordered);
+        setResumeToast('Route updated with late freight');
+      }
+    } catch (e) {
+      console.warn('[late-freight] manual zip failed:', (e as Error)?.message || e);
+    }
+  // zip and reorderStops are stable refs from the hook/store.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops]);
+
   const handleExportXlsx = async () => {
     try {
       const API = BACKEND_URL;
@@ -4253,6 +4280,9 @@ export default function RouteScreen() {
           onImport={() => router.push('/import')}
           onExport={handleExportXlsx}
           onOptimize={handleOptimize}
+          onLateFreight={handleLateFreight}
+          lateFreightCount={lateFreightCount}
+          zipperInserting={zipperInserting}
           onShowAlgorithmPicker={() => setShowAlgorithmPicker(true)}
           onBenchmark={() => setShowBenchmarkModal(true)}
           onStartNavigation={startNavigation}
