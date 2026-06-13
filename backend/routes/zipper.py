@@ -43,7 +43,7 @@ class StopIn(BaseModel):
     is_depot: bool = False
 
 
-_MAX_STOPS = 150  # Hard cap: OSRM matrix is O(n²); OR-Tools at n=150 is already heavy.
+_MAX_STOPS = 300  # OSRM matrix is O(n²); 300 pending stops is the practical ceiling for a single van run.
 
 
 class ZipperRequest(BaseModel):

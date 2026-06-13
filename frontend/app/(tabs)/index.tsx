@@ -1004,9 +1004,14 @@ export default function RouteScreen() {
       const depot = gpsRaw
         ? { latitude: gpsRaw.latitude, longitude: gpsRaw.longitude }
         : { latitude: stops[0].latitude, longitude: stops[0].longitude };
+      // Only send uncompleted stops — completed ones are already delivered and
+      // don't need re-sequencing. This also keeps the payload well under the
+      // backend's OSRM matrix cap on large routes.
+      const pendingStops = stops.filter((s) => !s.completed);
+      if (pendingStops.length === 0) return;
       const zipStops = [
         { id: '__depot__', lat: depot.latitude, lon: depot.longitude, original_sequence: null, is_depot: true },
-        ...stops.map((s) => ({
+        ...pendingStops.map((s) => ({
           id: s.id,
           lat: s.latitude,
           lon: s.longitude,
