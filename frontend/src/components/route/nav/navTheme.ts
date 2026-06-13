@@ -64,9 +64,10 @@ export const NAV_HEADER_CLEARANCE = 132;
 /**
  * Proximity-card thresholds (metres). The action card shows when the driver is
  * within SHOW of the current stop and hides once they pass beyond HIDE. The
- * 20-in / 40-out hysteresis prevents flapping from consumer-GPS wander (±5–15m)
- * while parked at the doorstep. Visibility is driven by zone *crossings*, so a
- * manual dismiss persists until the driver actually leaves and returns.
+ * 20 m hysteresis gap (HIDE − SHOW) prevents flapping from consumer-GPS wander
+ * (±5–15 m) while parked at the doorstep. Visibility is driven by zone
+ * *crossings*, so a manual dismiss persists until the driver actually leaves
+ * and returns.
  */
-export const CARD_SHOW_RADIUS_M = 20;
-export const CARD_HIDE_RADIUS_M = 40;
+export const CARD_SHOW_RADIUS_M = 30;
+export const CARD_HIDE_RADIUS_M = 50;
