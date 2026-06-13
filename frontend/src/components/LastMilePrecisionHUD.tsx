@@ -45,6 +45,12 @@ export interface LastMilePrecisionHUDProps {
    * fires, giving the driver visual cues to find the door.
    */
   triggerRadiusMeters?: number;
+  /**
+   * Distance from the top of the screen (px). Defaults to 12. During driving
+   * the parent passes `insets.top + NAV_HEADER_CLEARANCE` so the chip clears
+   * the taller unified navigation header.
+   */
+  topOffset?: number;
 }
 
 const EARTH_RADIUS_M = 6371008.8;
@@ -104,6 +110,7 @@ export const LastMilePrecisionHUD: React.FC<LastMilePrecisionHUDProps> = ({
   targetLng,
   enabled,
   triggerRadiusMeters = 150,
+  topOffset = 12,
 }) => {
   const computed = useMemo(() => {
     if (
@@ -136,7 +143,7 @@ export const LastMilePrecisionHUD: React.FC<LastMilePrecisionHUDProps> = ({
 
   return (
     <View
-      style={[styles.container, computed.inside && styles.containerInside]}
+      style={[styles.container, { top: topOffset }, computed.inside && styles.containerInside]}
       testID="last-mile-precision-hud"
       accessibilityLabel={
         `${formatDistance(computed.distance)} at ${computed.clock} o'clock`

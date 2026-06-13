@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Animated, PanResponder, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, PanResponder, Modal, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Stop } from '../../store/stopsStore';
 import { ViewMode } from '../../types/route';
-import { formatDistance, getManeuverIcon, getGeocodeMetadataEntries } from '../../utils/route';
+import { formatDistance, getManeuverIcon } from '../../utils/route';
 import { stopPinNumber, buildLateFreightLabels } from '../../utils/stopPinNumber';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { navColors, navRadii } from './nav/navTheme';
 // SwipeToDeliver retired on 2026-05-11 per driver request — see comment
 // in the Main Actions row below for the rationale and how to restore.
 // Component file `./SwipeToDeliver.tsx` is intentionally kept on disk
@@ -14,6 +16,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface NavigationPanelProps {
   viewMode: ViewMode;
+  // Card visibility flag (driven by proximity in index.tsx): true = card HIDDEN
+  // (pure map + header while driving), false = action card SHOWN (within 20m of
+  // the stop, or manually summoned by tapping the header).
   immersiveMode: boolean;
   setImmersiveMode: (mode: boolean) => void;
   currentStep: any;
@@ -76,13 +81,9 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   currentLegIndex,
   isVoiceEnabled,
   setIsVoiceEnabled,
-  currentMapStyle,
-  cycleMapStyle,
   speedKmh,
   etaToNextStop,
   insets,
-  isRerouting,
-  canUndo,
   liveRoute,
   completedCount,
 
@@ -90,10 +91,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   onMarkDelivered,
   onMarkFailed,
   onSkipStop,
-  onUndoStop,
-  onReroute,
   onShowRouteOverview,
-  onOpenSidebar,
   onShareETA,
   onCallCustomer,
   onPreviewNextStop,
@@ -161,20 +159,15 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   };
   const realStops = (stops as any[]).filter((s: any) => !s.is_current_location);
   const totalStops = realStops.length || stops.length;
-  // Bottom-sheet badge must match the map-pin sprite (`stop-${order}`).
-  // Uses shared helper so this never drifts out of alignment with toast /
-  // resume overlay / stop-detail views.
   const currentStop = currentLeg?.to_stop;
   // Locked Sharpie badge first, then backend planning order. NEVER falls back
   // to the array index — those reshuffle on re-optimise and the badge must
   // stay welded to the physical box. Returns null when the stop has no
   // numeric identity (rare; pre-hydration only).
   const currentStopNumber = stopPinNumber(currentStop);
-  // Late-freight stops have no locked `original_sequence`, so
-  // `stopPinNumber` returns null and the badge would render blank in
-  // driving mode. Resolve a human label ("45A", "45B" …) anchored to the
-  // nearest preceding locked stop — same labels the planning map/sidebar
-  // already show — so the driver sees a consistent badge everywhere.
+  // Late-freight stops have no locked `original_sequence`, so `stopPinNumber`
+  // returns null. Resolve a human label ("45A", "45B" …) anchored to the
+  // nearest preceding locked stop so the driver sees a consistent badge.
   const lateFreightLabels = useMemo(
     () => buildLateFreightLabels(stops as any),
     [stops],
@@ -185,23 +178,15 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     if (id && lateFreightLabels[id]) return lateFreightLabels[id];
     return '';
   }, [currentStopNumber, currentStop, lateFreightLabels]);
-  // True when the CURRENT stop is a late-freight parcel (added after route
-  // lock, no original_sequence). Used to colour the driving badge purple so
-  // the driver sees the same colour as the map pin and sidebar badge.
+  // True when the CURRENT stop is a late-freight parcel — colours the badge
+  // purple to match the map pin + sidebar.
   const isCurrentLateFreight = currentStopNumber == null &&
     !!((currentStop as any)?.id && lateFreightLabels[(currentStop as any)?.id]);
-  const geocodeMetaEntries = useMemo(
-    () => getGeocodeMetadataEntries(currentLeg?.to_stop?.geocode_metadata),
-    [currentLeg?.to_stop?.geocode_metadata]
-  );
 
-  // Identify all stops sharing the same coordinates as the current stop so
-  // we can show drivers when they're about to deliver one of several parcels
-  // at the same address. Previously we showed just a small `x2` badge which
-  // drivers kept missing — they'd deliver one parcel and drive off leaving
-  // the others behind. This memo returns the whole group in route order and
-  // the current parcel's position + progress so the UI can render a loud
-  // "MULTIPLE PARCELS AT THIS ADDRESS · Parcel 2 of 3" banner.
+  // Identify all stops sharing the current stop's coordinates so we can warn
+  // the driver about multiple parcels at one doorstep (they used to deliver
+  // one and drive off, leaving the rest). Returns the whole group in route
+  // order plus the current parcel's position + delivered progress.
   const colocatedInfo = useMemo(() => {
     const cur = currentLeg?.to_stop;
     if (!cur) return { count: 1, index: 1, doneCount: 0, group: [] as any[] };
@@ -216,40 +201,27 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   }, [currentLeg?.to_stop, realStops]);
   const colocatedCount = colocatedInfo.count;
 
+  // Header meta line: suburb · customer · weight (only the parts that exist).
+  const headerMeta = useMemo(() => {
+    const s: any = currentLeg?.to_stop;
+    if (!s) return '';
+    const parts: string[] = [];
+    if (s.suburb) parts.push(String(s.suburb));
+    if (s.name) parts.push(String(s.name));
+    if (s.weight) parts.push(`${s.weight} kg`);
+    return parts.join('  ·  ');
+  }, [currentLeg?.to_stop]);
+
   // ── Horizontal swipe between stops (preview-only, no completion side-effects)
-  //
-  // UX:
-  //   swipe LEFT  → onPreviewNextStop (advance card to next stop)
-  //   swipe RIGHT → onPreviewPrevStop (go back to previous stop)
-  //
-  // We deliberately do NOT mark the current stop delivered/failed — the driver
-  // keeps full control of its status via the dedicated buttons. This gesture
-  // only changes WHICH card is on screen so the driver can peek at upcoming
-  // or previous stops without losing their place.
-  //
-  // Implementation notes:
-  //   • Uses PanResponder (no extra lib) so it works in Expo Go + EAS builds.
-  //   • `moveX > moveY * 1.4` gate prevents hijacking vertical scrolls on the
-  //     notes or scroll list inside the card.
-  //   • Threshold = 70 px OR flick velocity > 0.4 — matches platform feel.
-  //   • Rubber-bands resistance at ends of the route (no previous/next stop).
-  //   • Light haptic fires on commit; medium haptic if swipe hits end.
+  //   swipe LEFT  → onPreviewNextStop, swipe RIGHT → onPreviewPrevStop.
+  //   PanResponder (no extra lib), 20px threshold + 1.4× horizontal ratio gate
+  //   so vertical scrolls and jittery taps reach the inner buttons.
   const swipeX = useRef(new Animated.Value(0)).current;
   const swipeResponder = useMemo(
     () => PanResponder.create({
-      // Threshold = 20 px (was 8). 8 px hijacked taps in a moving vehicle —
-      // any finger jitter ≥ 8 px during a tap-release made the PanResponder
-      // claim the gesture, so the Delivered / Failed / Skip TouchableOpacity
-      // children below never fired their onPress. 20 px sits above typical
-      // finger jitter / road-vibration drift but well below Android's tap
-      // slop (~24 px), so a deliberate horizontal drag still works while a
-      // jittery tap reaches the inner buttons. We also require a minimum
-      // ratio of horizontal-vs-vertical motion (1.4x) so vertical scroll
-      // gestures never get confused for a stop-swipe.
       onMoveShouldSetPanResponder: (_e, g) =>
         Math.abs(g.dx) > 20 && Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
       onPanResponderMove: (_e, g) => {
-        // Rubber-band at the edges: damp the drag to 40% when no sibling stop.
         const atEdge =
           (g.dx > 0 && !canPreviewPrev) || (g.dx < 0 && !canPreviewNext);
         swipeX.setValue(atEdge ? g.dx * 0.4 : g.dx);
@@ -260,16 +232,10 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         const committed = fastFlick || farDrag;
         if (committed && g.dx < 0 && canPreviewNext && onPreviewNextStop) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          // Animate card out to the left, swap content while off-screen,
-          // then slide in from the right. The previous version snapped
-          // swipeX to 0 BEFORE swapping content, which caused the panel to
-          // momentarily render the OLD stop's content at x=0 + opacity 1
-          // for one frame (visible as a "flick" — much more obvious with
-          // the now semi-transparent panel that lets the map show through).
           Animated.timing(swipeX, { toValue: -500, duration: 160, useNativeDriver: true })
             .start(() => {
-              onPreviewNextStop();          // 1) swap content while hidden
-              swipeX.setValue(500);          // 2) place off-screen RIGHT
+              onPreviewNextStop();
+              swipeX.setValue(500);
               Animated.timing(swipeX, { toValue: 0, duration: 160, useNativeDriver: true }).start();
             });
           return;
@@ -278,17 +244,15 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           Animated.timing(swipeX, { toValue: 500, duration: 160, useNativeDriver: true })
             .start(() => {
-              onPreviewPrevStop();           // swap content while hidden
-              swipeX.setValue(-500);          // place off-screen LEFT
+              onPreviewPrevStop();
+              swipeX.setValue(-500);
               Animated.timing(swipeX, { toValue: 0, duration: 160, useNativeDriver: true }).start();
             });
           return;
         }
         if (committed) {
-          // Tried to swipe past the first/last stop — warning haptic.
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
-        // Spring back to resting position.
         Animated.spring(swipeX, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
       },
       onPanResponderTerminate: () => {
@@ -298,103 +262,138 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     [swipeX, canPreviewNext, canPreviewPrev, onPreviewNextStop, onPreviewPrevStop],
   );
 
-  // Subtle opacity fade at the extremes of the drag — signals the swipe is active.
   const swipeOpacity = swipeX.interpolate({
     inputRange: [-200, 0, 200],
     outputRange: [0.6, 1, 0.6],
     extrapolate: 'clamp',
   });
 
+  // Card show/hide slide. cardAnim 0 = off-screen-below/transparent, 1 = resting.
+  // Runs when the proximity flag flips the card on (immersiveMode → false).
+  const cardAnim = useRef(new Animated.Value(immersiveMode ? 0 : 1)).current;
+  useEffect(() => {
+    if (!immersiveMode) {
+      cardAnim.setValue(0);
+      Animated.spring(cardAnim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 65 }).start();
+    }
+  }, [immersiveMode, cardAnim]);
+  const cardTranslateY = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [64, 0] });
+  const cardOpacity = Animated.multiply(swipeOpacity, cardAnim);
+
+  const maneuverIcon = currentStep
+    ? (getManeuverIcon(currentStep.type, currentStep.modifier) as any)
+    : 'arrow-up';
+  const badgeGrad = isCurrentLateFreight
+    ? (['#7c3aed', '#a855f7'] as const)
+    : navColors.blueGrad;
+
   return (
     <>
-      {/* Floating Turn Instruction — tap to toggle full UI */}
-      <TouchableOpacity
-        style={[styles.immersiveTurnBanner, { top: insets.top + 8 }]}
-        onPress={() => setImmersiveMode(!immersiveMode)}
-        activeOpacity={0.9}
-      >
-        <View style={styles.immersiveTurnRow}>
-          <View style={styles.immersiveTurnIconBox}>
-            <Ionicons
-              name={currentStep ? getManeuverIcon(currentStep.type, currentStep.modifier) as any : 'arrow-up'}
-              size={28}
-              color="#fff"
-            />
-          </View>
-          <View style={styles.immersiveTurnDetails}>
-            <Text style={styles.immersiveTurnDist}>
-              {currentStep?.distance ? formatDistance(currentStep.distance) : '--'}
-            </Text>
-            <Text style={styles.immersiveTurnText} numberOfLines={1}>
-              {currentStep?.instruction || 'Continue'}
-            </Text>
-          </View>
+      {/* ── Unified navigation header — STOP is the hero, turn is the strip ──── */}
+      <View style={[styles.header, { top: insets.top + 8 }]}>
+        {/* Row 1 — the stop. Tapping the row toggles the action card. */}
+        <TouchableOpacity
+          style={styles.row1}
+          activeOpacity={0.85}
+          onPress={() => setImmersiveMode(!immersiveMode)}
+          testID="nav-header-row1"
+        >
           <Pressable
             onLongPress={openJumpMenu}
             delayLongPress={400}
-            style={[styles.navBarStopBadge, isCurrentLateFreight && styles.navBarStopBadgeLate]}
+            onStartShouldSetResponderCapture={() => true}
             testID="nav-bar-stop-badge"
           >
-            <Text style={styles.navBarStopNum}>#{currentStopLabel}</Text>
+            <LinearGradient
+              colors={badgeGrad}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroBadge}
+            >
+              <Text style={styles.heroNum}>{currentStopLabel || '—'}</Text>
+              <Text style={styles.heroOf}>of {totalStops}</Text>
+            </LinearGradient>
           </Pressable>
-        </View>
-        <TouchableOpacity
-          style={styles.immersiveVoiceBtn}
-          onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
-          onStartShouldSetResponderCapture={() => true}
-          testID="nav-voice-btn"
-        >
-          <Ionicons
-            name={isVoiceEnabled ? 'volume-high' : 'volume-mute'}
-            size={18}
-            color={isVoiceEnabled ? '#10b981' : '#ef4444'}
-          />
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerAddr} numberOfLines={2}>
+              {currentLeg?.to_stop?.address || 'Next Stop'}
+            </Text>
+            {!!headerMeta && (
+              <Text style={styles.headerMeta} numberOfLines={1}>{headerMeta}</Text>
+            )}
+          </View>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              onPress={() => setIsVoiceEnabled(!isVoiceEnabled)}
+              onStartShouldSetResponderCapture={() => true}
+              hitSlop={8}
+              testID="nav-voice-btn"
+            >
+              <Ionicons
+                name={isVoiceEnabled ? 'volume-high' : 'volume-mute'}
+                size={18}
+                color={isVoiceEnabled ? '#10b981' : '#94a3b8'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerExitBtn}
+              onPress={onStopNavigation}
+              onStartShouldSetResponderCapture={() => true}
+              hitSlop={8}
+              testID="nav-exit-btn"
+            >
+              <Ionicons name="close" size={18} color={navColors.failedFg} />
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.immersiveExitBtn} onPress={onStopNavigation} onStartShouldSetResponderCapture={() => true}>
-          <Ionicons name="close" size={22} color="#ef4444" />
-        </TouchableOpacity>
-      </TouchableOpacity>
 
-      {/* Floating Speed Display - Always visible */}
-      <View style={[styles.immersiveSpeedDisplay, { top: insets.top + 80 }]}>
-        <Text style={styles.immersiveSpeedValue}>{speedKmh}</Text>
-        <Text style={styles.immersiveSpeedUnit}>km/h</Text>
-      </View>
-
-      {/* Compact Stats Row - Always visible */}
-      <View style={[styles.immersiveStatsRow, { top: insets.top + 80 }]}>
-        <View style={styles.immersiveStatChip}>
-          <Ionicons name="time-outline" size={14} color="#10b981" />
-          <Text style={styles.immersiveStatText}>{etaToNextStop}</Text>
-        </View>
-        <View style={styles.immersiveStatChip}>
-          <Ionicons name="navigate-outline" size={14} color="#3b82f6" />
-          <Text style={styles.immersiveStatText}>
-            {liveRoute ? formatDistance(liveRoute.distance) : '--'}
+        {/* Row 2 — compact turn strip + ETA + speed. */}
+        <View style={styles.row2}>
+          <LinearGradient
+            colors={navColors.blueGrad}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.maneuverTileSm}
+          >
+            <Ionicons name={maneuverIcon} size={20} color="#fff" />
+          </LinearGradient>
+          <View style={styles.turnInfo}>
+            <Text style={styles.turnDist}>
+              {currentStep?.distance ? formatDistance(currentStep.distance) : '--'}
+            </Text>
+            <Text style={styles.turnInstr} numberOfLines={1}>
+              {currentStep?.instruction || 'Continue'}
+            </Text>
+          </View>
+          {!!etaToNextStop && (
+            <View style={styles.etaPill}>
+              <Text style={styles.etaPillText}>{etaToNextStop}</Text>
+            </View>
+          )}
+          <Text style={styles.speedText}>
+            {speedKmh}
+            <Text style={styles.speedUnit}> km/h</Text>
           </Text>
         </View>
       </View>
 
-      {/* Expandable Bottom Panel - Tap to expand */}
-      {!immersiveMode ? (
+      {/* ── Action card — appears only within 20m of the stop (or on header tap),
+            auto-hides 20m past or on completion. No bottom bar while driving. ── */}
+      {!immersiveMode && (
         <Animated.View
           style={[
-            styles.immersiveBottomFull,
+            styles.card,
             { paddingBottom: insets.bottom + 8 },
-            { transform: [{ translateX: swipeX }], opacity: swipeOpacity },
+            { transform: [{ translateX: swipeX }, { translateY: cardTranslateY }], opacity: cardOpacity },
           ]}
           {...swipeResponder.panHandlers}
           testID="nav-stop-card"
         >
-          {/* Swipe hint chevrons — fade in when the driver starts dragging,
-              so the gesture is discoverable without taking screen real-estate
-              at rest. */}
+          {/* Swipe-hint chevrons — fade in while dragging. */}
           {canPreviewPrev && (
             <Animated.View
-              style={[
-                styles.swipeHintLeft,
-                { opacity: swipeX.interpolate({ inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp' }) },
-              ]}
+              style={[styles.swipeHintLeft, { opacity: swipeX.interpolate({ inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp' }) }]}
               pointerEvents="none"
             >
               <Ionicons name="chevron-back" size={22} color="#60a5fa" />
@@ -402,19 +401,13 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
           )}
           {canPreviewNext && (
             <Animated.View
-              style={[
-                styles.swipeHintRight,
-                { opacity: swipeX.interpolate({ inputRange: [-60, 0], outputRange: [1, 0], extrapolate: 'clamp' }) },
-              ]}
+              style={[styles.swipeHintRight, { opacity: swipeX.interpolate({ inputRange: [-60, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}
               pointerEvents="none"
             >
               <Ionicons name="chevron-forward" size={22} color="#60a5fa" />
             </Animated.View>
           )}
-          {/* One-time swipe teach hint — plays once after first navigation
-              session, fades + slides in both chevrons simultaneously so the
-              driver learns the peek gesture without any prompt. Never repeats
-              (AsyncStorage flag 'nav_swipe_taught'). */}
+          {/* One-time swipe teach hint. */}
           {showTeachSwipe && (
             <>
               <Animated.View
@@ -431,41 +424,28 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </Animated.View>
             </>
           )}
-          {/* Multi-parcel warning — impossible to miss.
-              Shown whenever the current stop shares its coordinates with one
-              or more other stops on the route. Drivers were previously relying
-              on the tiny `x2` badge and missing the fact that more than one
-              delivery was parked at the same doorstep. This loud amber banner
-              surfaces the parcel index, weight, a shortened stop ID for
-              disambiguation, and a progress-dot row showing which parcels at
-              this address are already delivered. */}
+
+          {/* Multi-parcel warning — impossible to miss. */}
           {colocatedCount > 1 && currentLeg?.to_stop && (
-            <View style={styles.colocatedWarn} data-testid="nav-colocated-warn">
-              <View style={styles.colocatedWarnHeader}>
-                <Ionicons name="warning" size={16} color="#7c2d12" />
-                <Text style={styles.colocatedWarnTitle}>
-                  MULTIPLE PARCELS AT THIS ADDRESS
-                </Text>
+            <View style={styles.warnBanner} data-testid="nav-colocated-warn">
+              <View style={styles.warnHeader}>
+                <Ionicons name="warning" size={15} color={navColors.warnTitle} />
+                <Text style={styles.warnTitle}>MULTIPLE PARCELS AT THIS ADDRESS</Text>
               </View>
-              <View style={styles.colocatedWarnBody}>
-                <Text style={styles.colocatedWarnLine}>
-                  Parcel <Text style={styles.colocatedWarnBold}>{colocatedInfo.index}</Text> of{' '}
-                  <Text style={styles.colocatedWarnBold}>{colocatedCount}</Text>
+              <View style={styles.warnBody}>
+                <Text style={styles.warnLine}>
+                  Parcel <Text style={styles.warnBold}>{colocatedInfo.index}</Text> of{' '}
+                  <Text style={styles.warnBold}>{colocatedCount}</Text>
                   {currentLeg.to_stop.weight ? `  ·  ${currentLeg.to_stop.weight} kg` : ''}
-                  {currentLeg.to_stop.id ? `  ·  #${String(currentLeg.to_stop.id).slice(0, 6)}` : ''}
                 </Text>
-                <View style={styles.colocatedDotsRow}>
+                <View style={styles.dotsRow}>
                   {colocatedInfo.group.map((s: any, i: number) => {
                     const isCurrent = s.id === currentLeg.to_stop.id;
                     const done = !!s.completed;
                     return (
                       <View
                         key={s.id || i}
-                        style={[
-                          styles.colocatedDot,
-                          done && styles.colocatedDotDone,
-                          isCurrent && styles.colocatedDotCurrent,
-                        ]}
+                        style={[styles.dot, done && styles.dotDone, isCurrent && styles.dotCurrent]}
                       />
                     );
                   })}
@@ -473,252 +453,113 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </View>
             </View>
           )}
-          {/* Stop badge + address — large, prominent */}
-          <View style={styles.cardHeaderRow}>
-            <Pressable
-              onLongPress={openJumpMenu}
-              delayLongPress={400}
-              style={[styles.cardStopBadge, isCurrentLateFreight && styles.immersiveStopBadgeLate]}
-              testID="nav-card-stop-badge"
-            >
-              <Text style={styles.cardStopNum}>{currentStopLabel}</Text>
-            </Pressable>
-            <Text style={styles.cardAddress} numberOfLines={2}>
-              {currentLeg?.to_stop?.address || 'Next Stop'}
-            </Text>
-          </View>
 
-          {/* Detail chips + Details button */}
-          <View style={styles.compactStopRow}>
-            <View style={styles.bottomChipsRow}>
-              {currentLeg?.to_stop?.weight ? (
-                <View style={styles.bottomChip}>
-                  <Ionicons name="cube-outline" size={11} color="#94a3b8" />
-                  <Text style={styles.bottomChipText}>{currentLeg.to_stop.weight} kg</Text>
-                </View>
-              ) : null}
-              {currentLeg?.to_stop?.mobile_number ? (
-                <TouchableOpacity
-                  style={[styles.bottomChip, styles.bottomChipBlue]}
-                  onPress={onCallCustomer}
-                  onStartShouldSetResponderCapture={() => true}
-                  testID="nav-phone-chip"
-                >
-                  <Ionicons name="call-outline" size={11} color="#60a5fa" />
-                  <Text style={[styles.bottomChipText, styles.bottomChipTextBlue]}>{currentLeg.to_stop.mobile_number}</Text>
-                </TouchableOpacity>
-              ) : null}
-              {liveRoute?.distance ? (
-                <View style={styles.bottomChip}>
-                  <Text style={styles.bottomChipText}>{formatDistance(liveRoute.distance)}</Text>
-                </View>
-              ) : null}
-              <Text style={styles.compactMetaText}>{completedCount}/{totalStops}</Text>
+          {/* Customer + meta + dismiss */}
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardCustomer} numberOfLines={1}>
+                {currentLeg?.to_stop?.name || currentLeg?.to_stop?.address?.split(',')[0] || 'Next Stop'}
+              </Text>
+              <Text style={styles.cardMeta} numberOfLines={1}>
+                {[
+                  currentLeg?.to_stop?.weight ? `${currentLeg.to_stop.weight} kg` : null,
+                  `${completedCount}/${totalStops} stops`,
+                  liveRoute?.distance ? formatDistance(liveRoute.distance) : null,
+                ].filter(Boolean).join('  ·  ')}
+              </Text>
             </View>
             <TouchableOpacity
-              style={styles.compactMoreBtn}
+              style={styles.dismissBtn}
               onPress={() => {
-                if (onShowDetails) {
-                  onShowDetails();
-                } else {
-                  setImmersiveMode(!immersiveMode);
-                }
+                if (onShowDetails) onShowDetails();
+                else setImmersiveMode(true);
               }}
               onStartShouldSetResponderCapture={() => true}
               testID="nav-more-btn"
             >
-              <Text style={styles.compactMoreText}>Details</Text>
-              <Ionicons name="chevron-down" size={14} color="#cbd5e1" />
+              <Ionicons name="chevron-down" size={18} color="#cbd5e1" />
             </TouchableOpacity>
           </View>
 
-          {/* Notes — full text, no truncation */}
+          {/* Notes */}
           {currentLeg?.to_stop?.notes ? (
-            <View style={styles.compactNotesBox}>
-              <Ionicons name="document-text-outline" size={13} color="#60a5fa" style={{ marginTop: 1 }} />
-              <Text style={styles.compactNotesText}>
-                {currentLeg.to_stop.notes}
-              </Text>
+            <View style={styles.notesBox}>
+              <Ionicons name="document-text-outline" size={13} color="#94a3b8" style={{ marginTop: 1 }} />
+              <Text style={styles.notesText} numberOfLines={2}>{currentLeg.to_stop.notes}</Text>
             </View>
           ) : null}
 
           {/* Quick actions: Call (if phone) / Share ETA / Overview */}
-          <View style={styles.bottomQuickRow}>
+          <View style={styles.quickRow}>
             {currentLeg?.to_stop?.mobile_number ? (
-              <TouchableOpacity style={styles.bottomQuickBtn} onPress={onCallCustomer} onStartShouldSetResponderCapture={() => true} testID="nav-quick-call">
+              <TouchableOpacity style={styles.quickBtn} onPress={onCallCustomer} onStartShouldSetResponderCapture={() => true} testID="nav-quick-call">
                 <Ionicons name="call-outline" size={14} color="#60a5fa" />
-                <Text style={styles.bottomQuickLabel}>Call</Text>
+                <Text style={styles.quickLabel}>Call</Text>
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity style={styles.bottomQuickBtn} onPress={onShareETA} onStartShouldSetResponderCapture={() => true} testID="nav-quick-eta">
+            <TouchableOpacity style={styles.quickBtn} onPress={onShareETA} onStartShouldSetResponderCapture={() => true} testID="nav-quick-eta">
               <Ionicons name="share-outline" size={14} color="#60a5fa" />
-              <Text style={styles.bottomQuickLabel}>Share ETA</Text>
+              <Text style={styles.quickLabel}>Share ETA</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomQuickBtn} onPress={onShowRouteOverview} onStartShouldSetResponderCapture={() => true} testID="nav-quick-overview">
+            <TouchableOpacity style={styles.quickBtn} onPress={onShowRouteOverview} onStartShouldSetResponderCapture={() => true} testID="nav-quick-overview">
               <Ionicons name="map-outline" size={14} color="#60a5fa" />
-              <Text style={styles.bottomQuickLabel}>Overview</Text>
+              <Text style={styles.quickLabel}>Overview</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Main Actions — Failed | Delivered | Skip
-              2026-05-11 — Reverted from slide-to-deliver back to a plain
-              tap button per driver feedback. The slide had two intended
-              benefits (anti-accidental-fire + service-time telemetry
-              signal from the ~500 ms gesture) but in practice drivers
-              found the friction painful at the end of a long shift.
-              Mitigations now:
-                • The button is a TouchableOpacity with `activeOpacity`
-                  and a `Haptics.impactAsync('Heavy')` on press so the
-                  driver still gets tactile confirmation of the fire.
-                • The `SwipeToDeliver` component is preserved at
-                  `./SwipeToDeliver` — to swap back, restore the import
-                  and replace the TouchableOpacity below with the
-                  SwipeToDeliver block from git history (commit before
-                  this revert).
-              `key={currentStop?.id}` retained on the row so any state
-              the panel holds resets cleanly on stop change. */}
-          <View style={styles.immersiveMainActions}>
-            <TouchableOpacity style={styles.immersiveFailedBtn} onPress={onMarkFailed} testID="nav-main-failed">
-              <Ionicons name="close" size={22} color="#ef4444" />
-              <Text style={styles.immersiveSideBtnLabel}>Failed</Text>
+          {/* Main Actions — Failed | Delivered | Skip.
+              2026-05-11 reverted from slide-to-deliver to tap buttons per driver
+              feedback; SwipeToDeliver.tsx kept on disk for a one-line restore.
+              The Delivered button carries the hardened hitbox (zIndex/elevation +
+              responder capture) since it's the only Delivered control now. */}
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.failedBtn} onPress={onMarkFailed} testID="nav-main-failed">
+              <Ionicons name="close" size={22} color={navColors.failedFg} />
+              <Text style={styles.sideBtnLabel}>Failed</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            <Pressable
               key={currentStop?.id ?? 'no-stop'}
-              style={styles.immersiveDeliveredBtn}
-              activeOpacity={0.85}
+              style={({ pressed }) => [styles.deliveredBtn, styles.deliveredHardenedHitbox, pressed && styles.deliveredPressed]}
+              onStartShouldSetResponderCapture={() => true}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPressIn={() => console.log('[deliver-btn:onPressIn] full')}
               onPress={() => {
                 try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
-                console.log('[deliver-btn:onPress] invoking onMarkDelivered');
+                console.log('[deliver-btn:onPress] full → invoking onMarkDelivered');
                 onMarkDelivered();
               }}
               testID="nav-main-delivered"
-            >
-              <Ionicons name="checkmark" size={26} color="#10b981" />
-              <Text style={styles.immersiveDeliveredBtnLabel}>Delivered</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.immersiveSkipBtn} onPress={onSkipStop} testID="nav-main-skip">
-              <Ionicons name="play-skip-forward" size={22} color="#f59e0b" />
-              <Text style={styles.immersiveSideBtnLabel}>Skip</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      ) : (
-        /* Persistent Waypoint Overlay - Compact destination info */
-        <Animated.View
-          style={[
-            styles.immersiveBottomMinimal,
-            { paddingBottom: insets.bottom + 8 },
-            { transform: [{ translateX: swipeX }], opacity: swipeOpacity },
-          ]}
-          {...swipeResponder.panHandlers}
-          testID="immersive-bottom-minimal"
-        >
-          <TouchableOpacity 
-            style={styles.immersiveMinimalInfoExpanded}
-            onPress={() => setImmersiveMode(false)}
-            activeOpacity={0.8}
-            testID="immersive-expand-button"
-          >
-            <View style={[styles.immersiveMinimalBadge, isCurrentLateFreight && styles.immersiveStopBadgeLate]}>
-              <Pressable
-                onLongPress={openJumpMenu}
-                delayLongPress={400}
-                style={StyleSheet.absoluteFill}
-                testID="nav-stop-badge-minimal"
-              />
-              <Text style={styles.immersiveMinimalBadgeText}>{currentStopLabel}</Text>
-            </View>
-            {colocatedCount > 1 && (
-              <View style={styles.navMultiplierBadgeSmall} data-testid="nav-multiplier-badge-minimal">
-                <Text style={styles.navMultiplierTextSmall}>{colocatedInfo.index}/{colocatedCount}</Text>
-              </View>
-            )}
-            <View style={styles.immersiveMinimalDetails}>
-              <Text style={styles.immersiveMinimalName} numberOfLines={1} testID="immersive-waypoint-name">
-                {currentLeg?.to_stop?.name || currentLeg?.to_stop?.address?.split(',')[0] || 'Next Stop'}
-              </Text>
-              <Text style={styles.immersiveMinimalAddress} numberOfLines={1} testID="immersive-waypoint-address">
-                {currentLeg?.to_stop?.address || `Stop ${currentStopLabel} of ${totalStops}`}
-              </Text>
-              <View style={styles.minimalChipRow}>
-                {currentLeg?.to_stop?.weight ? (
-                  <View style={styles.minimalChip}><Text style={styles.minimalChipText}>{currentLeg.to_stop.weight} kg</Text></View>
-                ) : null}
-                {liveRoute?.distance ? (
-                  <View style={styles.minimalChip}><Text style={styles.minimalChipText}>{formatDistance(liveRoute.distance)}</Text></View>
-                ) : null}
-                {etaToNextStop ? (
-                  <View style={[styles.minimalChip, styles.minimalChipEta]}><Text style={[styles.minimalChipText, styles.minimalChipTextEta]}>{etaToNextStop}</Text></View>
-                ) : null}
-              </View>
-            </View>
-            <Ionicons name="chevron-up" size={16} color="#64748b" />
-          </TouchableOpacity>
-
-          <View style={styles.immersiveMinimalActions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.immersiveMinimalDelivered,
-                styles.deliveredHardenedHitbox,
-                pressed && styles.deliveredPressed,
-              ]}
-              onPressIn={() => console.log('[deliver-btn:onPressIn] minimal')}
-              onPress={() => {
-                console.log('[deliver-btn:onPress] minimal → invoking onMarkDelivered');
-                onMarkDelivered();
-              }}
-              // CRITICAL: this button sits inside the parent Animated.View whose
-              // PanResponder owns left/right stop-swipe gestures. Capturing the
-              // responder on touch-start is the only reliable way to keep that
-              // PanResponder from claiming a tap mid-press.
-              onStartShouldSetResponderCapture={() => true}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              pointerEvents="auto"
-              testID="immersive-delivered-button"
               accessibilityRole="button"
               accessibilityLabel="Mark stop as delivered"
             >
-              <Ionicons name="checkmark" size={26} color="#fff" />
+              <LinearGradient
+                colors={navColors.greenGrad}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.deliveredFill}
+              >
+                <Ionicons name="checkmark" size={26} color="#fff" />
+                <Text style={styles.deliveredLabel}>Delivered</Text>
+              </LinearGradient>
             </Pressable>
+
+            <TouchableOpacity style={styles.skipBtn} onPress={onSkipStop} testID="nav-main-skip">
+              <Ionicons name="play-skip-forward" size={22} color={navColors.skipFg} />
+              <Text style={styles.sideBtnLabel}>Skip</Text>
+            </TouchableOpacity>
           </View>
-          {/* One-time swipe teach hint — same animation plays in minimal mode
-              so drivers who start in compact view also discover the gesture. */}
-          {showTeachSwipe && (
-            <>
-              <Animated.View
-                style={[styles.swipeHintLeft, { opacity: teachOpacity, transform: [{ translateX: teachSlideLeft }] }]}
-                pointerEvents="none"
-              >
-                <Ionicons name="chevron-back" size={22} color="#60a5fa" />
-              </Animated.View>
-              <Animated.View
-                style={[styles.swipeHintRight, { opacity: teachOpacity, transform: [{ translateX: teachSlideRight }] }]}
-                pointerEvents="none"
-              >
-                <Ionicons name="chevron-forward" size={22} color="#60a5fa" />
-              </Animated.View>
-            </>
-          )}
         </Animated.View>
       )}
 
-      {/* Jump-to-stop menu — opened by long-pressing the stop-number badge.
-          Renders every leg as a tappable row showing stop #, name/address, and
-          a small badge if it is already completed. Tapping a row calls
-          onJumpToStop(idx) on the parent (pure navigation; no side effects). */}
+      {/* Jump-to-stop menu — long-press the stop badge. */}
       <Modal
         visible={isJumpOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setIsJumpOpen(false)}
       >
-        <Pressable
-          style={styles.jumpMenuBackdrop}
-          onPress={() => setIsJumpOpen(false)}
-          testID="jump-menu-backdrop"
-        >
+        <Pressable style={styles.jumpMenuBackdrop} onPress={() => setIsJumpOpen(false)} testID="jump-menu-backdrop">
           <Pressable style={styles.jumpMenuCard} onPress={(e) => e.stopPropagation()}>
             <View style={styles.jumpMenuHeader}>
               <Text style={styles.jumpMenuTitle}>Jump to stop</Text>
@@ -773,158 +614,96 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   );
 };
 
-// Styles are imported from the parent - these are placeholders that reference the same style names
-// The actual styles are defined in index.tsx's StyleSheet and passed via the component hierarchy
 const styles = StyleSheet.create({
-  immersiveTurnBanner: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1e293b', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-  immersiveTurnRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  immersiveTurnIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  immersiveTurnDetails: { flex: 1 },
-  immersiveTurnDist: { fontSize: 18, fontWeight: '700', color: '#fff' },
-  immersiveTurnText: { fontSize: 13, color: '#94a3b8', marginTop: 2 },
-  immersiveExitBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239, 68, 68, 0.15)', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  immersiveSpeedDisplay: { position: 'absolute', right: 16, backgroundColor: '#1e293b', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', zIndex: 99, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  immersiveSpeedValue: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  immersiveSpeedUnit: { fontSize: 10, color: '#64748b', marginTop: -2 },
-  immersiveStatsRow: { position: 'absolute', left: 16, flexDirection: 'row', gap: 8, zIndex: 99 },
-  immersiveStatChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(30, 41, 59, 0.9)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  immersiveStatText: { fontSize: 12, color: '#e2e8f0', fontWeight: '600' },
-  immersiveBottomFull: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(30, 41, 59, 0.78)', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 14, zIndex: 100 },
-  immersiveStopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  immersiveStopBadge: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  immersiveStopNum: { fontSize: 18, fontWeight: '800', color: '#fff' },
-  immersiveStopOf: { fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: -4 },
-  immersiveStopInfo: { flex: 1 },
-  immersiveStopName: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  immersiveStopAddress: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  immersiveVoiceBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', marginLeft: 6 },
-  immersiveDetailsRow: { flexDirection: 'row', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
-  immersiveDetailChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  immersiveDetailText: { fontSize: 12, color: '#cbd5e1' },
-  immersiveNotesBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, marginBottom: 10 },
-  immersiveNotesText: { fontSize: 13, color: '#e2e8f0', lineHeight: 18, flex: 1 },
-  immersiveMetaBox: { backgroundColor: 'rgba(15, 23, 42, 0.45)', borderWidth: 1, borderColor: 'rgba(96, 165, 250, 0.25)', borderRadius: 10, padding: 10, marginBottom: 12 },
-  immersiveMetaHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  immersiveMetaTitle: { color: '#bfdbfe', fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
-  immersiveMetaList: { maxHeight: 120 },
-  immersiveMetaRow: { marginBottom: 8 },
-  immersiveMetaLabel: { color: '#93c5fd', fontSize: 11, fontWeight: '700' },
-  immersiveMetaValue: { color: '#dbeafe', fontSize: 11, marginTop: 2 },
-  immersiveQuickRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10, paddingHorizontal: 4 },
-  immersiveQuickBtn: { flex: 1, height: 38, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center', gap: 1, marginHorizontal: 3, flexDirection: 'row' },
-  immersiveQuickLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.2, marginLeft: 6 },
-  immersiveMainActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  immersiveSkipBtn: { width: 64, height: 56, borderRadius: 14, backgroundColor: 'rgba(245, 158, 11, 0.12)', justifyContent: 'center', alignItems: 'center', gap: 2 },
-  immersiveDeliveredBtn: { flex: 1, height: 56, borderRadius: 14, backgroundColor: '#10b981', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  immersiveDeliveredBtnLabel: { fontSize: 14, fontWeight: '800', color: '#ffffff', letterSpacing: 0.3 },
-  // Defensive layering for the Delivered buttons. Lifts them above any invisible
-  // overlay sibling (e.g. the gesture-tracking Animated.View, debug/perf overlays,
-  // splash residue) that might intercept touches. zIndex works on iOS, elevation
-  // is the Android equivalent and also raises the touch target Z-order.
-  // Bumped 50→9999 / 12→24 to overshoot any ad-hoc layer in the WebView/map stack.
-  deliveredHardenedHitbox: { zIndex: 9999, elevation: 24, position: 'relative' },
-  // Press-state visual feedback — proves to the driver that the DOM element
-  // received the touch even when no API call follows. Dramatic green-darken
-  // + 4 % scale-down so it's unmissable on a moving phone in sunlight.
-  deliveredPressed: { backgroundColor: '#047857', transform: [{ scale: 0.96 }] },
-  immersiveDeliveredText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  immersiveFailedBtn: { width: 64, height: 56, borderRadius: 14, backgroundColor: 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center', gap: 2 },
-  immersiveSideBtnLabel: { fontSize: 10, fontWeight: '700', color: '#cbd5e1', letterSpacing: 0.3 },
-  immersiveBottomMinimal: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(30, 41, 59, 0.95)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, zIndex: 100, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
-  immersiveMinimalInfoExpanded: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, marginRight: 12 },
-  immersiveMinimalBadge: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center' },
-  immersiveMinimalBadgeText: { fontSize: 16, fontWeight: '800', color: '#fff' },
-  immersiveMinimalDetails: { flex: 1 },
-  immersiveMinimalName: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  immersiveMinimalAddress: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
-  immersiveMinimalActions: { flexDirection: 'row', alignItems: 'center' },
-  immersiveMinimalDelivered: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#10b981', justifyContent: 'center', alignItems: 'center' },
-  navMultiplierBadge: { backgroundColor: '#3b82f6', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, marginRight: 8 },
-  navMultiplierText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  navMultiplierBadgeSmall: { backgroundColor: '#3b82f6', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, marginRight: 4 },
-  navMultiplierTextSmall: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  // Colocated-stops warning — sits directly above the stop row inside the
-  // expanded nav card. Uses amber (#f59e0b → #fbbf24) so it's distinct from
-  // the blue info/multiplier chips and the green Delivered CTA.
-  colocatedWarn: {
-    backgroundColor: 'rgba(251, 191, 36, 0.14)',
-    borderLeftWidth: 4,
-    borderLeftColor: '#f59e0b',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    marginBottom: 8,
+  // ── Unified header ──────────────────────────────────────────────────────
+  header: {
+    position: 'absolute', left: 12, right: 12, zIndex: 100,
+    backgroundColor: navColors.surface, borderRadius: navRadii.header,
+    borderWidth: 1, borderColor: navColors.hairline,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 24, elevation: 10,
+    overflow: 'hidden',
   },
-  colocatedWarnHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  colocatedWarnTitle: { color: '#fbbf24', fontSize: 12, fontWeight: '900', letterSpacing: 0.4 },
-  colocatedWarnBody: { marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  colocatedWarnLine: { color: '#fde68a', fontSize: 13, fontWeight: '600', flexShrink: 1 },
-  colocatedWarnBold: { color: '#fff', fontWeight: '900' },
-  colocatedDotsRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 },
-  colocatedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)' },
-  colocatedDotDone: { backgroundColor: '#10b981' },
-  colocatedDotCurrent: { backgroundColor: '#fbbf24', width: 10, height: 10, borderRadius: 5 },
-  // Swipe-hint chevrons — absolute-positioned inside the panel, centred vertically.
-  swipeHintLeft:  { position: 'absolute', left: 6,  top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
+  row1: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingTop: 13, paddingBottom: 11 },
+  heroBadge: { width: 54, height: 54, borderRadius: navRadii.button, justifyContent: 'center', alignItems: 'center' },
+  heroNum: { color: '#fff', fontWeight: '900', fontSize: 20, lineHeight: 22 },
+  heroOf: { color: 'rgba(255,255,255,0.78)', fontWeight: '700', fontSize: 9, marginTop: 1 },
+  headerCenter: { flex: 1, minWidth: 0 },
+  headerAddr: { fontSize: 19, fontWeight: '800', color: navColors.textPrimary, lineHeight: 23, letterSpacing: -0.2 },
+  headerMeta: { fontSize: 12, fontWeight: '600', color: navColors.textMuted, marginTop: 3 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerIconBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: navColors.ghost, justifyContent: 'center', alignItems: 'center' },
+  headerExitBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(239,68,68,0.18)', justifyContent: 'center', alignItems: 'center' },
+  row2: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: navColors.divider },
+  maneuverTileSm: { width: 32, height: 32, borderRadius: navRadii.tileSm, justifyContent: 'center', alignItems: 'center' },
+  turnInfo: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'baseline', gap: 7 },
+  turnDist: { fontSize: 16, fontWeight: '800', color: navColors.textPrimary, fontVariant: ['tabular-nums'] },
+  turnInstr: { flex: 1, fontSize: 13, fontWeight: '600', color: '#cbd5e1' },
+  etaPill: { backgroundColor: navColors.etaPillBg, borderRadius: navRadii.pill, paddingHorizontal: 10, paddingVertical: 3 },
+  etaPillText: { fontSize: 12, fontWeight: '800', color: navColors.etaPillText, fontVariant: ['tabular-nums'] },
+  speedText: { fontSize: 12, fontWeight: '800', color: navColors.textPrimary, fontVariant: ['tabular-nums'] },
+  speedUnit: { fontSize: 9, fontWeight: '600', color: navColors.textFaint },
+
+  // ── Action card ─────────────────────────────────────────────────────────
+  card: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 100,
+    backgroundColor: navColors.surface,
+    borderTopLeftRadius: navRadii.card, borderTopRightRadius: navRadii.card,
+    borderTopWidth: 1, borderColor: navColors.hairline,
+    paddingHorizontal: 16, paddingTop: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.30, shadowRadius: 16, elevation: 12,
+  },
+  warnBanner: { backgroundColor: navColors.warnBg, borderWidth: 1, borderColor: navColors.warnBorder, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 12 },
+  warnHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  warnTitle: { color: navColors.warnTitle, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  warnBody: { marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  warnLine: { color: navColors.warnBody, fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  warnBold: { color: '#fff', fontWeight: '900' },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)' },
+  dotDone: { backgroundColor: '#10b981' },
+  dotCurrent: { backgroundColor: '#fbbf24', width: 10, height: 10, borderRadius: 5 },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  cardHeaderText: { flex: 1, minWidth: 0 },
+  cardCustomer: { fontSize: 16, fontWeight: '800', color: navColors.textPrimary, lineHeight: 20 },
+  cardMeta: { fontSize: 12, fontWeight: '600', color: navColors.textMuted, marginTop: 3 },
+  dismissBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: navColors.ghost, justifyContent: 'center', alignItems: 'center' },
+  notesBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, backgroundColor: navColors.ghostSoft, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8, marginTop: 10 },
+  notesText: { fontSize: 12, color: '#cbd5e1', flex: 1, lineHeight: 17 },
+  quickRow: { flexDirection: 'row', gap: 7, marginTop: 10 },
+  quickBtn: { flex: 1, height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: navColors.ghostSoft, borderWidth: 1, borderColor: navColors.hairline, borderRadius: 9 },
+  quickLabel: { fontSize: 10, fontWeight: '600', color: navColors.textMuted },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
+  failedBtn: { width: 64, height: 60, borderRadius: navRadii.button, backgroundColor: navColors.failedBg, borderWidth: 1, borderColor: navColors.failedBorder, justifyContent: 'center', alignItems: 'center', gap: 3 },
+  skipBtn: { width: 64, height: 60, borderRadius: navRadii.button, backgroundColor: navColors.skipBg, borderWidth: 1, borderColor: navColors.skipBorder, justifyContent: 'center', alignItems: 'center', gap: 3 },
+  sideBtnLabel: { fontSize: 10, fontWeight: '700', color: '#cbd5e1', letterSpacing: 0.3 },
+  deliveredBtn: { flex: 1, height: 60, borderRadius: navRadii.buttonLg, overflow: 'hidden' },
+  deliveredFill: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 9 },
+  deliveredLabel: { fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
+  // Defensive layering — lifts the Delivered tap target above any invisible
+  // overlay sibling (gesture-tracking Animated.View, debug/perf overlays) that
+  // could intercept touches. zIndex (iOS) + elevation (Android) both raised.
+  deliveredHardenedHitbox: { zIndex: 9999, elevation: 24, position: 'relative' },
+  deliveredPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
+
+  // ── Swipe-hint chevrons ───────────────────────────────────────────────────
+  swipeHintLeft: { position: 'absolute', left: 6, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
   swipeHintRight: { position: 'absolute', right: 6, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
-  // Jump-to-stop Modal
+
+  // ── Jump-to-stop modal ────────────────────────────────────────────────────
   jumpMenuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', padding: 16 },
-  jumpMenuCard: { backgroundColor: '#111827', borderRadius: 14, padding: 12, marginBottom: 20,
-                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  jumpMenuCard: { backgroundColor: '#0f172a', borderRadius: 20, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: navColors.hairline },
   jumpMenuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingBottom: 10 },
   jumpMenuTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
   jumpMenuRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 4, borderRadius: 10 },
   jumpMenuRowCurrent: { backgroundColor: 'rgba(59,130,246,0.12)' },
   jumpMenuNum: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' },
-  jumpMenuNumCurrent:     { backgroundColor: '#3b82f6' },
-  jumpMenuNumDone:        { backgroundColor: '#16a34a' },
-  jumpMenuNumFailed:      { backgroundColor: '#ef4444' },
+  jumpMenuNumCurrent: { backgroundColor: '#3b82f6' },
+  jumpMenuNumDone: { backgroundColor: '#16a34a' },
+  jumpMenuNumFailed: { backgroundColor: '#ef4444' },
   jumpMenuNumLateFreight: { backgroundColor: '#7c3aed' },
-  immersiveStopBadgeLate: { backgroundColor: '#7c3aed' },
   jumpMenuNumText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   jumpMenuName: { color: '#f3f4f6', fontSize: 14, fontWeight: '600' },
   jumpMenuAddress: { color: '#9ca3af', fontSize: 12, marginTop: 1 },
-  // Nav bar stop badge (moved from bottom card to top navigation)
-  navBarStopBadge: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', marginLeft: 12 },
-  navBarStopBadgeLate: { backgroundColor: '#7c3aed' },
-  navBarStopNum: { fontSize: 14, fontWeight: '800', color: '#fff' },
-  // Compact bottom delivery card styles
-  compactStopRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
-  compactStopInfo: { flex: 1 },
-  compactStopAddress: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  compactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-  compactMetaText: { fontSize: 11, color: '#64748b' },
-  compactMoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, flexShrink: 0 },
-  compactMoreText: { fontSize: 11, fontWeight: '700', color: '#e2e8f0' },
-  compactNotesBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
-  compactNotesText: { fontSize: 12, color: '#cbd5e1', flex: 1, lineHeight: 18 },
-  // Bottom card header: stop badge + large address
-  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  cardStopBadge: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  cardStopNum: { fontSize: 18, fontWeight: '900', color: '#fff' },
-  cardAddress: { flex: 1, fontSize: 17, fontWeight: '800', color: '#ffffff', lineHeight: 23 },
-  // Banner: two-row layout
-  bannerAddressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
-  bannerAddressText: { flex: 1, fontSize: 13, fontWeight: '700', color: '#f8fafc' },
-  bannerTurnRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  bannerTurnIconSm: { width: 24, height: 24, borderRadius: 6, backgroundColor: 'rgba(59,130,246,0.35)', justifyContent: 'center', alignItems: 'center' },
-  bannerTurnDistSm: { fontSize: 11, color: '#93c5fd', fontWeight: '700', minWidth: 32 },
-  bannerTurnInstrSm: { flex: 1, fontSize: 12, color: '#e2e8f0' },
-  // Bottom card: chips + quick actions
-  bottomChipsRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginRight: 8 },
-  bottomChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
-  bottomChipBlue: { backgroundColor: 'rgba(96,165,250,0.1)', borderWidth: 1, borderColor: 'rgba(96,165,250,0.3)' },
-  bottomChipText: { fontSize: 10, color: '#94a3b8' },
-  bottomChipTextBlue: { color: '#93c5fd' },
-  bottomQuickRow: { flexDirection: 'row', gap: 7, marginBottom: 10 },
-  bottomQuickBtn: { flex: 1, height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', borderRadius: 9 },
-  bottomQuickLabel: { fontSize: 10, fontWeight: '600', color: '#64748b' },
-  // Minimal strip chip row
-  minimalChipRow: { flexDirection: 'row', gap: 4, marginTop: 3, flexWrap: 'wrap' },
-  minimalChip: { backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
-  minimalChipEta: { backgroundColor: 'rgba(16,185,129,0.15)' },
-  minimalChipText: { fontSize: 9, color: '#cbd5e1', fontWeight: '600' },
-  minimalChipTextEta: { color: '#34d399' },
 });
 
 export default NavigationPanel;
