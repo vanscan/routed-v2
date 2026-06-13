@@ -61,6 +61,7 @@ import { useNavigationTTS } from '../../src/hooks/useNavigationTTS';
 import { useNavigationCamera } from '../../src/hooks/useNavigationCamera';
 import { useGeofenceArrival, GeofenceStop } from '../../src/hooks/useGeofenceArrival';
 import { LastMilePrecisionHUD } from '../../src/components/LastMilePrecisionHUD';
+import { NAV_HEADER_CLEARANCE, CARD_SHOW_RADIUS_M, CARD_HIDE_RADIUS_M } from '../../src/components/route/nav/navTheme';
 import { MapStyleSwitcher, MAP_STYLES, MapStyleKey } from '../../src/components/map/MapStyleSwitcher';
 import { useLateFreightZipper } from '../../src/hooks/useLateFreightZipper';
 
@@ -3205,7 +3206,8 @@ export default function RouteScreen() {
         proximityNotifiedRef.current = currentLegIndexRef.current;
         handleArrivalAtStop();
       }
-      if (immersiveMode) setImmersiveMode(false);
+      // Card visibility is owned by the proximity effect below (20m show /
+      // 40m hide), decoupled from this 100m arrival announcement.
     },
   });
 
@@ -3214,6 +3216,39 @@ export default function RouteScreen() {
     if (viewMode === 'navigating') geofenceResetAll();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
+
+  // ── Proximity-driven action-card visibility ──────────────────────────────
+  // The bottom action card is hidden while driving (immersiveMode=true) and
+  // slides up automatically within CARD_SHOW_RADIUS_M of the current stop,
+  // then hides once the driver passes beyond CARD_HIDE_RADIUS_M (or the leg
+  // advances). We act only on zone *crossings* (far→near shows, near→far
+  // hides) so a manual dismiss/summon via the header persists within a zone,
+  // and the 20-in/40-out hysteresis stops GPS wander from flapping the card.
+  const cardZoneRef = useRef<'near' | 'far'>('far');
+  useEffect(() => {
+    // New stop: reset to far + hidden so the card re-arms for the next approach.
+    cardZoneRef.current = 'far';
+    if (viewMode === 'navigating') setImmersiveMode(true);
+  }, [currentLegIndex, viewMode]);
+  useEffect(() => {
+    if (viewMode !== 'navigating' || !currentLocation || !geofenceActiveStop) return;
+    if (typeof geofenceActiveStop.latitude !== 'number' || typeof geofenceActiveStop.longitude !== 'number') return;
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(geofenceActiveStop.latitude - currentLocation.latitude);
+    const dLng = toRad(geofenceActiveStop.longitude - currentLocation.longitude);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(currentLocation.latitude)) * Math.cos(toRad(geofenceActiveStop.latitude)) *
+      Math.sin(dLng / 2) ** 2;
+    const dist = 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    let zone = cardZoneRef.current;
+    if (dist <= CARD_SHOW_RADIUS_M) zone = 'near';
+    else if (dist > CARD_HIDE_RADIUS_M) zone = 'far';
+    if (zone !== cardZoneRef.current) {
+      cardZoneRef.current = zone;
+      setImmersiveMode(zone === 'far'); // far → hidden(true), near → shown(false)
+    }
+  }, [currentLocation, geofenceActiveStop, viewMode]);
 
   const sidebarWidth = sidebarAnim.interpolate({
     inputRange: [0, 1],
@@ -4193,6 +4228,7 @@ export default function RouteScreen() {
           driverHeading={currentLocation?.heading}
           targetLat={geofenceActiveStop?.latitude}
           targetLng={geofenceActiveStop?.longitude}
+          topOffset={insets.top + NAV_HEADER_CLEARANCE}
         />
 
       </View>
@@ -4690,7 +4726,12 @@ export default function RouteScreen() {
       {pausedSeconds !== null && (
         <Animated.View
           pointerEvents="none"
-          style={[styles.pausedPill, { opacity: pausedPillOpacity }]}
+          style={[
+            styles.pausedPill,
+            { opacity: pausedPillOpacity },
+            // Clear the taller unified nav header while navigating.
+            viewMode === 'navigating' && { top: insets.top + NAV_HEADER_CLEARANCE },
+          ]}
           data-testid="paused-indicator-pill"
         >
           <Ionicons name="pause-circle" size={14} color="#fbbf24" />
