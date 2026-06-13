@@ -453,6 +453,10 @@ export default function RouteScreen() {
   }>({ stepKey: '', spokenEarly: false, spokenPrepare: false, spokenNow: false });
   const mapRef = useRef<DeliveryMapRef>(null);
   const cameraSpeedRef = useRef(0);
+  // Timestamp of the last cameraSpeedRef write. When the camera hook stops
+  // firing (parked — distanceInterval:1 not met), this ages out so the main
+  // GPS path doesn't display a stale high speed after the vehicle stops.
+  const cameraSpeedAgeRef = useRef(0);
   // Stable callback for hooks that need direct WebView access (bypasses prop latency)
   const sendToMap = useCallback((msg: object) => { mapRef.current?.sendMessage(msg); }, []);
 
@@ -2042,10 +2046,16 @@ export default function RouteScreen() {
             // cameraSpeedRef, so coalesce with it here. We only reach this branch
             // when actually moving (the stationary gate above returns ~0), so the
             // hook's value isn't pinned high after a stop.
+            // cameraSpeedRef ages out after 2 s of no update (hook stops firing
+            // when parked with distanceInterval:1) so we don't display a stale
+            // high speed when the vehicle has just come to a stop.
+            const cameraKmh = (Date.now() - cameraSpeedAgeRef.current) < 2000
+              ? (cameraSpeedRef.current || 0)
+              : 0;
             setCurrentSpeed(
               Math.max(
                 Math.round((location.coords.speed || 0) * 3.6),
-                cameraSpeedRef.current || 0,
+                cameraKmh,
               ),
             );
           });
@@ -3167,7 +3177,7 @@ export default function RouteScreen() {
   useNavigationCamera(sendToMap, {
     enabled: isNavigating && viewMode === 'navigating' && !inOverviewModeRef.current,
     mapReady: isMapReady,
-    onSpeedUpdate: (s) => { cameraSpeedRef.current = s; },
+    onSpeedUpdate: (s) => { cameraSpeedRef.current = s; cameraSpeedAgeRef.current = Date.now(); },
   });
 
   // ── Geofence: 50m arrival detection (deduped per-stop, session-safe) ──────────

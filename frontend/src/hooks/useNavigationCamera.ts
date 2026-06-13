@@ -75,8 +75,13 @@ export function useNavigationCamera(
   // Speed threshold below which we FREEZE the bearing. Google Maps uses ~2 km/h
   // (~0.56 m/s); we use 1.4 m/s (~5 km/h) so brief coasting doesn't jitter.
   const MOVING_SPEED_MPS = 1.4;
-  // Low-pass factor for the derived speed (smaller = smoother / laggier).
-  const SPEED_EMA_ALPHA = 0.2;
+  // Target time constant for the speed EMA (seconds). A fixed alpha like 0.2
+  // assumes a constant 250 ms tick rate — but with distanceInterval:1 the hook
+  // fires at 1-tick-per-metre, so at 4 km/h it fires every ~900 ms and the
+  // effective time constant balloons to ~4 s (sluggish/shows 0 when moving).
+  // Using alpha = 1 - exp(-dt/τ) gives consistent 1-second convergence at any
+  // driving speed.
+  const SPEED_EMA_TAU_S = 1.0;
   // Cap on derived speed (~162 km/h) to reject GPS teleports between fixes.
   const MAX_DERIVED_SPEED_MPS = 45;
 
@@ -148,17 +153,20 @@ export function useNavigationCamera(
           const osSpeed = Math.max(0, speed ?? 0);
           let derived = 0;
           const prevFix = prevFixRef.current;
-          if (prevFix) {
-            const dt = (now - prevFix.t) / 1000; // seconds
-            if (dt > 0) {
-              const raw = haversineMeters(prevFix.lat, prevFix.lng, latitude, longitude) / dt;
-              if (raw <= MAX_DERIVED_SPEED_MPS) derived = raw;
-            }
+          // dt: seconds since the last *processed* fix (respects the throttle above,
+          // so it's the true elapsed wall time between speed samples).
+          const dtS = prevFix ? Math.max(0, (now - prevFix.t) / 1000) : 0.25;
+          if (prevFix && dtS > 0) {
+            const raw = haversineMeters(prevFix.lat, prevFix.lng, latitude, longitude) / dtS;
+            if (raw <= MAX_DERIVED_SPEED_MPS) derived = raw;
           }
           prevFixRef.current = { lat: latitude, lng: longitude, t: now };
           const instantSpeed = Math.max(osSpeed, derived);
-          emaSpeedRef.current =
-            SPEED_EMA_ALPHA * instantSpeed + (1 - SPEED_EMA_ALPHA) * emaSpeedRef.current;
+          // Time-based EMA: alpha scales with the actual elapsed interval so the
+          // time constant stays ~SPEED_EMA_TAU_S seconds regardless of how often
+          // the hook fires (which varies with distanceInterval + driving speed).
+          const alpha = 1 - Math.exp(-dtS / SPEED_EMA_TAU_S);
+          emaSpeedRef.current = alpha * instantSpeed + (1 - alpha) * emaSpeedRef.current;
           const speedMps = Math.max(0, emaSpeedRef.current);
 
           optsRef.current.onSpeedUpdate?.(Math.round(speedMps * 3.6));
