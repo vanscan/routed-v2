@@ -4926,25 +4926,33 @@ export default function RouteScreen() {
           />
           <View style={styles.stopModalContent}>
             {selectedStopModal && (
-              <ScrollView 
+              <ScrollView
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
                 style={styles.stopModalScrollBody}
               >
+                <View style={styles.stopModalDragHandle}>
+                  <View style={styles.stopModalDragHandlePill} />
+                </View>
                 <View style={styles.stopModalHeader}>
-                  <View style={[
-                    styles.stopModalBadge,
-                    { backgroundColor: getSuburbColor(selectedStopModal.suburb) }
-                  ]}>
-                    <Text style={styles.stopModalBadgeText}>
-                      #{stops.findIndex(s => s.id === selectedStopModal.id) + 1}
-                    </Text>
+                  <View style={styles.stopModalHeaderLeft}>
+                    <View style={[
+                      styles.stopModalBadge,
+                      { backgroundColor: getSuburbColor(selectedStopModal.suburb) }
+                    ]}>
+                      <Text style={styles.stopModalBadgeText}>
+                        #{stops.findIndex(s => s.id === selectedStopModal.id) + 1}
+                      </Text>
+                    </View>
+                    {selectedStopModal.name ? (
+                      <Text style={styles.stopModalStopName} numberOfLines={2}>{selectedStopModal.name}</Text>
+                    ) : null}
                   </View>
                   <TouchableOpacity
                     onPress={() => setShowStopDetailSheet(false)}
                     style={styles.stopModalClose}
                   >
-                    <Ionicons name="close" size={24} color="#64748b" />
+                    <Ionicons name="close" size={20} color="#64748b" />
                   </TouchableOpacity>
                 </View>
 
@@ -5000,30 +5008,77 @@ export default function RouteScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {selectedStopModal.suburb && (
-                    <View style={styles.stopModalSuburbContainer}>
-                      <Ionicons name="business" size={14} color="#8b5cf6" />
-                      <Text style={styles.stopModalSuburb}>{selectedStopModal.suburb}</Text>
-                    </View>
-                  )}
-                  
-                  <View style={styles.stopModalStatus}>
-                    {selectedStopModal.completed ? (
-                      <>
-                        <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                        <Text style={[styles.stopModalStatusText, { color: '#10b981' }]}>
-                          Completed
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Ionicons name="time-outline" size={18} color="#f59e0b" />
-                        <Text style={[styles.stopModalStatusText, { color: '#f59e0b' }]}>
-                          Pending
-                        </Text>
-                      </>
+                  <View style={styles.stopModalStatusRow}>
+                    {selectedStopModal.suburb && (
+                      <View style={styles.stopModalSuburbContainer}>
+                        <Ionicons name="location-outline" size={13} color="#8b5cf6" />
+                        <Text style={styles.stopModalSuburb}>{selectedStopModal.suburb}</Text>
+                      </View>
                     )}
+                    <View style={[
+                      styles.stopModalStatusPill,
+                      {
+                        backgroundColor: selectedStopModal.completed ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+                        marginLeft: selectedStopModal.suburb ? 10 : 0,
+                      }
+                    ]}>
+                      <Ionicons
+                        name={selectedStopModal.completed ? 'checkmark-circle' : 'time-outline'}
+                        size={14}
+                        color={selectedStopModal.completed ? '#10b981' : '#f59e0b'}
+                      />
+                      <Text style={[
+                        styles.stopModalStatusPillText,
+                        { color: selectedStopModal.completed ? '#059669' : '#d97706' }
+                      ]}>
+                        {selectedStopModal.completed ? 'Completed' : 'Pending'}
+                      </Text>
+                    </View>
                   </View>
+
+                  {/* Metadata chips — tracking number, time window, mobile, weight */}
+                  {(selectedStopModal.tracking_number || selectedStopModal.mobile_number || selectedStopModal.time_window?.start || selectedStopModal.weight || selectedStopModal.quantity) ? (
+                    <View style={styles.stopModalMetaRow}>
+                      {selectedStopModal.tracking_number ? (
+                        <View style={styles.stopModalMetaChip}>
+                          <Ionicons name="barcode-outline" size={12} color="#475569" />
+                          <Text style={styles.stopModalMetaChipText}>{selectedStopModal.tracking_number}</Text>
+                        </View>
+                      ) : null}
+                      {selectedStopModal.time_window?.start ? (
+                        <View style={styles.stopModalMetaChip}>
+                          <Ionicons name="alarm-outline" size={12} color="#475569" />
+                          <Text style={styles.stopModalMetaChipText}>
+                            {selectedStopModal.time_window.start}{selectedStopModal.time_window.end ? `–${selectedStopModal.time_window.end}` : ''}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {selectedStopModal.weight ? (
+                        <View style={styles.stopModalMetaChip}>
+                          <Ionicons name="scale-outline" size={12} color="#475569" />
+                          <Text style={styles.stopModalMetaChipText}>{selectedStopModal.weight} kg</Text>
+                        </View>
+                      ) : null}
+                      {selectedStopModal.quantity ? (
+                        <View style={styles.stopModalMetaChip}>
+                          <Ionicons name="cube-outline" size={12} color="#475569" />
+                          <Text style={styles.stopModalMetaChipText}>×{selectedStopModal.quantity}</Text>
+                        </View>
+                      ) : null}
+                      {selectedStopModal.mobile_number ? (
+                        <TouchableOpacity
+                          style={[styles.stopModalMetaChip, styles.stopModalCallChip]}
+                          onPress={() => {
+                            const url = `tel:${selectedStopModal.mobile_number}`;
+                            import('react-native').then(({ Linking }) => Linking.openURL(url));
+                          }}
+                        >
+                          <Ionicons name="call-outline" size={12} color="#15803d" />
+                          <Text style={[styles.stopModalMetaChipText, styles.stopModalCallChipText]}>{selectedStopModal.mobile_number}</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ) : null}
 
                   {/* Notes — always visible. Was previously gated by
                       `viewMode !== 'navigating'` so the editor disappeared
@@ -5069,100 +5124,106 @@ export default function RouteScreen() {
                 </View>
 
                 <View style={styles.stopModalActions}>
-                  <TouchableOpacity
-                    style={[styles.stopModalBtn, styles.stopModalBtnDelete, deletingStop && styles.stopModalAddressBtnDisabled]}
-                    onPress={handleDeleteSelectedStop}
-                    disabled={deletingStop}
-                    testID="stop-delete-button"
-                  >
-                    {deletingStop ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Ionicons name="trash-outline" size={20} color="#fff" />
-                        <Text style={styles.stopModalBtnText}>Delete</Text>
-                      </>
+                  {/* Secondary row: destructive / utility actions */}
+                  <View style={styles.stopModalActionsSecondary}>
+                    <TouchableOpacity
+                      style={[styles.stopModalBtnSmall, styles.stopModalBtnDelete, deletingStop && styles.stopModalAddressBtnDisabled]}
+                      onPress={handleDeleteSelectedStop}
+                      disabled={deletingStop}
+                      testID="stop-delete-button"
+                    >
+                      {deletingStop ? (
+                        <ActivityIndicator size="small" color="#dc2626" />
+                      ) : (
+                        <>
+                          <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                          <Text style={[styles.stopModalBtnTextSmall, styles.stopModalBtnDeleteText]}>Delete</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Insert into route — only meaningful when a route is
+                        already running. Wedges this stop in BEFORE the
+                        previously-next stop (becomes the new "next") so
+                        the driver can take a courtesy stop without
+                        replacing their optimised plan. Hidden when not
+                        navigating; hidden if the tapped stop IS the
+                        current target (would be a no-op). */}
+                    {viewMode === 'navigating' && navigationData && selectedStopModal.id !== currentLeg?.to_stop?.id && (
+                      <TouchableOpacity
+                        style={[styles.stopModalBtnSmall, styles.stopModalBtnInsert]}
+                        onPress={() => {
+                          const t = selectedStopModal;
+                          setSelectedStopModal(null);
+                          insertIntoRoute(t);
+                        }}
+                        testID="stop-modal-insert-button"
+                      >
+                        <Ionicons name="git-branch-outline" size={16} color="#fff" />
+                        <Text style={styles.stopModalBtnTextSmall}>Insert</Text>
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+                  </View>
 
-                  {/* Insert into route — only meaningful when a route is
-                      already running. Wedges this stop in BEFORE the
-                      previously-next stop (becomes the new "next") so
-                      the driver can take a courtesy stop without
-                      replacing their optimised plan. Hidden when not
-                      navigating; hidden if the tapped stop IS the
-                      current target (would be a no-op). */}
-                  {viewMode === 'navigating' && navigationData && selectedStopModal.id !== currentLeg?.to_stop?.id && (
+                  {/* Primary row: main delivery actions */}
+                  <View style={styles.stopModalActionsPrimary}>
+                    {!selectedStopModal.completed && (
+                      <TouchableOpacity
+                        style={[styles.stopModalBtn, styles.stopModalBtnComplete]}
+                        onPress={async () => {
+                          // Phase 0 — same GPS payload as the navigation-mode tap
+                          // so manual marks from the stop sheet contribute to the
+                          // building-side / service-time learning corpus too.
+                          const gps = currentLocation
+                            ? {
+                                lat: currentLocation.latitude,
+                                lng: currentLocation.longitude,
+                              }
+                            : undefined;
+                          await completeStop(selectedStopModal.id, gps);
+                          syncNavCompletion(selectedStopModal.id, true);
+                          setSelectedStopModal(null);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        }}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                        <Text style={styles.stopModalBtnText}>Mark Complete</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {selectedStopModal.completed && (
+                      <TouchableOpacity
+                        style={[styles.stopModalBtn, { backgroundColor: '#f59e0b' }]}
+                        onPress={async () => {
+                          await uncompleteStop(selectedStopModal.id);
+                          syncNavCompletion(selectedStopModal.id, false);
+                          setSelectedStopModal(null);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        }}
+                        data-testid="stop-uncomplete-button"
+                      >
+                        <Ionicons name="arrow-undo" size={20} color="#fff" />
+                        <Text style={styles.stopModalBtnText}>Undo Complete</Text>
+                      </TouchableOpacity>
+                    )}
+
                     <TouchableOpacity
-                      style={[styles.stopModalBtn, styles.stopModalBtnInsert]}
+                      style={[styles.stopModalBtn, styles.stopModalBtnNavigate]}
                       onPress={() => {
-                        const t = selectedStopModal;
+                        // In-app navigation. The shared launcher handles
+                        // the OSRM fetch + cockpit hand-off (with straight-
+                        // line fallback if the directions endpoint is
+                        // unreachable).
+                        const targetStop = selectedStopModal;
                         setSelectedStopModal(null);
-                        insertIntoRoute(t);
+                        startSingleStopNavigation(targetStop);
                       }}
-                      testID="stop-modal-insert-button"
+                      testID="stop-modal-navigate-button"
                     >
-                      <Ionicons name="git-branch-outline" size={20} color="#fff" />
-                      <Text style={styles.stopModalBtnText}>Insert</Text>
+                      <Ionicons name="navigate-outline" size={20} color="#fff" />
+                      <Text style={styles.stopModalBtnText}>Navigate</Text>
                     </TouchableOpacity>
-                  )}
-
-                  {!selectedStopModal.completed && (
-                    <TouchableOpacity
-                      style={[styles.stopModalBtn, styles.stopModalBtnComplete]}
-                      onPress={async () => {
-                        // Phase 0 — same GPS payload as the navigation-mode tap
-                        // so manual marks from the stop sheet contribute to the
-                        // building-side / service-time learning corpus too.
-                        const gps = currentLocation
-                          ? {
-                              lat: currentLocation.latitude,
-                              lng: currentLocation.longitude,
-                            }
-                          : undefined;
-                        await completeStop(selectedStopModal.id, gps);
-                        syncNavCompletion(selectedStopModal.id, true);
-                        setSelectedStopModal(null);
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      }}
-                    >
-                      <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-                      <Text style={styles.stopModalBtnText}>Mark Complete</Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  {selectedStopModal.completed && (
-                    <TouchableOpacity
-                      style={[styles.stopModalBtn, { backgroundColor: '#f59e0b' }]}
-                      onPress={async () => {
-                        await uncompleteStop(selectedStopModal.id);
-                        syncNavCompletion(selectedStopModal.id, false);
-                        setSelectedStopModal(null);
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                      }}
-                      data-testid="stop-uncomplete-button"
-                    >
-                      <Ionicons name="arrow-undo" size={20} color="#fff" />
-                      <Text style={styles.stopModalBtnText}>Undo Complete</Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  <TouchableOpacity
-                    style={[styles.stopModalBtn, styles.stopModalBtnNavigate]}
-                    onPress={() => {
-                      // In-app navigation. The shared launcher handles
-                      // the OSRM fetch + cockpit hand-off (with straight-
-                      // line fallback if the directions endpoint is
-                      // unreachable).
-                      const targetStop = selectedStopModal;
-                      setSelectedStopModal(null);
-                      startSingleStopNavigation(targetStop);
-                    }}
-                    testID="stop-modal-navigate-button"
-                  >
-                    <Ionicons name="navigate-outline" size={20} color="#fff" />
-                    <Text style={styles.stopModalBtnText}>Navigate</Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
               </ScrollView>
             )}
