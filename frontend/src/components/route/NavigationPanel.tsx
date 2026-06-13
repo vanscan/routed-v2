@@ -63,6 +63,8 @@ interface NavigationPanelProps {
   /** Jump directly to stop index `i` without altering its completion state.
       Same contract as onPreviewNextStop but takes an explicit target. */
   onJumpToStop?: (index: number) => void;
+  /** Open the full stop detail sheet for the current navigation stop. */
+  onShowDetails?: () => void;
 }
 
 export const NavigationPanel: React.FC<NavigationPanelProps> = ({
@@ -100,6 +102,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   canPreviewPrev = true,
   legs,
   onJumpToStop,
+  onShowDetails,
 }) => {
   // Long-press-to-jump menu — opened by holding the big stop-number badge.
   // Gives drivers a way to teleport to any stop without swiping through each one.
@@ -483,10 +486,14 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </View>
             </View>
             {/* Details menu button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.compactMoreBtn}
               onPress={() => {
-                setImmersiveMode(!immersiveMode);
+                if (onShowDetails) {
+                  onShowDetails();
+                } else {
+                  setImmersiveMode(!immersiveMode);
+                }
               }}
               onStartShouldSetResponderCapture={() => true}
               testID="nav-more-btn"
