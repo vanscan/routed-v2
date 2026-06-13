@@ -954,19 +954,14 @@ export default function RouteScreen() {
     prevLateFreightCountRef.current = lateFreightCount;
   }, [lateFreightCount]);
 
-  // ── Late-freight zipper ──
-  // When a late freight parcel is added to a locked route, the store sets
-  // `lateFreightScanPending`. On returning to this screen we invoke the
-  // Late Freight Zipper: the OR-Tools solver keeps locked Sharpie stop order
-  // intact and slots each new parcel into its cheapest gap, labelling it
-  // "23A", "23B" etc. On success, reorderStops() updates the drive order
-  // and the pin labels re-derive automatically.
-  // Shared zipper trigger — fired both automatically (when a late freight
-  // parcel lands on a locked route) and manually (the "Late Freight" button in
-  // the planning sidebar). Builds the depot-anchored payload, runs the OR-Tools
-  // zipper, then reorders the drive sequence; the "NA" pin labels re-derive
-  // automatically. Returns false when there is nothing to insert / no GPS so
-  // the manual caller can surface a hint.
+  // ── Late-freight zipper (shared trigger) ──
+  // Fired both automatically (when a late freight parcel lands on a locked
+  // route, via `lateFreightScanPending`) and manually (the "Late Freight"
+  // button in the planning sidebar). The OR-Tools zipper keeps locked Sharpie
+  // stop order intact and slots each new parcel into its cheapest gap, labelling
+  // it "23A", "23B" etc.; reorderStops() then updates the drive order and the
+  // pin labels re-derive automatically. Returns false when there is nothing to
+  // insert / no GPS so the manual caller can surface a hint.
   const runLateFreightZipper = useCallback(async (): Promise<boolean> => {
     const gps = currentLocationRef.current;
     const currentStops = useStopsStore.getState().stops;
