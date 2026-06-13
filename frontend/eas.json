@@ -52,7 +52,7 @@
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./play-service-account.json",
+        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "internal",
         "releaseStatus": "draft",
         "changesNotSentForReview": false
@@ -60,7 +60,7 @@
     },
     "internal": {
       "android": {
-        "serviceAccountKeyPath": "./play-service-account.json",
+        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "internal",
         "releaseStatus": "completed",
         "changesNotSentForReview": false
@@ -68,7 +68,7 @@
     },
     "alpha": {
       "android": {
-        "serviceAccountKeyPath": "./play-service-account.json",
+        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "alpha",
         "releaseStatus": "completed",
         "changesNotSentForReview": false
@@ -76,7 +76,7 @@
     },
     "beta": {
       "android": {
-        "serviceAccountKeyPath": "./play-service-account.json",
+        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "beta",
         "releaseStatus": "completed",
         "changesNotSentForReview": false
