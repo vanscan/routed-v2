@@ -50,6 +50,14 @@
     }
   },
   "submit": {
+    "Production": {
+      "android": {
+        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": false
+      }
+    },
     "production": {
       "android": {
         "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
