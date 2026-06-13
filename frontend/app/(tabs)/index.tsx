@@ -961,39 +961,76 @@ export default function RouteScreen() {
   // intact and slots each new parcel into its cheapest gap, labelling it
   // "23A", "23B" etc. On success, reorderStops() updates the drive order
   // and the pin labels re-derive automatically.
+  // Shared zipper trigger — fired both automatically (when a late freight
+  // parcel lands on a locked route) and manually (the "Late Freight" button in
+  // the planning sidebar). Builds the depot-anchored payload, runs the OR-Tools
+  // zipper, then reorders the drive sequence; the "NA" pin labels re-derive
+  // automatically. Returns false when there is nothing to insert / no GPS so
+  // the manual caller can surface a hint.
+  const runLateFreightZipper = useCallback(async (): Promise<boolean> => {
+    const gps = currentLocationRef.current;
+    const currentStops = useStopsStore.getState().stops;
+    if (!gps || currentStops.length === 0) return false;
+
+    // Build input: depot from GPS, then all current stops preserving
+    // original_sequence for locked ones (null for late freight).
+    const zipStops = [
+      { id: '__depot__', lat: gps.latitude, lon: gps.longitude, original_sequence: null, is_depot: true },
+      ...currentStops.map((s) => ({
+        id: s.id,
+        lat: s.latitude,
+        lon: s.longitude,
+        original_sequence: s.original_sequence ?? null,
+      })),
+    ];
+
+    try {
+      const result = await zip(zipStops);
+      if (result) {
+        const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
+        await reorderStops(ordered);
+        setResumeToast('Route updated with late freight');
+        return true;
+      }
+    } catch (e) {
+      console.warn('[late-freight] zipper failed:', (e as Error)?.message || e);
+    }
+    return false;
+  }, [zip, reorderStops]);
+
+  // ── Late-freight zipper (automatic) ──
   useEffect(() => {
     if (!lateFreightScanPending) return;
     useStopsStore.setState({ lateFreightScanPending: false });
-    (async () => {
-      try {
-        const gps = currentLocationRef.current;
-        if (!gps || stops.length === 0) return;
-
-        // Build input: depot from GPS, then all current stops preserving
-        // original_sequence for locked ones (null for late freight).
-        const zipStops = [
-          { id: '__depot__', lat: gps.latitude, lon: gps.longitude, original_sequence: null, is_depot: true },
-          ...stops.map((s) => ({
-            id: s.id,
-            lat: s.latitude,
-            lon: s.longitude,
-            original_sequence: s.original_sequence ?? null,
-          })),
-        ];
-
-        const result = await zip(zipStops);
-        if (result) {
-          const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
-          await reorderStops(ordered);
-          setResumeToast('Route updated with late freight');
-        }
-      } catch (e) {
-        console.warn('[late-freight] zipper failed:', (e as Error)?.message || e);
-      }
-    })();
-    // zip and reorderStops are stable; re-fire only when the pending flag flips.
+    void runLateFreightZipper();
+    // runLateFreightZipper is stable; re-fire only when the pending flag flips.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lateFreightScanPending]);
+
+  // ── Late-freight zipper (manual button in the planning sidebar) ──
+  // Separate from the full "Optimize" pass: this only slots unsequenced late
+  // freight into the locked route, never re-ordering confirmed stops.
+  const handleLateFreight = useCallback(async () => {
+    const currentStops = useStopsStore.getState().stops;
+    const hasLocked = currentStops.some(
+      (s) => typeof s.original_sequence === 'number' && !Number.isNaN(s.original_sequence),
+    );
+    const hasLateFreight = currentStops.some(
+      (s) => s.original_sequence === null || s.original_sequence === undefined,
+    );
+    if (!hasLocked || !hasLateFreight) {
+      Alert.alert(
+        'No late freight',
+        'Late freight insertion needs a locked route with at least one newly-added stop. Optimize and start your route first, then add parcels.',
+      );
+      return;
+    }
+    if (!currentLocationRef.current) {
+      Alert.alert('Location needed', 'Turn on location so late freight can be slotted from your current position.');
+      return;
+    }
+    await runLateFreightZipper();
+  }, [runLateFreightZipper]);
 
   const handleExportXlsx = async () => {
     try {
@@ -4253,6 +4290,8 @@ export default function RouteScreen() {
           onImport={() => router.push('/import')}
           onExport={handleExportXlsx}
           onOptimize={handleOptimize}
+          onLateFreight={handleLateFreight}
+          lateFreightInserting={zipperInserting}
           onShowAlgorithmPicker={() => setShowAlgorithmPicker(true)}
           onBenchmark={() => setShowBenchmarkModal(true)}
           onStartNavigation={startNavigation}

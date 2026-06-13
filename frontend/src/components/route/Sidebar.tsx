@@ -63,6 +63,11 @@ interface SidebarProps {
   onImport: () => void;
   onExport: () => void;
   onOptimize: () => void;
+  /** Manual late-freight zipper trigger — slots newly-added (unsequenced)
+   *  stops into the locked route without re-optimizing confirmed stops. */
+  onLateFreight: () => void;
+  /** True while the late-freight zipper is running (shows a spinner). */
+  lateFreightInserting?: boolean;
   onShowAlgorithmPicker: () => void;
   onBenchmark: () => void;
   onStartNavigation: () => void;
@@ -292,6 +297,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onImport,
   onExport,
   onOptimize,
+  onLateFreight,
+  lateFreightInserting,
   onShowAlgorithmPicker,
   onBenchmark,
   onStartNavigation,
@@ -312,6 +319,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // mirrors GroupedStopsList so the badge stays consistent across views.
   const dragLateLabels = useMemo(() => buildLateFreightLabels(stops as any), [stops]);
   const dragRouteConfirmed = useMemo(() => computeRouteConfirmed(stops), [stops]);
+  // Late-freight button eligibility: a locked route (some stop carries a
+  // Sharpie `original_sequence`) that also has at least one unsequenced
+  // newly-added parcel waiting to be slotted in.
+  const canLateFreight = useMemo(() => {
+    const hasLocked = stops.some(
+      (s) => typeof s.original_sequence === 'number' && !Number.isNaN(s.original_sequence),
+    );
+    const hasLateFreight = stops.some(
+      (s) => s.original_sequence === null || s.original_sequence === undefined,
+    );
+    return hasLocked && hasLateFreight;
+  }, [stops]);
   return (
     <Animated.View 
       style={[
@@ -533,6 +552,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Ionicons name="chevron-down" size={14} color="#fff" />
                 </TouchableOpacity>
               </View>
+
+              {/* Late Freight — a SEPARATE optimization from the full Optimize
+                  pass above. Slots newly-added (unsequenced) parcels into the
+                  locked route via the zipper, preserving the confirmed Sharpie
+                  order. Only enabled once the route is locked AND late freight
+                  is waiting; otherwise greyed (nothing to insert). */}
+              <TouchableOpacity
+                style={[styles.actionBtnLateFreight, (!canLateFreight || lateFreightInserting) && styles.actionBtnDisabled]}
+                onPress={onLateFreight}
+                disabled={!canLateFreight || lateFreightInserting}
+                testID="late-freight-btn"
+              >
+                {lateFreightInserting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="git-branch" size={16} color="#fff" />
+                )}
+                <Text style={styles.actionBtnPrimaryText}>
+                  {lateFreightInserting ? 'Inserting...' : 'Late Freight'}
+                </Text>
+              </TouchableOpacity>
 
               <View style={styles.actionRow2col}>
                 <TouchableOpacity
@@ -986,6 +1026,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // Late-freight zipper button — amber to read as a distinct, secondary
+  // optimization from the primary blue Optimize button above it.
+  actionBtnLateFreight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f59e0b',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+    marginTop: 8,
   },
   stopsSection: {
     flex: 1,
