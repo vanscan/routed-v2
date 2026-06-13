@@ -996,17 +996,21 @@ export default function RouteScreen() {
   }, [lateFreightScanPending]);
 
   const handleLateFreight = useCallback(async () => {
-    const gps = currentLocationRef.current;
-    if (!gps || stops.length === 0) return;
+    if (stops.length === 0) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // GPS fallback chain: live ref → first stop position (driver is already on-route)
+      const gpsRaw = currentLocationRef.current;
+      const depot = gpsRaw
+        ? { latitude: gpsRaw.latitude, longitude: gpsRaw.longitude }
+        : { latitude: stops[0].latitude, longitude: stops[0].longitude };
       const zipStops = [
-        { id: '__depot__', lat: gps.latitude, lon: gps.longitude, original_sequence: null, is_depot: true },
+        { id: '__depot__', lat: depot.latitude, lon: depot.longitude, original_sequence: null, is_depot: true },
         ...stops.map((s) => ({
           id: s.id,
           lat: s.latitude,
           lon: s.longitude,
-          original_sequence: (s as any).original_sequence ?? null,
+          original_sequence: s.original_sequence ?? null,
         })),
       ];
       const result = await zip(zipStops);
@@ -1014,9 +1018,12 @@ export default function RouteScreen() {
         const ordered = result.filter((p) => p.id !== '__depot__').map((p) => p.id);
         await reorderStops(ordered);
         setResumeToast('Route updated with late freight');
+      } else {
+        Alert.alert('Late Freight', 'Could not re-sequence stops. Check your connection and try again.');
       }
     } catch (e) {
       console.warn('[late-freight] manual zip failed:', (e as Error)?.message || e);
+      Alert.alert('Late Freight', 'Something went wrong — please try again.');
     }
   // zip and reorderStops are stable refs from the hook/store.
   // eslint-disable-next-line react-hooks/exhaustive-deps
