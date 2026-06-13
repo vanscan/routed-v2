@@ -473,10 +473,20 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
               </View>
             </View>
           )}
-          {/* Address — prominent at top of card */}
-          <Text style={styles.compactStopAddress} numberOfLines={1}>
-            {currentLeg?.to_stop?.address || 'Next Stop'}
-          </Text>
+          {/* Stop badge + address — large, prominent */}
+          <View style={styles.cardHeaderRow}>
+            <Pressable
+              onLongPress={openJumpMenu}
+              delayLongPress={400}
+              style={[styles.cardStopBadge, isCurrentLateFreight && styles.immersiveStopBadgeLate]}
+              testID="nav-card-stop-badge"
+            >
+              <Text style={styles.cardStopNum}>{currentStopLabel}</Text>
+            </Pressable>
+            <Text style={styles.cardAddress} numberOfLines={2}>
+              {currentLeg?.to_stop?.address || 'Next Stop'}
+            </Text>
+          </View>
 
           {/* Detail chips + Details button */}
           <View style={styles.compactStopRow}>
@@ -888,6 +898,11 @@ const styles = StyleSheet.create({
   compactMoreText: { fontSize: 11, fontWeight: '700', color: '#e2e8f0' },
   compactNotesBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
   compactNotesText: { fontSize: 12, color: '#cbd5e1', flex: 1, lineHeight: 18 },
+  // Bottom card header: stop badge + large address
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  cardStopBadge: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  cardStopNum: { fontSize: 18, fontWeight: '900', color: '#fff' },
+  cardAddress: { flex: 1, fontSize: 17, fontWeight: '800', color: '#ffffff', lineHeight: 23 },
   // Banner: two-row layout
   bannerAddressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
   bannerAddressText: { flex: 1, fontSize: 13, fontWeight: '700', color: '#f8fafc' },
