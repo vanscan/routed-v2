@@ -498,12 +498,16 @@ export default function RouteScreen() {
   }, [clusterFC, isMapReady]);
   const mapContainerLayoutRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
+  // Stable ref to the auth header getter so RouteProgressObserver always
+  // carries a live token without needing to be re-constructed.
+  const getAuthHeadersForObserverRef = useRef<() => Promise<Record<string, string>>>(async () => ({}));
   // RouteProgressObserver — manages arrival detection and route reset at each waypoint
   const progressObserverRef = useRef(
     new RouteProgressObserver({
       arrivalRadiusMeters: 50,
       arrivalCooldownMs: 3000,
       backendUrl: BACKEND_URL,
+      getAuthHeaders: () => getAuthHeadersForObserverRef.current(),
     })
   );
   const initialLocationRef = useRef<{ latitude: number; longitude: number; heading?: number } | null>(null);
@@ -546,6 +550,12 @@ export default function RouteScreen() {
   const updateLiveRouteRef = useRef<(location: { latitude: number; longitude: number }) => void | Promise<void>>(() => {});
   const autoRerouteLockRef = useRef<boolean>(false);
   const lastAutoRerouteAtRef = useRef<number>(0);
+  // Throttle: timestamp of the last live-route fetch (ms). Prevents flooding
+  // the backend — one fetch every 2 s is plenty for turn-by-turn fidelity.
+  const liveRouteLastFetchRef = useRef<number>(0);
+  // Abort controller for the current in-flight live-route request so stale
+  // responses from slow networks can't overwrite a newer result.
+  const liveRouteAbortRef = useRef<AbortController | null>(null);
   
   // Algorithm info
   // Algorithm selector — trimmed from 18 → 4 on 2026-05-12 per user
@@ -785,6 +795,8 @@ export default function RouteScreen() {
     const token = await getAuthToken();
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
+  // Keep the observer's getter up-to-date so it always has a fresh closure
+  getAuthHeadersForObserverRef.current = getAuthHeaders;
 
   const fetchNavigationData = async (originOverride?: { latitude: number; longitude: number } | null) => {
     try {
@@ -1948,6 +1960,10 @@ export default function RouteScreen() {
       setTraveledPath([]); // Reset traveled path when starting
       setUndoHistory([]); // Reset undo history
       setClusterOverlays([]); // Clear cluster overlays during driving
+      // Reset throttle and abort state so the first GPS tick fires a fetch immediately
+      liveRouteLastFetchRef.current = 0;
+      liveRouteAbortRef.current?.abort();
+      liveRouteAbortRef.current = null;
 
       // Compass subscription — gives us a heading immediately, even while
       // stationary. We store the value in a REF ONLY (no setState) so
@@ -2185,45 +2201,56 @@ export default function RouteScreen() {
   };
 
   const updateLiveRoute = async (location: { latitude: number; longitude: number }) => {
-    if (!navigationData) {
-      console.log('[LiveRoute] Skipped: navData=', !!navigationData);
-      return;
-    }
-    
+    if (!navigationData) return;
+
     const currentLeg = navigationData.legs[currentLegIndex];
-    if (!currentLeg?.to_stop) {
-      console.log('[LiveRoute] No current leg or to_stop');
-      return;
-    }
-    
+    if (!currentLeg?.to_stop) return;
+
+    // ── Throttle: one fetch every 2 s is enough for turn-by-turn fidelity ──
+    const now = Date.now();
+    if (now - liveRouteLastFetchRef.current < 2000) return;
+    liveRouteLastFetchRef.current = now;
+
+    // ── Abort any previous in-flight request so stale responses can't
+    //    overwrite a newer result (prevents polyline flickering). ────────────
+    liveRouteAbortRef.current?.abort();
+    const abort = new AbortController();
+    liveRouteAbortRef.current = abort;
+
     try {
-      // Snap GPS to the active route geometry before calling Directions API
-      // This prevents Mapbox from snapping to parallel streets or service roads
       const snapped = snapToRouteGeometry(location.longitude, location.latitude);
+
+      // ── Auto-reroute: detect when driver is more than 40 m off-route ─────
+      const offRouteMeters = calculateDistance(
+        location.latitude, location.longitude, snapped.lat, snapped.lng
+      );
+      const isOffRoute = offRouteMeters > AUTO_REROUTE_DEVIATION_METERS;
+      if (isOffRoute && !autoRerouteLockRef.current &&
+          now - lastAutoRerouteAtRef.current > AUTO_REROUTE_COOLDOWN_MS) {
+        autoRerouteLockRef.current = true;
+        lastAutoRerouteAtRef.current = now;
+        speakInstruction('Recalculating.');
+      }
+
       const coordinates = `${snapped.lng},${snapped.lat};${currentLeg.to_stop.longitude},${currentLeg.to_stop.latitude}`;
-      console.log('[LiveRoute] Fetching from API (snapped):', coordinates);
-      
+
       const liveRouteHeaders = await getAuthHeaders();
-      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`, { headers: liveRouteHeaders });
-      console.log('[LiveRoute] Response status:', response.status);
-      
+      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`, {
+        headers: liveRouteHeaders,
+        signal: abort.signal,
+      });
+
       if (response.ok) {
         const data = await response.json();
-        console.log('[LiveRoute] Got data, geometry coords:', data.geometry?.coordinates?.length || 0);
-        
-        // Keep exactly one visible segment: current position -> active waypoint
-        
+        autoRerouteLockRef.current = false;
         setLiveRoute(data);
-        
-        // Route data flows to map via routeCoordinates prop — no injection needed
-        
+
         if (data.steps && data.steps.length > 0 && navSettings.voiceEnabled) {
           const nextStep = data.steps[0];
           const instruction = nextStep.voice_instruction || nextStep.instruction;
           const distance: number = nextStep.distance ?? 0;
 
           if (instruction) {
-            // ── Helper: format distance for speech (full words, rounded) ──────
             const fmtVoice = (m: number): string => {
               if (m >= 1000) {
                 const km = Math.round(m / 500) * 0.5;
@@ -2233,15 +2260,13 @@ export default function RouteScreen() {
               return `${Math.max(50, Math.round(m / 50) * 50)} metres`;
             };
 
-            // ── Speed-scaled thresholds (Waze/Google Maps standard) ──────────
-            const spd = currentSpeed; // km/h, already in state
+            const spd = currentSpeed;
             let earlyAt: number, prepareAt: number, nowAt: number;
             if (spd > 90)       { earlyAt = 1500; prepareAt = 600; nowAt = 80; }
             else if (spd > 60)  { earlyAt = 900;  prepareAt = 350; nowAt = 60; }
             else if (spd > 30)  { earlyAt = 600;  prepareAt = 250; nowAt = 50; }
             else                { earlyAt = 300;  prepareAt = 120; nowAt = 35; }
 
-            // ── Reset per-step state when instruction changes ────────────────
             if (voiceAnnouncementRef.current.stepKey !== instruction) {
               voiceAnnouncementRef.current = {
                 stepKey: instruction,
@@ -2253,20 +2278,15 @@ export default function RouteScreen() {
 
             const ann = voiceAnnouncementRef.current;
 
-            // Stage 3 — NOW  (highest priority, fire once)
             if (!ann.spokenNow && distance <= nowAt) {
               speakInstruction(instruction);
               ann.spokenNow = true;
-              ann.spokenPrepare = true; // suppress lower-priority stages
+              ann.spokenPrepare = true;
               ann.spokenEarly = true;
-
-            // Stage 2 — PREPARE  (~300m, fire once)
             } else if (!ann.spokenPrepare && distance <= prepareAt) {
               speakInstruction(`In ${fmtVoice(distance)}, ${instruction}`);
               ann.spokenPrepare = true;
               ann.spokenEarly = true;
-
-            // Stage 1 — EARLY  (~1km, fire once)
             } else if (!ann.spokenEarly && distance <= earlyAt) {
               speakInstruction(`In ${fmtVoice(distance)}, ${instruction}`);
               ann.spokenEarly = true;
@@ -2274,8 +2294,10 @@ export default function RouteScreen() {
           }
         }
       }
-    } catch (error) {
-      console.error('Live route error:', error);
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        console.error('Live route error:', error);
+      }
     }
   };
 
@@ -2549,6 +2571,10 @@ export default function RouteScreen() {
     if (currentLegIndex < (navigationData?.legs.length || 0) - 1) {
       const nextIndex = currentLegIndex + 1;
       const nav = navigationData;
+
+      // Reset throttle so the first GPS tick after stop completion triggers
+      // a fresh route fetch immediately rather than waiting 2 s.
+      liveRouteLastFetchRef.current = 0;
 
       // ── Same-doorstep short-circuit ────────────────────────────────────
       // When the optimizer (PyVRP coord-clustering) places multiple parcels
@@ -3318,7 +3344,11 @@ export default function RouteScreen() {
   //     to plan or tweak the run. Re-enabling it: judges and drivers expect
   //     to see the planned tour as a connected line, not a dot field.
   const mapRouteCoordinates: number[][] | null = useMemo(() => {    if (viewMode === 'navigating') {
-      return liveRoute?.geometry?.coordinates ?? null;
+      // Prefer live segment (driver → next stop). Fall back to the full
+      // navigation geometry while the first live-route fetch is in-flight so
+      // the polyline is never blank during the first 2 s of navigation.
+      return liveRoute?.geometry?.coordinates
+        ?? (navigationData?.geometry?.coordinates ?? null);
     }
     // Planning view: feed the optimised polyline geometry that
     // `fetchDirections()` already populated into `routeGeometry`.
@@ -3353,7 +3383,7 @@ export default function RouteScreen() {
       }
     }
     return null;
-  }, [viewMode, liveRoute?.geometry?.coordinates, routeGeometry, currentLocation, stops]);
+  }, [viewMode, liveRoute?.geometry?.coordinates, navigationData?.geometry?.coordinates, routeGeometry, currentLocation, stops]);
 
   // Driver location for the map. Used to be gated on `viewMode ===
   // 'navigating'` so the driver dot only appeared during active drive,
