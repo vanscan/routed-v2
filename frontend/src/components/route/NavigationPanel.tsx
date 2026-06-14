@@ -3,8 +3,8 @@ import { Stop } from '../../store/stopsStore';
 import { ViewMode } from '../../types/route';
 import { ShelfState } from './nav/navTheme';
 import { NavSettings } from './nav/useNavSettings';
-import { TurnPill } from './nav/TurnPill';
-import { DriveShelf } from './nav/DriveShelf';
+import { TurnBar } from './nav/TurnBar';
+import { RightPanel } from './nav/RightPanel';
 import { SettingsPanel } from './nav/SettingsPanel';
 
 interface NavigationPanelProps {
@@ -48,7 +48,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   etaToNextStop,
   completedCount,
   insets,
-  liveRoute,
   navSettings,
   onSettingsChange,
   legs,
@@ -64,45 +63,39 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   onPreviewNextStop,
   onPreviewPrevStop,
   onJumpToStop,
-  onShowDetails,
 }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <>
-      <TurnPill
+      <TurnBar
         currentStep={currentStep}
         shelfState={shelfState}
-        topOffset={insets.top + 8}
+        speedKmh={speedKmh}
+        speedUnits={navSettings.speedUnits}
+        topOffset={insets.top}
+        canPreviewNext={canPreviewNext}
+        canPreviewPrev={canPreviewPrev}
+        onPreviewNextStop={onPreviewNextStop}
+        onPreviewPrevStop={onPreviewPrevStop}
       />
 
-      <DriveShelf
+      <RightPanel
         shelfState={shelfState}
-        settings={navSettings}
-        currentStep={currentStep}
-        currentLeg={currentLeg}
         stops={stops}
+        currentLeg={currentLeg}
         currentLegIndex={currentLegIndex}
-        speedKmh={speedKmh}
         etaToNextStop={etaToNextStop}
         completedCount={completedCount}
         insets={insets}
-        liveRoute={liveRoute}
         legs={legs}
-        canPreviewNext={canPreviewNext}
-        canPreviewPrev={canPreviewPrev}
         onOpenSettings={() => setSettingsOpen(true)}
         onExpandRequest={onExpandRequest}
         onMarkDelivered={onMarkDelivered}
         onMarkFailed={onMarkFailed}
         onSkipStop={onSkipStop}
-        onStopNavigation={onStopNavigation}
         onCallCustomer={onCallCustomer}
-        onShareETA={onShareETA}
-        onShowDetails={onShowDetails}
         onJumpToStop={onJumpToStop}
-        onPreviewNextStop={onPreviewNextStop}
-        onPreviewPrevStop={onPreviewPrevStop}
       />
 
       <SettingsPanel

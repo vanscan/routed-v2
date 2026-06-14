@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { navColors, navShelfColors, SETTINGS_PANEL_WIDTH } from './navTheme';
+import { navColors, navShelfColors, SETTINGS_PANEL_WIDTH, RIGHT_PANEL_WIDTH } from './navTheme';
 import { NavSettings } from './useNavSettings';
 import { MAP_STYLES, MapStyleKey } from '../../map/MapStyleSwitcher';
 
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   },
   panel: {
     position: 'absolute',
-    top: 0, right: 0, bottom: 0,
+    top: 0, right: RIGHT_PANEL_WIDTH, bottom: 0,
     width: SETTINGS_PANEL_WIDTH,
     backgroundColor: navShelfColors.settingsPanelBg,
     borderLeftWidth: 1,

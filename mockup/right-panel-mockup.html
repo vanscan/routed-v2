@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>RouteD · Right Panel Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0f1e;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 16px 48px; min-height: 100vh; color: #fff;
+  }
+  h1 { font-size: 13px; letter-spacing: 0.12em; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
+  p.sub { font-size: 12px; color: #475569; margin-bottom: 20px; }
+
+  .controls { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+  .ctrl-btn {
+    padding: 7px 16px; border-radius: 999px; border: 1.5px solid #334155;
+    background: #1e293b; color: #94a3b8; font-size: 12px; cursor: pointer; transition: all 0.15s;
+  }
+  .ctrl-btn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
+
+  /* ── Phone ── */
+  .phone {
+    width: 375px; height: 720px; border-radius: 44px;
+    border: 2.5px solid #1e293b; position: relative; overflow: hidden;
+    background: #111827; box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+  }
+  .phone::before {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 32px; background: #111827;
+    border-radius: 0 0 20px 20px; z-index: 100;
+  }
+
+  /* Map */
+  .map-bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, #1a2744 0%, #162238 40%, #1a3040 100%);
+  }
+  .map-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.10) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.10) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .road {
+    position: absolute; top: 50%; left: 0; right: 120px; height: 60px;
+    background: #1e293b; transform: translateY(-50%);
+    border-top: 2px solid #334155; border-bottom: 2px solid #334155;
+  }
+  .road::after {
+    content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 3px;
+    background: repeating-linear-gradient(90deg, #f59e0b 0 30px, transparent 30px 60px);
+    transform: translateY(-50%);
+  }
+  .pin {
+    position: absolute; top: 180px; left: 44%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .pin-dot { width: 18px; height: 18px; border-radius: 50% 50% 50% 0; background: #ef4444; transform: rotate(-45deg); box-shadow: 0 2px 8px rgba(239,68,68,0.5); }
+  .courier {
+    position: absolute; bottom: 280px; left: 44%;
+    width: 26px; height: 26px; background: #2563eb; border-radius: 50%;
+    border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; box-shadow: 0 0 14px rgba(37,99,235,0.8);
+    transform: translateX(-50%);
+  }
+
+  /* ── TOP TURN BAR ── */
+  .turn-bar {
+    position: absolute; top: 36px; left: 0; right: 120px; z-index: 40;
+    background: rgba(15, 23, 42, 0.92);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    transition: opacity 0.2s;
+  }
+  .turn-bar-icon {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .turn-bar-text { flex: 1; }
+  .turn-bar-dist { font-size: 15px; font-weight: '800'; color: '#fff'; }
+  .turn-bar-instr { font-size: 11px; color: #93c5fd; margin-top: 1px; }
+  .turn-dist { font-size: 14px; font-weight: 800; color: #fff; }
+  .turn-instr { font-size: 11px; color: #93c5fd; margin-top: 1px; white-space: nowrap; overflow: hidden; }
+  .speed-tag {
+    background: rgba(5,150,105,0.20); border: 1px solid rgba(16,185,129,0.30);
+    border-radius: 8px; padding: 4px 8px; flex-shrink: 0;
+    font-size: 13px; font-weight: 800; color: #34d399;
+  }
+
+  /* ── LAST MILE HUD ── */
+  .lm-hud {
+    position: absolute; top: 104px; left: 50%; transform: translateX(-50%);
+    background: rgba(245, 158, 11, 0.92); border-radius: 22px;
+    padding: 5px 14px; font-size: 12px; font-weight: 700; color: #fff;
+    white-space: nowrap; z-index: 41; box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+    transition: opacity 0.3s; pointer-events: none;
+  }
+  .lm-hud.hidden { opacity: 0; }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 120px;
+    background: rgba(15, 23, 42, 0.94);
+    border-left: 1px solid rgba(255,255,255,0.10);
+    display: flex; flex-direction: column;
+    z-index: 50;
+    padding-top: 44px; /* notch clearance */
+  }
+
+  /* Stop badge */
+  .rp-badge {
+    margin: 12px 12px 0;
+    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    border-radius: 14px; padding: 10px 8px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 0;
+  }
+  .rp-badge-num { font-size: 28px; font-weight: 900; color: #fff; line-height: 1; }
+  .rp-badge-of { font-size: 10px; color: rgba(255,255,255,0.7); font-weight: 600; }
+
+  /* ETA */
+  .rp-eta {
+    margin: 8px 10px 0;
+    background: rgba(16,185,129,0.16); border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 8px; padding: 5px 6px; text-align: center;
+    font-size: 12px; font-weight: 800; color: #34d399;
+  }
+
+  .rp-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 10px 10px; }
+
+  /* Address block */
+  .rp-address {
+    padding: 0 10px;
+    font-size: 11px; font-weight: 700; color: #e2e8f0;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .rp-suburb { font-size: 10px; color: #64748b; margin-top: 2px; padding: 0 10px; }
+
+  /* Info chips (icon-only) */
+  .rp-chips {
+    display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px;
+    padding: 8px 10px 0;
+  }
+  .rp-chip {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 4px 7px;
+    font-size: 11px; color: #cbd5e1; font-weight: 500;
+    display: flex; align-items: center; gap: 3px;
+  }
+
+  /* Notes */
+  .rp-notes {
+    margin: 8px 10px 0;
+    background: rgba(255,255,255,0.05); border-radius: 8px;
+    padding: 6px 8px; font-size: 10px; color: #94a3b8; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  /* Spacer */
+  .rp-spacer { flex: 1; }
+
+  .rp-gear {
+    margin: 0 10px 6px; height: 32px; border-radius: 10px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-size: 15px;
+  }
+
+  /* Action buttons */
+  .rp-actions {
+    display: flex; flex-direction: column; gap: 7px;
+    padding: 0 10px 16px;
+  }
+  .rp-btn {
+    width: 100%; height: 52px; border-radius: 14px; border: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; cursor: pointer; font-size: 11px; font-weight: 700;
+    transition: transform 0.1s;
+  }
+  .rp-btn:active { transform: scale(0.97); }
+  .rp-btn-delivered {
+    background: linear-gradient(160deg, #059669, #10b981);
+    color: #fff; box-shadow: 0 4px 14px rgba(5,150,105,0.35);
+  }
+  .rp-btn-failed {
+    background: rgba(239,68,68,0.14); border: 1px solid rgba(239,68,68,0.30); color: #f87171;
+  }
+  .rp-btn-skip {
+    background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.30); color: #fbbf24;
+  }
+  .rp-btn-icon { font-size: 18px; line-height: 1; }
+
+  /* Settings panel */
+  .settings-overlay {
+    position: absolute; inset: 0; z-index: 80;
+    background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+  .settings-overlay.open { opacity: 1; pointer-events: all; }
+  .settings-panel {
+    position: absolute; top: 0; right: 120px; bottom: 0; width: 240px;
+    background: rgba(10,15,30,0.98);
+    border-right: 1px solid rgba(255,255,255,0.10);
+    transform: translateX(-100%); transition: transform 0.26s ease;
+    padding-top: 52px; overflow-y: auto;
+  }
+  .settings-panel.open { transform: translateX(0); }
+  .sp-header { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; }
+  .sp-title { font-size: 14px; font-weight: 700; color: #fff; }
+  .sp-close { background: rgba(255,255,255,0.08); border: none; color: #94a3b8; width: 26px; height: 26px; border-radius: 13px; cursor: pointer; font-size: 13px; }
+  .sp-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .sp-label { font-size: 12px; color: #cbd5e1; display: flex; align-items: center; gap: 8px; }
+  .toggle { width: 42px; height: 24px; border-radius: 12px; background: #1e293b; border: 1px solid #334155; position: relative; cursor: pointer; transition: background 0.2s; }
+  .toggle.on { background: #2563eb; border-color: #3b82f6; }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+  .toggle.on::after { transform: translateX(18px); }
+  .seg-pill { display: flex; background: #1e293b; border-radius: 8px; padding: 2px; gap: 2px; }
+  .seg-opt { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; color: #64748b; cursor: pointer; }
+  .seg-opt.active { background: #2563eb; color: #fff; }
+  .sp-section { padding: 12px 18px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .sp-section-lbl { font-size: 11px; color: #64748b; margin-bottom: 8px; display: flex; gap: 6px; align-items: center; }
+  .style-tiles { display: flex; gap: 5px; }
+  .style-tile { flex: 1; padding: 7px 4px; background: #1e293b; border-radius: 8px; border: 1.5px solid transparent; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: 9px; color: #64748b; }
+  .style-tile.active { border-color: #3b82f6; color: #93c5fd; background: rgba(37,99,235,0.18); }
+  .sp-stop-nav { display: flex; align-items: center; gap: 8px; padding: 14px 18px; color: #f87171; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+  /* Bottom minimal bar - cruise only (speed + ETA) */
+  .bottom-bar {
+    position: absolute; bottom: 0; left: 0; right: 120px;
+    background: rgba(15,23,42,0.88); border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 8px 14px 18px;
+    display: flex; align-items: center; gap: 10px;
+    transition: opacity 0.2s;
+  }
+</style>
+</head>
+<body>
+
+<h1>RouteD · Right Panel</h1>
+<p class="sub">Tap state to preview · ⚙ opens settings</p>
+
+<div class="controls">
+  <button class="ctrl-btn active" onclick="setState('cruise')">CRUISE</button>
+  <button class="ctrl-btn" onclick="setState('approach')">APPROACH</button>
+  <button class="ctrl-btn" onclick="setState('arrival')">ARRIVAL</button>
+</div>
+
+<div class="phone" id="phone">
+  <!-- Map -->
+  <div class="map-bg">
+    <div class="road"></div>
+    <div class="pin"><div class="pin-dot"></div></div>
+    <div class="courier">↑</div>
+  </div>
+
+  <!-- Last mile HUD -->
+  <div class="lm-hud hidden" id="lmHud">28 m · 2 o'clock</div>
+
+  <!-- Top turn bar -->
+  <div class="turn-bar" id="turnBar">
+    <div class="turn-bar-icon">↰</div>
+    <div class="turn-bar-text">
+      <div class="turn-dist" id="turnDist">380 m</div>
+      <div class="turn-instr">Turn left onto Bardon St</div>
+    </div>
+    <div class="speed-tag" id="speedTag">52</div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <!-- Stop badge -->
+    <div class="rp-badge" id="rpBadge" onclick="openJump()" style="cursor:pointer">
+      <div class="rp-badge-num">4</div>
+      <div class="rp-badge-of">of 9</div>
+    </div>
+
+    <!-- ETA -->
+    <div class="rp-eta">3:42 PM</div>
+
+    <div class="rp-divider"></div>
+
+    <!-- Address -->
+    <div class="rp-address" id="rpAddr">14 Bardon St</div>
+    <div class="rp-suburb">Paddington</div>
+
+    <!-- Info chips (visible in APPROACH/ARRIVAL) -->
+    <div class="rp-chips" id="rpChips" style="display:none">
+      <div class="rp-chip">🏠</div>
+      <div class="rp-chip">🚪</div>
+      <div class="rp-chip" style="color:#c4b5fd;border-color:rgba(167,139,250,0.3);background:rgba(124,58,237,0.15)">🔑</div>
+    </div>
+
+    <!-- Notes (visible in ARRIVAL) -->
+    <div class="rp-notes" id="rpNotes" style="display:none">Leave at front door if no answer. Ring bell twice.</div>
+
+    <div class="rp-spacer"></div>
+
+    <!-- Gear -->
+    <div class="rp-gear" onclick="toggleSettings()">⚙</div>
+
+    <!-- Action buttons -->
+    <div class="rp-actions" id="rpActions">
+      <button class="rp-btn rp-btn-delivered">
+        <span class="rp-btn-icon">✓</span>Delivered
+      </button>
+      <button class="rp-btn rp-btn-failed">
+        <span class="rp-btn-icon">✕</span>Failed
+      </button>
+      <button class="rp-btn rp-btn-skip">
+        <span class="rp-btn-icon">▶|</span>Skip
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom bar (cruise only) -->
+  <div class="bottom-bar" id="bottomBar" style="display:none">
+  </div>
+
+  <!-- Settings overlay -->
+  <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()">
+    <div class="settings-panel" id="settingsPanel" onclick="event.stopPropagation()">
+      <div class="sp-header">
+        <span class="sp-title">Nav Settings</span>
+        <button class="sp-close" onclick="closeSettings()">✕</button>
+      </div>
+      <div class="sp-row">
+        <div class="sp-label">🔊 Voice nav</div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-section-lbl">🗺 Map style</div>
+        <div class="style-tiles">
+          <div class="style-tile active" onclick="selStyle(this)">🗺<br>Map</div>
+          <div class="style-tile" onclick="selStyle(this)">🌙<br>Night</div>
+          <div class="style-tile" onclick="selStyle(this)">🛰<br>Sat</div>
+          <div class="style-tile" onclick="selStyle(this)">⬜<br>Topo</div>
+        </div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-section-lbl">🎯 Card sensitivity</div>
+        <div class="seg-pill">
+          <div class="seg-opt" onclick="selSeg(this)">20m</div>
+          <div class="seg-opt active" onclick="selSeg(this)">30m</div>
+          <div class="seg-opt" onclick="selSeg(this)">50m</div>
+        </div>
+      </div>
+      <div class="sp-row">
+        <div class="sp-label">💨 Speed</div>
+        <div class="seg-pill">
+          <div class="seg-opt active" onclick="selSeg(this)">km/h</div>
+          <div class="seg-opt" onclick="selSeg(this)">mph</div>
+        </div>
+      </div>
+      <div class="rp-divider" style="margin:8px 0"></div>
+      <div class="sp-stop-nav">⏹ Stop Navigation</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function setState(s) {
+  document.querySelectorAll('.ctrl-btn').forEach((b,i)=>{
+    b.classList.toggle('active',['cruise','approach','arrival'][i]===s);
+  });
+
+  const turnBar = document.getElementById('turnBar');
+  const lmHud = document.getElementById('lmHud');
+  const rpChips = document.getElementById('rpChips');
+  const rpNotes = document.getElementById('rpNotes');
+  const turnDist = document.getElementById('turnDist');
+
+  if (s === 'cruise') {
+    turnBar.style.opacity = '1';
+    lmHud.classList.add('hidden');
+    rpChips.style.display = 'none';
+    rpNotes.style.display = 'none';
+    turnDist.textContent = '380 m';
+  }
+  if (s === 'approach') {
+    turnBar.style.opacity = '1';
+    lmHud.classList.add('hidden');
+    rpChips.style.display = 'flex';
+    rpNotes.style.display = 'none';
+    turnDist.textContent = '85 m';
+  }
+  if (s === 'arrival') {
+    turnBar.style.opacity = '0.5';
+    lmHud.classList.remove('hidden');
+    rpChips.style.display = 'flex';
+    rpNotes.style.display = 'block';
+    turnDist.textContent = '12 m';
+  }
+}
+
+function toggleSettings() {
+  document.getElementById('settingsOverlay').classList.add('open');
+  document.getElementById('settingsPanel').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+  document.getElementById('settingsPanel').classList.remove('open');
+}
+function selStyle(el) {
+  document.querySelectorAll('.style-tile').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+function selSeg(el) {
+  const parent = el.parentElement;
+  parent.querySelectorAll('.seg-opt').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+}
+function openJump() { alert('Long press → Jump to stop menu'); }
+</script>
+</body>
+</html>
