@@ -4,7 +4,7 @@ import { ViewMode } from '../../types/route';
 import { ShelfState } from './nav/navTheme';
 import { NavSettings } from './nav/useNavSettings';
 import { TurnPill } from './nav/TurnPill';
-import { DriveShelf } from './nav/DriveShelf';
+import { NavCard } from './nav/NavCard';
 import { SettingsPanel } from './nav/SettingsPanel';
 
 interface NavigationPanelProps {
@@ -39,16 +39,13 @@ interface NavigationPanelProps {
 }
 
 export const NavigationPanel: React.FC<NavigationPanelProps> = ({
-  shelfState,
   currentStep,
   currentLeg,
   stops,
   currentLegIndex,
   speedKmh,
   etaToNextStop,
-  completedCount,
   insets,
-  liveRoute,
   navSettings,
   onSettingsChange,
   legs,
@@ -59,8 +56,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   onMarkDelivered,
   onMarkFailed,
   onSkipStop,
-  onCallCustomer,
-  onShareETA,
   onPreviewNextStop,
   onPreviewPrevStop,
   onJumpToStop,
@@ -72,22 +67,17 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     <>
       <TurnPill
         currentStep={currentStep}
-        shelfState={shelfState}
         topOffset={insets.top + 8}
       />
 
-      <DriveShelf
-        shelfState={shelfState}
+      <NavCard
         settings={navSettings}
-        currentStep={currentStep}
-        currentLeg={currentLeg}
         stops={stops}
+        currentLeg={currentLeg}
         currentLegIndex={currentLegIndex}
-        speedKmh={speedKmh}
         etaToNextStop={etaToNextStop}
-        completedCount={completedCount}
+        speedKmh={speedKmh}
         insets={insets}
-        liveRoute={liveRoute}
         legs={legs}
         canPreviewNext={canPreviewNext}
         canPreviewPrev={canPreviewPrev}
@@ -96,9 +86,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         onMarkDelivered={onMarkDelivered}
         onMarkFailed={onMarkFailed}
         onSkipStop={onSkipStop}
-        onStopNavigation={onStopNavigation}
-        onCallCustomer={onCallCustomer}
-        onShareETA={onShareETA}
         onShowDetails={onShowDetails}
         onJumpToStop={onJumpToStop}
         onPreviewNextStop={onPreviewNextStop}

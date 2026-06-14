@@ -1,36 +1,24 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Animated, View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { getManeuverIcon, formatDistance } from '../../../utils/route';
-import { navColors, navRadii, ShelfState } from './navTheme';
+import { navColors, navRadii } from './navTheme';
 
 interface TurnPillProps {
   currentStep: any;
-  shelfState: ShelfState;
   topOffset: number;
 }
 
-export const TurnPill: React.FC<TurnPillProps> = ({ currentStep, shelfState, topOffset }) => {
-  const visible = shelfState === 'CRUISE';
-  const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
-  const translateY = useRef(new Animated.Value(visible ? 0 : -8)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(opacity, { toValue: visible ? 1 : 0, useNativeDriver: true, friction: 9, tension: 60 }),
-      Animated.spring(translateY, { toValue: visible ? 0 : -8, useNativeDriver: true, friction: 9, tension: 60 }),
-    ]).start();
-  }, [visible, opacity, translateY]);
-
+export const TurnPill: React.FC<TurnPillProps> = ({ currentStep, topOffset }) => {
   const maneuverIcon = currentStep
     ? (getManeuverIcon(currentStep.type, currentStep.modifier) as any)
     : 'arrow-up';
 
   return (
     <Animated.View
-      style={[styles.container, { top: topOffset, opacity, transform: [{ translateY }] }]}
-      pointerEvents={visible ? 'none' : 'none'}
+      style={[styles.container, { top: topOffset }]}
+      pointerEvents="none"
     >
       <LinearGradient
         colors={navColors.blueGrad}
