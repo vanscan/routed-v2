@@ -25,6 +25,7 @@ interface NavigationPanelProps {
   canPreviewNext?: boolean;
   canPreviewPrev?: boolean;
 
+  onExpandRequest: () => void;
   onStopNavigation: () => void;
   onMarkDelivered: () => void;
   onMarkFailed: () => void;
@@ -53,6 +54,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
   legs,
   canPreviewNext = true,
   canPreviewPrev = true,
+  onExpandRequest,
   onStopNavigation,
   onMarkDelivered,
   onMarkFailed,
@@ -90,6 +92,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         canPreviewNext={canPreviewNext}
         canPreviewPrev={canPreviewPrev}
         onOpenSettings={() => setSettingsOpen(true)}
+        onExpandRequest={onExpandRequest}
         onMarkDelivered={onMarkDelivered}
         onMarkFailed={onMarkFailed}
         onSkipStop={onSkipStop}
