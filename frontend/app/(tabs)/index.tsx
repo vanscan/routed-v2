@@ -458,7 +458,7 @@ export default function RouteScreen() {
   // GPS path doesn't display a stale high speed after the vehicle stops.
   const cameraSpeedAgeRef = useRef(0);
   // Stable callback for hooks that need direct WebView access (bypasses prop latency)
-  const sendToMap = useCallback((msg: object) => { mapRef.current?.sendMessage(msg); }, []);
+  const sendToMap = useCallback((msg: object) => { mapRef.current?.sendMessage?.(msg); }, []);
 
   // ── Delivery clusters (zoomed-out overview) ──────────────────────────────
   // Rebuilt ONLY when the stop set changes (never on GPS ticks), then pushed
@@ -1486,13 +1486,14 @@ export default function RouteScreen() {
     }
     
     const sectionNumber = drawnSections.length + 1;
+    const polygonAsNumbers: number[][] = polygon.map(p => [p.lng, p.lat]);
     const newSection = {
       id: sectionNumber,
       stopIds: newStopIds,
       color: SECTION_COLORS[(sectionNumber - 1) % SECTION_COLORS.length],
-      polygon: polygon,
+      polygon: polygonAsNumbers,
     };
-    
+
     setDrawnSections(prev => [...prev, newSection]);
     setCurrentDrawPath([]);
     setIsDrawing(false);
@@ -2537,7 +2538,7 @@ export default function RouteScreen() {
       // Fire one immediate drivingCamera message so the WebView re-issues
       // an easeTo to the driver puck with full nav zoom + heading. The
       // 250 ms hook will continue feeding updates afterwards.
-      mapRef.current.sendMessage({
+      mapRef.current?.sendMessage?.({
         type: 'drivingCamera',
         lng: loc.longitude,
         lat: loc.latitude,

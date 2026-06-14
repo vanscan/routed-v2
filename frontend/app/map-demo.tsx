@@ -16,7 +16,7 @@ export default function MapDemoPage() {
   const [followDriver, setFollowDriver] = useState(false);
   const [traveledPath, setTraveledPath] = useState<number[][] | null>(null);
   const [simRunning, setSimRunning] = useState(false);
-  const simRef = useRef<ReturnType<typeof setInterval>>();
+  const simRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const simIdx = useRef(0);
   const [mapReady, setMapReady] = useState(false);
   const [cameraInfo, setCameraInfo] = useState('idle');
@@ -77,7 +77,7 @@ export default function MapDemoPage() {
 
     simRef.current = setInterval(() => {
       if (simIdx.current >= totalPts) {
-        clearInterval(simRef.current);
+        if (simRef.current !== null) clearInterval(simRef.current);
         setSimRunning(false);
         setSpeed(null);
         setEta(null);
@@ -110,7 +110,7 @@ export default function MapDemoPage() {
   }, [routeCoords]);
 
   const stopSimulation = useCallback(() => {
-    clearInterval(simRef.current);
+    if (simRef.current !== null) clearInterval(simRef.current);
     setSimRunning(false);
     setFollowDriver(false);
     setSpeed(null);

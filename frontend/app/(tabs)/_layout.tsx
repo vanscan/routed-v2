@@ -46,8 +46,9 @@ export default function TabLayout() {
   // report 0 inset).
   const systemNavPad = isMapTab ? 0 : Math.max(insets.bottom, 8);
 
+  const TabsAny = Tabs as any;
   return (
-    <Tabs
+    <TabsAny
       screenOptions={{
         tabBarActiveTintColor: '#3b82f6',
         tabBarInactiveTintColor: '#94a3b8',
@@ -70,7 +71,7 @@ export default function TabLayout() {
         },
         headerShown: false,
       }}
-      sceneContainerStyle={{ backgroundColor: '#f8fafc' }}
+      sceneContainerStyle={{ backgroundColor: '#f8fafc' } as any}
     >
       <Tabs.Screen
         name="index"
@@ -99,6 +100,6 @@ export default function TabLayout() {
           ),
         }}
       />
-    </Tabs>
+    </TabsAny>
   );
 }

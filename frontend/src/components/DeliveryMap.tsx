@@ -117,6 +117,12 @@ interface DeliveryMapProps {
   stopHaloNumber?: number | string | null;
   /** Web no-op — high-frequency camera lock signal. */
   highFreqCameraActive?: boolean;
+  /** Web no-op — native-only block-road tap handler. */
+  onBlockRoadTap?: (lat: number, lng: number) => void;
+  /** Web no-op — native-only no-go zone click handler. */
+  onNogoZoneClick?: (id: string, name: string) => void;
+  /** Web no-op — native-only lasso completion handler. */
+  onLassoComplete?: (stopIds: string[], polygon: number[][]) => void;
 }
 
 // ─── Map Styles ───────────────────────────────────────────────────────────────
@@ -712,7 +718,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
   const handleMoveStart = useCallback((evt: ViewStateChangeEvent) => {
     if ((evt as any).originalEvent) {
       isUserInteracting.current = true;
-      clearTimeout(interactionTimer.current);
+      if (interactionTimer.current !== null) clearTimeout(interactionTimer.current);
     }
   }, []);
 

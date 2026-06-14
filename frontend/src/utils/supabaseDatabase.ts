@@ -151,7 +151,7 @@ export async function insertIntoTable<T>(
     const supabase = await getSupabase();
     const { data: result, error } = await supabase
       .from(table)
-      .insert(data)
+      .insert(data as any)
       .select();
 
     if (error) {
@@ -175,7 +175,7 @@ export async function upsertIntoTable<T>(
     const supabase = await getSupabase();
     const { data: result, error } = await supabase
       .from(table)
-      .upsert(data, {
+      .upsert(data as any, {
         onConflict: options?.onConflict,
         ignoreDuplicates: options?.ignoreDuplicates,
       })
@@ -200,7 +200,7 @@ export async function updateTable<T>(
 ): Promise<DatabaseResult<T[]>> {
   try {
     const supabase = await getSupabase();
-    let query = supabase.from(table).update(data);
+    let query = supabase.from(table).update(data as any);
 
     Object.entries(filter).forEach(([key, value]) => {
       query = query.eq(key, value);
@@ -260,7 +260,7 @@ export async function subscribeToTable(
   const supabase = await getSupabase();
   const channelName = `${table}-changes-${Date.now()}`;
   
-  const channel = supabase
+  const channel = (supabase as any)
     .channel(channelName)
     .on(
       'postgres_changes',
@@ -281,7 +281,7 @@ export async function subscribeToTable(
     .subscribe();
 
   return () => {
-    supabase.removeChannel(channel);
+    (supabase as any).removeChannel(channel);
   };
 }
 
