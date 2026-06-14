@@ -34,6 +34,7 @@ interface DriveShelfProps {
   canPreviewNext?: boolean;
   canPreviewPrev?: boolean;
   onOpenSettings: () => void;
+  onExpandRequest: () => void;
   onMarkDelivered: () => void;
   onMarkFailed: () => void;
   onSkipStop: () => void;
@@ -98,6 +99,7 @@ export const DriveShelf: React.FC<DriveShelfProps> = ({
   canPreviewNext = true,
   canPreviewPrev = true,
   onOpenSettings,
+  onExpandRequest,
   onMarkDelivered,
   onMarkFailed,
   onSkipStop,
@@ -275,7 +277,9 @@ export const DriveShelf: React.FC<DriveShelfProps> = ({
         style={[styles.shelf, { height: shelfHeight, paddingBottom: insets.bottom + 4 }]}
         {...swipeResponder.panHandlers}
       >
-        <View style={styles.handle} />
+        <TouchableOpacity style={styles.handleWrap} onPress={onExpandRequest} hitSlop={12} activeOpacity={0.7}>
+          <View style={styles.handle} />
+        </TouchableOpacity>
 
         {/* ── CRUISE BAR (always rendered; fades in CRUISE state) ── */}
         <Animated.View
@@ -286,7 +290,7 @@ export const DriveShelf: React.FC<DriveShelfProps> = ({
             <Text style={styles.speedNum}>{speedDisplay}</Text>
             <Text style={styles.speedUnit}>{speedUnit}</Text>
           </View>
-          <Pressable style={styles.cruiseCenter} onLongPress={openJumpMenu} delayLongPress={400}>
+          <Pressable style={styles.cruiseCenter} onPress={onExpandRequest} onLongPress={openJumpMenu} delayLongPress={400}>
             <Text style={styles.cruiseAddr} numberOfLines={1}>
               {currentStop?.address || 'Next stop'}
             </Text>
@@ -558,11 +562,14 @@ const styles = StyleSheet.create({
     zIndex: 100,
     overflow: 'hidden',
   },
+  handleWrap: {
+    alignSelf: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 24,
+  },
   handle: {
     width: 36, height: 4, borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.20)',
-    alignSelf: 'center',
-    marginTop: 8, marginBottom: 2,
   },
 
   // CRUISE

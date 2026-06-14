@@ -4262,6 +4262,10 @@ export default function RouteScreen() {
           liveRoute={liveRoute}
           navSettings={navSettings}
           onSettingsChange={updateNavSettings}
+          onExpandRequest={() => {
+            shelfZoneRef.current = 'ARRIVAL';
+            setShelfState('ARRIVAL');
+          }}
           canPreviewNext={currentLegIndex < (navigationData?.legs?.length || 0) - 1}
           canPreviewPrev={currentLegIndex > 0}
           legs={navigationData?.legs || []}
