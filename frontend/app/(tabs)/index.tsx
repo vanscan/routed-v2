@@ -2388,17 +2388,20 @@ export default function RouteScreen() {
     moveToNextStop();
   };
 
-  const handleMarkFailed = () => {
+  const handleMarkFailed = (reason?: string) => {
     const currentLeg = navigationData?.legs[currentLegIndex];
-    
+
     // Save to undo history
-    setUndoHistory(prev => [...prev, { 
-      type: 'failed', 
+    setUndoHistory(prev => [...prev, {
+      type: 'failed',
       legIndex: currentLegIndex,
       stopId: currentLeg?.to_stop?.id
     }]);
-    
-    speakInstruction('Marked as failed. Moving to next stop.');
+
+    const tts = reason
+      ? `Marked as failed — ${reason.replace(/_/g, ' ')}. Moving to next stop.`
+      : 'Marked as failed. Moving to next stop.';
+    speakInstruction(tts);
     moveToNextStop();
   };
 
@@ -4164,6 +4167,11 @@ export default function RouteScreen() {
             return '#f59e0b';                              // amber: tight
           })()}
           zipperRoute={zipperRoute.length > 0 ? zipperRoute : undefined}
+          stopHaloNumber={
+            viewMode === 'navigating' && currentLeg?.to_stop
+              ? (currentLeg.to_stop.sequence_number ?? currentLeg.to_stop.original_sequence ?? (currentLegIndex + 1))
+              : null
+          }
         />
 
         {/* Planning-mode toolbar pill — groups Block Road + Refine Route into a
@@ -4250,7 +4258,6 @@ export default function RouteScreen() {
       {viewMode === 'navigating' && (
         <NavigationPanel
           viewMode={viewMode}
-          shelfState={shelfState}
           currentStep={currentStep}
           currentLeg={currentLeg}
           stops={stops}

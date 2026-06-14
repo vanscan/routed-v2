@@ -76,4 +76,6 @@ export interface DeliveryMapNativeProps {
   nextStopColor?: string | null;
   highFreqCameraActive?: boolean;
   zipperRoute?: ZipperStop[];
+  /** When set during driving mode, renders a pulsing stop-number halo at the driver's position. */
+  stopHaloNumber?: number | string | null;
 }
