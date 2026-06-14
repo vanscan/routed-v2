@@ -86,8 +86,7 @@ export const APPROACH_RADIUS_M = 150;
 /** Hysteresis gap on APPROACH → CRUISE exit (+20 m over APPROACH_RADIUS_M). */
 export const APPROACH_HIDE_M = APPROACH_RADIUS_M + 20;
 
-export const SETTINGS_PANEL_WIDTH = 240;
-export const RIGHT_PANEL_WIDTH = 120;
+export const SETTINGS_PANEL_WIDTH = 300;
 
 /** Additional color tokens for the shelf UI. */
 export const navShelfColors = {

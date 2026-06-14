@@ -3,8 +3,8 @@ import { Stop } from '../../store/stopsStore';
 import { ViewMode } from '../../types/route';
 import { ShelfState } from './nav/navTheme';
 import { NavSettings } from './nav/useNavSettings';
-import { TurnBar } from './nav/TurnBar';
-import { RightPanel } from './nav/RightPanel';
+import { TurnPill } from './nav/TurnPill';
+import { NavCard } from './nav/NavCard';
 import { SettingsPanel } from './nav/SettingsPanel';
 
 interface NavigationPanelProps {
@@ -39,63 +39,55 @@ interface NavigationPanelProps {
 }
 
 export const NavigationPanel: React.FC<NavigationPanelProps> = ({
-  shelfState,
   currentStep,
   currentLeg,
   stops,
   currentLegIndex,
   speedKmh,
   etaToNextStop,
-  completedCount,
   insets,
   navSettings,
   onSettingsChange,
   legs,
   canPreviewNext = true,
   canPreviewPrev = true,
-  onExpandRequest,
   onStopNavigation,
   onMarkDelivered,
   onMarkFailed,
   onSkipStop,
-  onCallCustomer,
-  onShareETA,
   onPreviewNextStop,
   onPreviewPrevStop,
   onJumpToStop,
+  onShowDetails,
 }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <>
-      <TurnBar
+      <TurnPill
         currentStep={currentStep}
-        shelfState={shelfState}
-        speedKmh={speedKmh}
-        speedUnits={navSettings.speedUnits}
-        topOffset={insets.top}
-        canPreviewNext={canPreviewNext}
-        canPreviewPrev={canPreviewPrev}
-        onPreviewNextStop={onPreviewNextStop}
-        onPreviewPrevStop={onPreviewPrevStop}
+        topOffset={insets.top + 8}
       />
 
-      <RightPanel
-        shelfState={shelfState}
+      <NavCard
+        settings={navSettings}
         stops={stops}
         currentLeg={currentLeg}
         currentLegIndex={currentLegIndex}
         etaToNextStop={etaToNextStop}
-        completedCount={completedCount}
+        speedKmh={speedKmh}
         insets={insets}
         legs={legs}
+        canPreviewNext={canPreviewNext}
+        canPreviewPrev={canPreviewPrev}
         onOpenSettings={() => setSettingsOpen(true)}
-        onExpandRequest={onExpandRequest}
         onMarkDelivered={onMarkDelivered}
         onMarkFailed={onMarkFailed}
         onSkipStop={onSkipStop}
-        onCallCustomer={onCallCustomer}
+        onShowDetails={onShowDetails}
         onJumpToStop={onJumpToStop}
+        onPreviewNextStop={onPreviewNextStop}
+        onPreviewPrevStop={onPreviewPrevStop}
       />
 
       <SettingsPanel
