@@ -81,7 +81,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ stop, colocatedInfo 
           )}
           {parsed.safePlace && (
             <View style={styles.chip}>
-              <Ionicons name="door-open-outline" size={11} color="#cbd5e1" />
+              <Ionicons name="exit-outline" size={11} color="#cbd5e1" />
               <Text style={styles.chipText}>{parsed.safePlace}</Text>
             </View>
           )}

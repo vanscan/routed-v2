@@ -196,7 +196,7 @@ export default function RouteScreen() {
     breadcrumbHydratedRef.current = true;
     let cancelled = false;
     (async () => {
-      const restored = await loadBreadcrumb(user?.user_id);
+      const restored = await loadBreadcrumb(user?.id);
       if (cancelled) return;
       if (restored.length > 0) {
         setTraveledPath(restored);
@@ -204,7 +204,8 @@ export default function RouteScreen() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.user_id]);
+  }, [user?.id]);
+  const [hasUnconfirmedOptimization, setHasUnconfirmedOptimization] = useState(false);
   useEffect(() => {
     if (!hasUnconfirmedOptimization || optimizing) return;
     setShowOptBadge(true);
@@ -225,7 +226,6 @@ export default function RouteScreen() {
   // "Confirm Route" CTA uses — see the render block near the bottom of
   // Planning-mode JSX. Store-level `optimizing` already gates spinners; this
   // flag is specifically about the post-success review window.
-  const [hasUnconfirmedOptimization, setHasUnconfirmedOptimization] = useState(false);
   const [showOptBadge, setShowOptBadge] = useState(false);
   const [optBadgeText, setOptBadgeText] = useState('');
   const [lateFreightChipDismissed, setLateFreightChipDismissed] = useState(false);
@@ -252,7 +252,7 @@ export default function RouteScreen() {
     id: number;
     stopIds: string[];
     color: string;
-    polygon: { lat: number; lng: number }[];
+    polygon: number[][];
   }[]>([]);
   const [currentDrawPath, setCurrentDrawPath] = useState<{ lat: number; lng: number }[]>([]);
   
@@ -282,7 +282,7 @@ export default function RouteScreen() {
       // Defensive: also accept {zones: [...]} for forward-compat.
       const zones = Array.isArray(data) ? data : (Array.isArray(data?.zones) ? data.zones : []);
       setNogoZones(zones);
-      mapRef.current?.setNogoZones(zones);
+      mapRef.current?.setNogoZones?.(zones);
     } catch (e) { console.warn('[nogo] loadNogoZones failed', e); }
   }, []);
 
@@ -310,7 +310,7 @@ export default function RouteScreen() {
   const toggleBlockRoadMode = useCallback(() => {
     setBlockRoadMode(prev => {
       const next = !prev;
-      mapRef.current?.setBlockRoadMode(next);
+      mapRef.current?.setBlockRoadMode?.(next);
       try { Haptics.selectionAsync(); } catch {}
       return next;
     });
@@ -427,7 +427,7 @@ export default function RouteScreen() {
   //     these are late-freight parcels that arrived after lock-in.
   useEffect(() => {
     const confirmed = computeRouteConfirmed(stops);
-    mapRef.current?.setRouteConfirmed(confirmed);
+    mapRef.current?.setRouteConfirmed?.(confirmed);
   }, [stops]);
 
   const lastAlertFetch = useRef<number>(0);
@@ -1433,9 +1433,9 @@ export default function RouteScreen() {
     setDrawnSections([]);
     setCurrentDrawPath([]);
     // Clear all section polygons + lasso from map when exiting refine mode
-    mapRef.current?.setDrawingMode(false);
-    mapRef.current?.clearLasso();
-    mapRef.current?.clearAllSectionPolygons();
+    mapRef.current?.setDrawingMode?.(false);
+    mapRef.current?.clearLasso?.();
+    mapRef.current?.clearAllSectionPolygons?.();
     // Ensure sidebar is expanded when it reappears
     setSidebarExpanded(true);
     sidebarAnim.setValue(1);
@@ -1445,7 +1445,7 @@ export default function RouteScreen() {
   const startFreehandDrawing = () => {
     console.log('[Lasso] startFreehandDrawing called — imperative setDrawingMode(true)');
     setIsActivelyDrawing(true);
-    mapRef.current?.setDrawingMode(true);
+    mapRef.current?.setDrawingMode?.(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   
@@ -1453,7 +1453,7 @@ export default function RouteScreen() {
   const stopFreehandDrawing = () => {
     console.log('[Lasso] stopFreehandDrawing: setting isActivelyDrawing=false');
     setIsActivelyDrawing(false);
-    mapRef.current?.setDrawingMode(false);
+    mapRef.current?.setDrawingMode?.(false);
   };
   
   // Handle completing a lasso drawing
@@ -1462,7 +1462,7 @@ export default function RouteScreen() {
     
     console.log('[Lasso] completeLassoDrawing: setting isActivelyDrawing=false');
     setIsActivelyDrawing(false);
-    mapRef.current?.setDrawingMode(false);
+    mapRef.current?.setDrawingMode?.(false);
     
     // Find stops inside the polygon
     const stopsInside = stops.filter(stop => 
@@ -1628,9 +1628,9 @@ export default function RouteScreen() {
   const undoLastSection = () => {
     if (drawnSections.length === 0) return;
     const lastSection = drawnSections[drawnSections.length - 1];
-    mapRef.current?.removeSectionPolygon(lastSection.id);
+    mapRef.current?.removeSectionPolygon?.(lastSection.id);
     setDrawnSections(prev => prev.slice(0, -1));
-    mapRef.current?.clearLasso();
+    mapRef.current?.clearLasso?.();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   
@@ -1638,8 +1638,8 @@ export default function RouteScreen() {
   const clearAllSections = () => {
     setDrawnSections([]);
     setCurrentDrawPath([]);
-    mapRef.current?.clearAllSectionPolygons();
-    mapRef.current?.clearLasso();
+    mapRef.current?.clearAllSectionPolygons?.();
+    mapRef.current?.clearLasso?.();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
   
@@ -1837,7 +1837,7 @@ export default function RouteScreen() {
           // bridge has been observed to skip the post-confirm update on
           // slow/partial JSON responses, leaving pins painted blue
           // (tentative drive-order) when they should be red (Sharpie-locked).
-          mapRef.current?.forceStopsRefresh();
+          mapRef.current?.forceStopsRefresh?.();
           // Also defensively re-fetch from server so Zustand state is the
           // canonical source-of-truth even if the merge in `confirmRoute`
           // missed a row (e.g., the response body was truncated by a proxy).
@@ -2108,7 +2108,7 @@ export default function RouteScreen() {
               breadcrumbSaveCounterRef.current += 1;
               if (breadcrumbSaveCounterRef.current >= 30) {
                 breadcrumbSaveCounterRef.current = 0;
-                saveBreadcrumb(user?.user_id, final);
+                saveBreadcrumb(user?.id, final);
               }
               return final;
             }
@@ -2151,7 +2151,7 @@ export default function RouteScreen() {
     // of resuming from yesterday's tail. Reset the debounce counter so
     // the first save in the next session lands at the expected ~30 fixes.
     breadcrumbSaveCounterRef.current = 0;
-    clearBreadcrumb(user?.user_id);
+    clearBreadcrumb(user?.id);
   };
 
   // Snap a GPS point to the nearest position on the active route polyline.
@@ -4129,7 +4129,7 @@ export default function RouteScreen() {
           highFreqCameraActive={isNavigating && viewMode === 'navigating'}
           onStopClick={handleMapStopClick}
           callout={mapCallout}
-          onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones(nogoZones); }}
+          onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones?.(nogoZones); }}
           onBlockRoadTap={handleBlockRoadTap}
           onNogoZoneClick={handleNogoZoneClick}
           onLassoComplete={(stopIds: string[], polygon: number[][]) => {
@@ -4147,11 +4147,11 @@ export default function RouteScreen() {
                   polygon: polygon || [],
                 }]);
                 // Persist section polygon on map with color + label
-                mapRef.current?.clearLasso();
-                mapRef.current?.addSectionPolygon(sectionNumber, polygon, color, label);
+                mapRef.current?.clearLasso?.();
+                mapRef.current?.addSectionPolygon?.(sectionNumber, polygon, color, label);
                 setIsDrawing(false);
                 setIsActivelyDrawing(false);
-                mapRef.current?.setDrawingMode(false);
+                mapRef.current?.setDrawingMode?.(false);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               }
             }
@@ -4513,7 +4513,7 @@ export default function RouteScreen() {
             onPress={() => {
               const next = !showParcels;
               setShowParcels(next);
-              mapRef.current?.toggleParcels(next);
+              mapRef.current?.toggleParcels?.(next);
             }}
             activeOpacity={0.8}
             data-testid="parcel-toggle-btn"

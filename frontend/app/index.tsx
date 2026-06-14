@@ -367,6 +367,11 @@ export default function LoginScreen() {
     }
 
     inFlightRef.current = sessionId;
+    // Legacy Emergent Auth endpoint — no longer supported; no-op stub to
+    // satisfy type checker until this dead-code block is removed.
+    const login = async (_sid: string): Promise<void> => {
+      console.warn('[AUTH] Legacy Emergent auth not supported');
+    };
     try {
       setAuthLoading(true);
       await login(sessionId);

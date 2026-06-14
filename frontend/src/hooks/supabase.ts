@@ -3,7 +3,6 @@
 
 // Auth hook (Google OAuth)
 export { useGoogleAuth } from './useGoogleAuth';
-export type { UseGoogleAuthReturn, GoogleAuthResult } from './useGoogleAuth';
 
 // Storage hook (file uploads)
 export { useSupabaseStorage } from './useSupabaseStorage';
@@ -11,16 +10,12 @@ export type { UploadProgress, UploadResult, FileInfo } from './useSupabaseStorag
 
 // Database hook (profiles, saved routes, generic queries)
 export { useSupabaseDatabase } from './useSupabaseDatabase';
-export type { 
-  UserProfile, 
-  ProfilePreferences, 
-  SavedRoute 
-} from './useSupabaseDatabase';
+export type { UserProfile } from './useSupabaseDatabase';
 
 // Realtime hook (live subscriptions)
 export { useRealtime, usePresence } from './useSupabaseRealtime';
-export type { 
-  RealtimeEvent, 
-  RealtimeSubscription, 
-  UseRealtimeOptions 
+export type {
+  RealtimeEvent,
+  RealtimeSubscription,
+  UseRealtimeOptions
 } from './useSupabaseRealtime';
