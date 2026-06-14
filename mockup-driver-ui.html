@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RouTeD — Driver UI Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    gap: 48px;
+    flex-wrap: wrap;
+    padding: 40px 20px;
+  }
+
+  /* ─── Phone Shell ─── */
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: #000;
+    border-radius: 52px;
+    border: 2px solid #333;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.8), inset 0 0 0 1px #444;
+    flex-shrink: 0;
+  }
+
+  .notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 34px;
+    background: #000;
+    border-radius: 0 0 20px 20px;
+    z-index: 200;
+  }
+
+  /* ─── Map Background ─── */
+  .map-bg {
+    position: absolute;
+    inset: 0;
+    background: #1a1f2e;
+    overflow: hidden;
+  }
+
+  /* Streets */
+  .map-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(165deg, transparent 48%, #242c3d 48%, #242c3d 52%, transparent 52%),
+      linear-gradient(75deg, transparent 44%, #242c3d 44%, #242c3d 48%, transparent 48%),
+      linear-gradient(165deg, transparent 70%, #1e2535 70%, #1e2535 73%, transparent 73%),
+      linear-gradient(75deg, transparent 62%, #1e2535 62%, #1e2535 65%, transparent 65%);
+  }
+
+  /* City blocks */
+  .map-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60px 30px at 30% 35%, #242c3d 100%, transparent 100%),
+      radial-gradient(ellipse 80px 40px at 70% 25%, #222a3a 100%, transparent 100%),
+      radial-gradient(ellipse 50px 60px at 15% 60%, #1e2636 100%, transparent 100%),
+      radial-gradient(ellipse 90px 35px at 80% 55%, #232b3c 100%, transparent 100%),
+      radial-gradient(ellipse 60px 45px at 55% 70%, #1d2535 100%, transparent 100%);
+  }
+
+  /* Route line */
+  .route-line {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    width: 4px;
+    height: 45%;
+    background: linear-gradient(to bottom, #06b6d4 0%, rgba(6,182,212,0.2) 100%);
+    transform: translateX(-50%) rotate(-12deg);
+    transform-origin: bottom center;
+    border-radius: 2px;
+    box-shadow: 0 0 12px rgba(6,182,212,0.6);
+    z-index: 5;
+  }
+
+  /* ─── Destination Pillar ─── */
+  .pillar {
+    position: absolute;
+    top: 28%;
+    left: 56%;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translateX(-50%);
+  }
+
+  .pillar-number {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    border: 3px solid rgba(255,255,255,0.3);
+    box-shadow: 0 0 24px rgba(6,182,212,0.8), 0 0 48px rgba(6,182,212,0.4);
+    animation: pillarPulse 2.5s ease-in-out infinite;
+  }
+
+  .pillar-beam {
+    width: 3px;
+    height: 60px;
+    background: linear-gradient(to bottom, rgba(6,182,212,0.8), rgba(6,182,212,0));
+  }
+
+  .pillar-dot {
+    width: 10px;
+    height: 10px;
+    background: #06b6d4;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(6,182,212,0.8);
+  }
+
+  @keyframes pillarPulse {
+    0%, 100% { box-shadow: 0 0 24px rgba(6,182,212,0.8), 0 0 48px rgba(6,182,212,0.4); }
+    50% { box-shadow: 0 0 36px rgba(6,182,212,1), 0 0 72px rgba(6,182,212,0.6); }
+  }
+
+  /* House numbers on "lawns" */
+  .house-num {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.25);
+    z-index: 4;
+  }
+
+  /* ─── Stop Number Halo ─── */
+  .halo-wrap {
+    position: absolute;
+    bottom: 32%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: 88px;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .halo-ring {
+    position: absolute;
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    border: 3px solid rgba(6,182,212,0.5);
+    animation: haloPulse 2s ease-in-out infinite;
+  }
+
+  .halo-ring-glow {
+    position: absolute;
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    box-shadow: 0 0 20px rgba(6,182,212,0.4), inset 0 0 20px rgba(6,182,212,0.1);
+    animation: haloGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes haloPulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.08); opacity: 1; }
+  }
+
+  @keyframes haloGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(6,182,212,0.4), inset 0 0 20px rgba(6,182,212,0.1); }
+    50% { box-shadow: 0 0 32px rgba(6,182,212,0.7), inset 0 0 28px rgba(6,182,212,0.2); }
+  }
+
+  /* Directional tick on halo perimeter */
+  .halo-tick {
+    position: absolute;
+    width: 88px;
+    height: 88px;
+    animation: tickRotate 8s linear infinite;
+  }
+
+  .halo-tick::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 12px solid #06b6d4;
+    filter: drop-shadow(0 0 4px rgba(6,182,212,1));
+  }
+
+  @keyframes tickRotate {
+    0% { transform: rotate(-20deg); }
+    40% { transform: rotate(15deg); }
+    100% { transform: rotate(-20deg); }
+  }
+
+  /* Vehicle body */
+  .vehicle {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(160deg, #1e293b, #0f172a);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2.5px solid rgba(6,182,212,0.6);
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  }
+
+  .stop-number {
+    font-size: 26px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+
+  /* ─── Top Billboard ─── */
+  .billboard {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding-top: 50px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-bottom: 16px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.85) 80%, transparent 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .billboard-address {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.5px;
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+
+  .billboard-sub {
+    font-size: 15px;
+    font-weight: 600;
+    color: #f59e0b;
+    letter-spacing: 0.2px;
+    margin-bottom: 10px;
+  }
+
+  .billboard-turn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 5px 12px;
+  }
+
+  .turn-arrow {
+    width: 20px;
+    height: 20px;
+    background: #06b6d4;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .turn-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+  }
+
+  /* ─── Binary Bottom Bar ─── */
+  .bottom-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    display: flex;
+    z-index: 100;
+    background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.9) 80%, transparent 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 12px 12px 28px 12px;
+    gap: 10px;
+  }
+
+  .btn-fail {
+    flex: 0 0 40%;
+    background: rgba(180, 83, 9, 0.85);
+    border: 1.5px solid rgba(245, 158, 11, 0.4);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-fail::after {
+    content: 'hold 1s';
+    position: absolute;
+    bottom: 7px;
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255,200,100,0.5);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .btn-fail-icon { font-size: 22px; }
+  .btn-fail-label {
+    font-size: 16px;
+    font-weight: 800;
+    color: #fef3c7;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-delivered {
+    flex: 0 0 60%;
+    background: linear-gradient(135deg, #0891b2, #06b6d4);
+    border: 1.5px solid rgba(6,182,212,0.5);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    box-shadow: 0 0 24px rgba(6,182,212,0.4);
+    animation: deliveredGlow 3s ease-in-out infinite;
+  }
+
+  @keyframes deliveredGlow {
+    0%, 100% { box-shadow: 0 0 24px rgba(6,182,212,0.4); }
+    50% { box-shadow: 0 0 40px rgba(6,182,212,0.65); }
+  }
+
+  .btn-delivered-icon { font-size: 24px; }
+  .btn-delivered-label {
+    font-size: 18px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 0.5px;
+  }
+
+  /* ─── Speed badge ─── */
+  .speed-badge {
+    position: absolute;
+    bottom: 140px;
+    left: 20px;
+    z-index: 50;
+    width: 50px;
+    height: 50px;
+    background: rgba(0,0,0,0.75);
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+  }
+
+  .speed-val { font-size: 17px; font-weight: 800; color: #fff; line-height: 1; }
+  .speed-unit { font-size: 8px; font-weight: 600; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+
+  /* ─── ETA badge ─── */
+  .eta-badge {
+    position: absolute;
+    bottom: 140px;
+    right: 20px;
+    z-index: 50;
+    background: rgba(0,0,0,0.75);
+    border: 1.5px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    padding: 6px 12px;
+    backdrop-filter: blur(8px);
+    text-align: center;
+  }
+
+  .eta-val { font-size: 15px; font-weight: 800; color: #fff; }
+  .eta-label { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ─── State: Fail Reason Sheet ─── */
+  .fail-sheet {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #111827;
+    border-radius: 28px 28px 0 0;
+    border-top: 1.5px solid rgba(255,255,255,0.1);
+    z-index: 200;
+    padding: 16px 16px 36px;
+  }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+
+  .sheet-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+
+  .reason-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .reason-btn {
+    background: rgba(255,255,255,0.07);
+    border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 14px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .reason-btn:hover { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); }
+
+  .reason-icon { font-size: 20px; }
+  .reason-label { font-size: 14px; font-weight: 700; color: #e5e7eb; }
+
+  .reason-btn.full { grid-column: 1 / -1; justify-content: center; }
+
+  /* ─── Labels for side-by-side view ─── */
+  .screen-label {
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    margin-top: 16px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .screen-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ─── Annotation callouts ─── */
+  .callout {
+    position: absolute;
+    background: rgba(6,182,212,0.15);
+    border: 1.5px solid rgba(6,182,212,0.5);
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #06b6d4;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  .callout-line {
+    position: absolute;
+    background: rgba(6,182,212,0.4);
+    height: 1px;
+    transform-origin: left center;
+  }
+
+  /* second phone - fail sheet state */
+  .map-bg-dim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 150;
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     SCREEN 1 — Active Navigation (Driving)
+════════════════════════════════════════════ -->
+<div class="screen-wrap">
+  <div class="phone">
+    <div class="notch"></div>
+
+    <!-- Map -->
+    <div class="map-bg">
+      <!-- House numbers on lawns -->
+      <span class="house-num" style="top:52%; left:28%">138</span>
+      <span class="house-num" style="top:52%; left:40%">140</span>
+      <span class="house-num" style="top:52%; left:62%">144</span>
+      <span class="house-num" style="top:52%; left:72%">146</span>
+    </div>
+
+    <!-- Route polyline -->
+    <div class="route-line"></div>
+
+    <!-- Destination pillar -->
+    <div class="pillar">
+      <div class="pillar-number">14</div>
+      <div class="pillar-beam"></div>
+      <div class="pillar-dot"></div>
+    </div>
+
+    <!-- Stop Number Halo on vehicle -->
+    <div class="halo-wrap">
+      <div class="halo-ring-glow"></div>
+      <div class="halo-ring"></div>
+      <div class="halo-tick"></div>
+      <div class="vehicle">
+        <span class="stop-number">14</span>
+      </div>
+    </div>
+
+    <!-- Speed -->
+    <div class="speed-badge">
+      <span class="speed-val">42</span>
+      <span class="speed-unit">km/h</span>
+    </div>
+
+    <!-- ETA -->
+    <div class="eta-badge">
+      <div class="eta-val">1 min</div>
+      <div class="eta-label">ETA</div>
+    </div>
+
+    <!-- Top Billboard -->
+    <div class="billboard">
+      <div class="billboard-address">142 Westway Blvd</div>
+      <div class="billboard-sub">Apt 4B  •  Gate 1234#</div>
+      <div class="billboard-turn">
+        <div class="turn-arrow">↱</div>
+        <span class="turn-text">Turn right in 180m — Queens St</span>
+      </div>
+    </div>
+
+    <!-- Bottom Binary Bar -->
+    <div class="bottom-bar">
+      <div class="btn-fail">
+        <span class="btn-fail-icon">✕</span>
+        <span class="btn-fail-label">FAIL</span>
+      </div>
+      <div class="btn-delivered">
+        <span class="btn-delivered-icon">✓</span>
+        <span class="btn-delivered-label">DELIVERED</span>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">Active Navigation</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SCREEN 2 — FAIL Hold → Reason Sheet
+════════════════════════════════════════════ -->
+<div class="screen-wrap">
+  <div class="phone">
+    <div class="notch"></div>
+
+    <!-- Map (dimmed) -->
+    <div class="map-bg"></div>
+    <div class="route-line" style="opacity:0.3"></div>
+    <div class="pillar" style="opacity:0.3">
+      <div class="pillar-number">14</div>
+      <div class="pillar-beam"></div>
+      <div class="pillar-dot"></div>
+    </div>
+    <div class="halo-wrap" style="opacity:0.3">
+      <div class="vehicle">
+        <span class="stop-number">14</span>
+      </div>
+    </div>
+
+    <!-- Top Billboard (dimmed) -->
+    <div class="billboard" style="opacity:0.4">
+      <div class="billboard-address">142 Westway Blvd</div>
+      <div class="billboard-sub">Apt 4B  •  Gate 1234#</div>
+    </div>
+
+    <!-- Dim overlay -->
+    <div class="map-bg-dim"></div>
+
+    <!-- Fail Reason Sheet -->
+    <div class="fail-sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Why did this fail?</div>
+      <div class="reason-grid">
+        <div class="reason-btn">
+          <span class="reason-icon">🚧</span>
+          <span class="reason-label">No Access</span>
+        </div>
+        <div class="reason-btn">
+          <span class="reason-icon">🏠</span>
+          <span class="reason-label">Not Home</span>
+        </div>
+        <div class="reason-btn">
+          <span class="reason-icon">📦</span>
+          <span class="reason-label">Damaged</span>
+        </div>
+        <div class="reason-btn">
+          <span class="reason-icon">📍</span>
+          <span class="reason-label">Wrong Address</span>
+        </div>
+        <div class="reason-btn full">
+          <span class="reason-icon">💬</span>
+          <span class="reason-label">Other</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">FAIL Hold → Reason Sheet</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SCREEN 3 — Just Delivered (flash state)
+════════════════════════════════════════════ -->
+<div class="screen-wrap">
+  <div class="phone">
+    <div class="notch"></div>
+
+    <!-- Map -->
+    <div class="map-bg"></div>
+
+    <!-- Green flash overlay -->
+    <div style="position:absolute;inset:0;background:rgba(16,185,129,0.15);z-index:10;pointer-events:none;"></div>
+
+    <!-- Delivered confirmation badge -->
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <div style="width:100px;height:100px;background:linear-gradient(135deg,#059669,#10b981);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:48px;box-shadow:0 0 60px rgba(16,185,129,0.6);">✓</div>
+      <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:0.5px;">DELIVERED</div>
+      <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.5);">Moving to stop 15…</div>
+    </div>
+
+    <!-- Top Billboard — updating to next stop -->
+    <div class="billboard" style="opacity:0.6">
+      <div class="billboard-address" style="color:rgba(255,255,255,0.5);font-size:20px;">↓ Next stop</div>
+      <div class="billboard-address" style="font-size:24px;">88 Harbour Rd</div>
+    </div>
+
+    <!-- Halo now shows 15 -->
+    <div class="halo-wrap" style="bottom:28%;">
+      <div class="halo-ring-glow" style="box-shadow:0 0 20px rgba(16,185,129,0.6),inset 0 0 20px rgba(16,185,129,0.1);border-color:rgba(16,185,129,0.5);"></div>
+      <div class="halo-ring" style="border-color:rgba(16,185,129,0.6);"></div>
+      <div class="vehicle" style="border-color:rgba(16,185,129,0.7);">
+        <span class="stop-number">15</span>
+      </div>
+    </div>
+
+    <!-- Bottom bar — DELIVERED state (brief flash) -->
+    <div class="bottom-bar">
+      <div class="btn-fail" style="opacity:0.3;">
+        <span class="btn-fail-icon">✕</span>
+        <span class="btn-fail-label">FAIL</span>
+      </div>
+      <div class="btn-delivered" style="background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 0 32px rgba(16,185,129,0.6);">
+        <span class="btn-delivered-icon">✓</span>
+        <span class="btn-delivered-label">DELIVERED</span>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">Delivered Flash → Next Stop</div>
+</div>
+
+</body>
+</html>
