@@ -113,6 +113,16 @@ interface DeliveryMapProps {
   nextStopColor?: string | null;
   /** Web no-op — Late Freight Zipper overlay rendered inside the native map. */
   zipperRoute?: unknown[];
+  /** Web no-op — native-only stop number halo overlay. */
+  stopHaloNumber?: number | string | null;
+  /** Web no-op — high-frequency camera lock signal. */
+  highFreqCameraActive?: boolean;
+  /** Web no-op — native-only block-road tap handler. */
+  onBlockRoadTap?: (lat: number, lng: number) => void;
+  /** Web no-op — native-only no-go zone click handler. */
+  onNogoZoneClick?: (id: string, name: string) => void;
+  /** Web no-op — native-only lasso completion handler. */
+  onLassoComplete?: (stopIds: string[], polygon: number[][]) => void;
 }
 
 // ─── Map Styles ───────────────────────────────────────────────────────────────
@@ -576,7 +586,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
 ) {
   const mapRef = useRef<MapRef>(null);
   const isUserInteracting = useRef(false);
-  const interactionTimer = useRef<ReturnType<typeof setTimeout>>();
+  const interactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFlyingRef = useRef(false);
   const [buildings3d, setBuildings3d] = useState(false);
   const [styleLoaded, setStyleLoaded] = useState(false);
@@ -708,7 +718,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
   const handleMoveStart = useCallback((evt: ViewStateChangeEvent) => {
     if ((evt as any).originalEvent) {
       isUserInteracting.current = true;
-      clearTimeout(interactionTimer.current);
+      if (interactionTimer.current !== null) clearTimeout(interactionTimer.current);
     }
   }, []);
 
@@ -760,7 +770,7 @@ const DeliveryMapInner = forwardRef<DeliveryMapRef, DeliveryMapProps>(function D
   // addresses in the viewport from `/api/housenumbers` and feeds them into the
   // <HouseNumberLayer /> below. Below zoom 17 the hook returns an empty FC so
   // the layer is cheap even when panning around at overview scales.
-  const houseNumbersFC = useHouseNumbersInView(mapRef, { minZoom: 17 });
+  const houseNumbersFC = useHouseNumbersInView(mapRef as React.RefObject<MapRef>, { minZoom: 17 });
 
   // ── Initial camera ──────────────────────────────────────────────────────────
 

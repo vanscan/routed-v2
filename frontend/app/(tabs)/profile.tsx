@@ -167,7 +167,7 @@ export default function ProfileScreen() {
           latitude: s.latitude,
           longitude: s.longitude,
           time_window: s.time_window,
-          sequence: s.sequence,
+          sequence: (s as any).sequence_number ?? (s as any).sequence,
         })),
       };
       

@@ -103,3 +103,5 @@ export const navShelfColors = {
   chipPhoneFg: '#6ee7b7',
   settingsPanelBg: 'rgba(10, 15, 30, 0.98)',
 };
+
+export const RIGHT_PANEL_WIDTH = 88;

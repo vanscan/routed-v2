@@ -109,7 +109,7 @@ export function useOfflineCache() {
   // Clear all cached data
   const clearCache = useCallback(async () => {
     try {
-      await AsyncStorage.multiRemove(Object.values(CACHE_KEYS));
+      await (AsyncStorage as any).multiRemove(Object.values(CACHE_KEYS));
       setOfflineState({ isOffline: false, lastSyncTime: null, hasCachedData: false });
     } catch (e) {
       console.warn('Failed to clear cache:', e);

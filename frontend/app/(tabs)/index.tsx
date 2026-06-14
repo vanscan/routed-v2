@@ -196,7 +196,7 @@ export default function RouteScreen() {
     breadcrumbHydratedRef.current = true;
     let cancelled = false;
     (async () => {
-      const restored = await loadBreadcrumb(user?.user_id);
+      const restored = await loadBreadcrumb(user?.id);
       if (cancelled) return;
       if (restored.length > 0) {
         setTraveledPath(restored);
@@ -204,7 +204,8 @@ export default function RouteScreen() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.user_id]);
+  }, [user?.id]);
+  const [hasUnconfirmedOptimization, setHasUnconfirmedOptimization] = useState(false);
   useEffect(() => {
     if (!hasUnconfirmedOptimization || optimizing) return;
     setShowOptBadge(true);
@@ -225,7 +226,6 @@ export default function RouteScreen() {
   // "Confirm Route" CTA uses — see the render block near the bottom of
   // Planning-mode JSX. Store-level `optimizing` already gates spinners; this
   // flag is specifically about the post-success review window.
-  const [hasUnconfirmedOptimization, setHasUnconfirmedOptimization] = useState(false);
   const [showOptBadge, setShowOptBadge] = useState(false);
   const [optBadgeText, setOptBadgeText] = useState('');
   const [lateFreightChipDismissed, setLateFreightChipDismissed] = useState(false);
@@ -252,7 +252,7 @@ export default function RouteScreen() {
     id: number;
     stopIds: string[];
     color: string;
-    polygon: { lat: number; lng: number }[];
+    polygon: number[][];
   }[]>([]);
   const [currentDrawPath, setCurrentDrawPath] = useState<{ lat: number; lng: number }[]>([]);
   
@@ -282,7 +282,7 @@ export default function RouteScreen() {
       // Defensive: also accept {zones: [...]} for forward-compat.
       const zones = Array.isArray(data) ? data : (Array.isArray(data?.zones) ? data.zones : []);
       setNogoZones(zones);
-      mapRef.current?.setNogoZones(zones);
+      mapRef.current?.setNogoZones?.(zones);
     } catch (e) { console.warn('[nogo] loadNogoZones failed', e); }
   }, []);
 
@@ -310,7 +310,7 @@ export default function RouteScreen() {
   const toggleBlockRoadMode = useCallback(() => {
     setBlockRoadMode(prev => {
       const next = !prev;
-      mapRef.current?.setBlockRoadMode(next);
+      mapRef.current?.setBlockRoadMode?.(next);
       try { Haptics.selectionAsync(); } catch {}
       return next;
     });
@@ -427,7 +427,7 @@ export default function RouteScreen() {
   //     these are late-freight parcels that arrived after lock-in.
   useEffect(() => {
     const confirmed = computeRouteConfirmed(stops);
-    mapRef.current?.setRouteConfirmed(confirmed);
+    mapRef.current?.setRouteConfirmed?.(confirmed);
   }, [stops]);
 
   const lastAlertFetch = useRef<number>(0);
@@ -458,7 +458,7 @@ export default function RouteScreen() {
   // GPS path doesn't display a stale high speed after the vehicle stops.
   const cameraSpeedAgeRef = useRef(0);
   // Stable callback for hooks that need direct WebView access (bypasses prop latency)
-  const sendToMap = useCallback((msg: object) => { mapRef.current?.sendMessage(msg); }, []);
+  const sendToMap = useCallback((msg: object) => { mapRef.current?.sendMessage?.(msg); }, []);
 
   // ── Delivery clusters (zoomed-out overview) ──────────────────────────────
   // Rebuilt ONLY when the stop set changes (never on GPS ticks), then pushed
@@ -498,12 +498,16 @@ export default function RouteScreen() {
   }, [clusterFC, isMapReady]);
   const mapContainerLayoutRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
+  // Stable ref to the auth header getter so RouteProgressObserver always
+  // carries a live token without needing to be re-constructed.
+  const getAuthHeadersForObserverRef = useRef<() => Promise<Record<string, string>>>(async () => ({}));
   // RouteProgressObserver — manages arrival detection and route reset at each waypoint
   const progressObserverRef = useRef(
     new RouteProgressObserver({
       arrivalRadiusMeters: 50,
       arrivalCooldownMs: 3000,
       backendUrl: BACKEND_URL,
+      getAuthHeaders: () => getAuthHeadersForObserverRef.current(),
     })
   );
   const initialLocationRef = useRef<{ latitude: number; longitude: number; heading?: number } | null>(null);
@@ -546,6 +550,12 @@ export default function RouteScreen() {
   const updateLiveRouteRef = useRef<(location: { latitude: number; longitude: number }) => void | Promise<void>>(() => {});
   const autoRerouteLockRef = useRef<boolean>(false);
   const lastAutoRerouteAtRef = useRef<number>(0);
+  // Throttle: timestamp of the last live-route fetch (ms). Prevents flooding
+  // the backend — one fetch every 2 s is plenty for turn-by-turn fidelity.
+  const liveRouteLastFetchRef = useRef<number>(0);
+  // Abort controller for the current in-flight live-route request so stale
+  // responses from slow networks can't overwrite a newer result.
+  const liveRouteAbortRef = useRef<AbortController | null>(null);
   
   // Algorithm info
   // Algorithm selector — trimmed from 18 → 4 on 2026-05-12 per user
@@ -785,6 +795,8 @@ export default function RouteScreen() {
     const token = await getAuthToken();
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
+  // Keep the observer's getter up-to-date so it always has a fresh closure
+  getAuthHeadersForObserverRef.current = getAuthHeaders;
 
   const fetchNavigationData = async (originOverride?: { latitude: number; longitude: number } | null) => {
     try {
@@ -1421,9 +1433,9 @@ export default function RouteScreen() {
     setDrawnSections([]);
     setCurrentDrawPath([]);
     // Clear all section polygons + lasso from map when exiting refine mode
-    mapRef.current?.setDrawingMode(false);
-    mapRef.current?.clearLasso();
-    mapRef.current?.clearAllSectionPolygons();
+    mapRef.current?.setDrawingMode?.(false);
+    mapRef.current?.clearLasso?.();
+    mapRef.current?.clearAllSectionPolygons?.();
     // Ensure sidebar is expanded when it reappears
     setSidebarExpanded(true);
     sidebarAnim.setValue(1);
@@ -1433,7 +1445,7 @@ export default function RouteScreen() {
   const startFreehandDrawing = () => {
     console.log('[Lasso] startFreehandDrawing called — imperative setDrawingMode(true)');
     setIsActivelyDrawing(true);
-    mapRef.current?.setDrawingMode(true);
+    mapRef.current?.setDrawingMode?.(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   
@@ -1441,7 +1453,7 @@ export default function RouteScreen() {
   const stopFreehandDrawing = () => {
     console.log('[Lasso] stopFreehandDrawing: setting isActivelyDrawing=false');
     setIsActivelyDrawing(false);
-    mapRef.current?.setDrawingMode(false);
+    mapRef.current?.setDrawingMode?.(false);
   };
   
   // Handle completing a lasso drawing
@@ -1450,7 +1462,7 @@ export default function RouteScreen() {
     
     console.log('[Lasso] completeLassoDrawing: setting isActivelyDrawing=false');
     setIsActivelyDrawing(false);
-    mapRef.current?.setDrawingMode(false);
+    mapRef.current?.setDrawingMode?.(false);
     
     // Find stops inside the polygon
     const stopsInside = stops.filter(stop => 
@@ -1474,13 +1486,14 @@ export default function RouteScreen() {
     }
     
     const sectionNumber = drawnSections.length + 1;
+    const polygonAsNumbers: number[][] = polygon.map(p => [p.lng, p.lat]);
     const newSection = {
       id: sectionNumber,
       stopIds: newStopIds,
       color: SECTION_COLORS[(sectionNumber - 1) % SECTION_COLORS.length],
-      polygon: polygon,
+      polygon: polygonAsNumbers,
     };
-    
+
     setDrawnSections(prev => [...prev, newSection]);
     setCurrentDrawPath([]);
     setIsDrawing(false);
@@ -1616,9 +1629,9 @@ export default function RouteScreen() {
   const undoLastSection = () => {
     if (drawnSections.length === 0) return;
     const lastSection = drawnSections[drawnSections.length - 1];
-    mapRef.current?.removeSectionPolygon(lastSection.id);
+    mapRef.current?.removeSectionPolygon?.(lastSection.id);
     setDrawnSections(prev => prev.slice(0, -1));
-    mapRef.current?.clearLasso();
+    mapRef.current?.clearLasso?.();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   
@@ -1626,8 +1639,8 @@ export default function RouteScreen() {
   const clearAllSections = () => {
     setDrawnSections([]);
     setCurrentDrawPath([]);
-    mapRef.current?.clearAllSectionPolygons();
-    mapRef.current?.clearLasso();
+    mapRef.current?.clearAllSectionPolygons?.();
+    mapRef.current?.clearLasso?.();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
   
@@ -1825,7 +1838,7 @@ export default function RouteScreen() {
           // bridge has been observed to skip the post-confirm update on
           // slow/partial JSON responses, leaving pins painted blue
           // (tentative drive-order) when they should be red (Sharpie-locked).
-          mapRef.current?.forceStopsRefresh();
+          mapRef.current?.forceStopsRefresh?.();
           // Also defensively re-fetch from server so Zustand state is the
           // canonical source-of-truth even if the merge in `confirmRoute`
           // missed a row (e.g., the response body was truncated by a proxy).
@@ -1948,6 +1961,10 @@ export default function RouteScreen() {
       setTraveledPath([]); // Reset traveled path when starting
       setUndoHistory([]); // Reset undo history
       setClusterOverlays([]); // Clear cluster overlays during driving
+      // Reset throttle and abort state so the first GPS tick fires a fetch immediately
+      liveRouteLastFetchRef.current = 0;
+      liveRouteAbortRef.current?.abort();
+      liveRouteAbortRef.current = null;
 
       // Compass subscription — gives us a heading immediately, even while
       // stationary. We store the value in a REF ONLY (no setState) so
@@ -2092,7 +2109,7 @@ export default function RouteScreen() {
               breadcrumbSaveCounterRef.current += 1;
               if (breadcrumbSaveCounterRef.current >= 30) {
                 breadcrumbSaveCounterRef.current = 0;
-                saveBreadcrumb(user?.user_id, final);
+                saveBreadcrumb(user?.id, final);
               }
               return final;
             }
@@ -2135,7 +2152,7 @@ export default function RouteScreen() {
     // of resuming from yesterday's tail. Reset the debounce counter so
     // the first save in the next session lands at the expected ~30 fixes.
     breadcrumbSaveCounterRef.current = 0;
-    clearBreadcrumb(user?.user_id);
+    clearBreadcrumb(user?.id);
   };
 
   // Snap a GPS point to the nearest position on the active route polyline.
@@ -2185,45 +2202,56 @@ export default function RouteScreen() {
   };
 
   const updateLiveRoute = async (location: { latitude: number; longitude: number }) => {
-    if (!navigationData) {
-      console.log('[LiveRoute] Skipped: navData=', !!navigationData);
-      return;
-    }
-    
+    if (!navigationData) return;
+
     const currentLeg = navigationData.legs[currentLegIndex];
-    if (!currentLeg?.to_stop) {
-      console.log('[LiveRoute] No current leg or to_stop');
-      return;
-    }
-    
+    if (!currentLeg?.to_stop) return;
+
+    // ── Throttle: one fetch every 2 s is enough for turn-by-turn fidelity ──
+    const now = Date.now();
+    if (now - liveRouteLastFetchRef.current < 2000) return;
+    liveRouteLastFetchRef.current = now;
+
+    // ── Abort any previous in-flight request so stale responses can't
+    //    overwrite a newer result (prevents polyline flickering). ────────────
+    liveRouteAbortRef.current?.abort();
+    const abort = new AbortController();
+    liveRouteAbortRef.current = abort;
+
     try {
-      // Snap GPS to the active route geometry before calling Directions API
-      // This prevents Mapbox from snapping to parallel streets or service roads
       const snapped = snapToRouteGeometry(location.longitude, location.latitude);
+
+      // ── Auto-reroute: detect when driver is more than 40 m off-route ─────
+      const offRouteMeters = calculateDistance(
+        location.latitude, location.longitude, snapped.lat, snapped.lng
+      );
+      const isOffRoute = offRouteMeters > AUTO_REROUTE_DEVIATION_METERS;
+      if (isOffRoute && !autoRerouteLockRef.current &&
+          now - lastAutoRerouteAtRef.current > AUTO_REROUTE_COOLDOWN_MS) {
+        autoRerouteLockRef.current = true;
+        lastAutoRerouteAtRef.current = now;
+        speakInstruction('Recalculating.');
+      }
+
       const coordinates = `${snapped.lng},${snapped.lat};${currentLeg.to_stop.longitude},${currentLeg.to_stop.latitude}`;
-      console.log('[LiveRoute] Fetching from API (snapped):', coordinates);
-      
+
       const liveRouteHeaders = await getAuthHeaders();
-      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`, { headers: liveRouteHeaders });
-      console.log('[LiveRoute] Response status:', response.status);
-      
+      const response = await fetch(`${BACKEND_URL}/api/directions?coordinates=${coordinates}`, {
+        headers: liveRouteHeaders,
+        signal: abort.signal,
+      });
+
       if (response.ok) {
         const data = await response.json();
-        console.log('[LiveRoute] Got data, geometry coords:', data.geometry?.coordinates?.length || 0);
-        
-        // Keep exactly one visible segment: current position -> active waypoint
-        
+        autoRerouteLockRef.current = false;
         setLiveRoute(data);
-        
-        // Route data flows to map via routeCoordinates prop — no injection needed
-        
+
         if (data.steps && data.steps.length > 0 && navSettings.voiceEnabled) {
           const nextStep = data.steps[0];
           const instruction = nextStep.voice_instruction || nextStep.instruction;
           const distance: number = nextStep.distance ?? 0;
 
           if (instruction) {
-            // ── Helper: format distance for speech (full words, rounded) ──────
             const fmtVoice = (m: number): string => {
               if (m >= 1000) {
                 const km = Math.round(m / 500) * 0.5;
@@ -2233,15 +2261,13 @@ export default function RouteScreen() {
               return `${Math.max(50, Math.round(m / 50) * 50)} metres`;
             };
 
-            // ── Speed-scaled thresholds (Waze/Google Maps standard) ──────────
-            const spd = currentSpeed; // km/h, already in state
+            const spd = currentSpeed;
             let earlyAt: number, prepareAt: number, nowAt: number;
             if (spd > 90)       { earlyAt = 1500; prepareAt = 600; nowAt = 80; }
             else if (spd > 60)  { earlyAt = 900;  prepareAt = 350; nowAt = 60; }
             else if (spd > 30)  { earlyAt = 600;  prepareAt = 250; nowAt = 50; }
             else                { earlyAt = 300;  prepareAt = 120; nowAt = 35; }
 
-            // ── Reset per-step state when instruction changes ────────────────
             if (voiceAnnouncementRef.current.stepKey !== instruction) {
               voiceAnnouncementRef.current = {
                 stepKey: instruction,
@@ -2253,20 +2279,15 @@ export default function RouteScreen() {
 
             const ann = voiceAnnouncementRef.current;
 
-            // Stage 3 — NOW  (highest priority, fire once)
             if (!ann.spokenNow && distance <= nowAt) {
               speakInstruction(instruction);
               ann.spokenNow = true;
-              ann.spokenPrepare = true; // suppress lower-priority stages
+              ann.spokenPrepare = true;
               ann.spokenEarly = true;
-
-            // Stage 2 — PREPARE  (~300m, fire once)
             } else if (!ann.spokenPrepare && distance <= prepareAt) {
               speakInstruction(`In ${fmtVoice(distance)}, ${instruction}`);
               ann.spokenPrepare = true;
               ann.spokenEarly = true;
-
-            // Stage 1 — EARLY  (~1km, fire once)
             } else if (!ann.spokenEarly && distance <= earlyAt) {
               speakInstruction(`In ${fmtVoice(distance)}, ${instruction}`);
               ann.spokenEarly = true;
@@ -2274,8 +2295,10 @@ export default function RouteScreen() {
           }
         }
       }
-    } catch (error) {
-      console.error('Live route error:', error);
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        console.error('Live route error:', error);
+      }
     }
   };
 
@@ -2388,17 +2411,20 @@ export default function RouteScreen() {
     moveToNextStop();
   };
 
-  const handleMarkFailed = () => {
+  const handleMarkFailed = (reason?: string) => {
     const currentLeg = navigationData?.legs[currentLegIndex];
-    
+
     // Save to undo history
-    setUndoHistory(prev => [...prev, { 
-      type: 'failed', 
+    setUndoHistory(prev => [...prev, {
+      type: 'failed',
       legIndex: currentLegIndex,
       stopId: currentLeg?.to_stop?.id
     }]);
-    
-    speakInstruction('Marked as failed. Moving to next stop.');
+
+    const tts = reason
+      ? `Marked as failed — ${reason.replace(/_/g, ' ')}. Moving to next stop.`
+      : 'Marked as failed. Moving to next stop.';
+    speakInstruction(tts);
     moveToNextStop();
   };
 
@@ -2512,7 +2538,7 @@ export default function RouteScreen() {
       // Fire one immediate drivingCamera message so the WebView re-issues
       // an easeTo to the driver puck with full nav zoom + heading. The
       // 250 ms hook will continue feeding updates afterwards.
-      mapRef.current.sendMessage({
+      mapRef.current?.sendMessage?.({
         type: 'drivingCamera',
         lng: loc.longitude,
         lat: loc.latitude,
@@ -2546,6 +2572,10 @@ export default function RouteScreen() {
     if (currentLegIndex < (navigationData?.legs.length || 0) - 1) {
       const nextIndex = currentLegIndex + 1;
       const nav = navigationData;
+
+      // Reset throttle so the first GPS tick after stop completion triggers
+      // a fresh route fetch immediately rather than waiting 2 s.
+      liveRouteLastFetchRef.current = 0;
 
       // ── Same-doorstep short-circuit ────────────────────────────────────
       // When the optimizer (PyVRP coord-clustering) places multiple parcels
@@ -3315,7 +3345,11 @@ export default function RouteScreen() {
   //     to plan or tweak the run. Re-enabling it: judges and drivers expect
   //     to see the planned tour as a connected line, not a dot field.
   const mapRouteCoordinates: number[][] | null = useMemo(() => {    if (viewMode === 'navigating') {
-      return liveRoute?.geometry?.coordinates ?? null;
+      // Prefer live segment (driver → next stop). Fall back to the full
+      // navigation geometry while the first live-route fetch is in-flight so
+      // the polyline is never blank during the first 2 s of navigation.
+      return liveRoute?.geometry?.coordinates
+        ?? (navigationData?.geometry?.coordinates ?? null);
     }
     // Planning view: feed the optimised polyline geometry that
     // `fetchDirections()` already populated into `routeGeometry`.
@@ -3350,7 +3384,7 @@ export default function RouteScreen() {
       }
     }
     return null;
-  }, [viewMode, liveRoute?.geometry?.coordinates, routeGeometry, currentLocation, stops]);
+  }, [viewMode, liveRoute?.geometry?.coordinates, navigationData?.geometry?.coordinates, routeGeometry, currentLocation, stops]);
 
   // Driver location for the map. Used to be gated on `viewMode ===
   // 'navigating'` so the driver dot only appeared during active drive,
@@ -4096,7 +4130,7 @@ export default function RouteScreen() {
           highFreqCameraActive={isNavigating && viewMode === 'navigating'}
           onStopClick={handleMapStopClick}
           callout={mapCallout}
-          onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones(nogoZones); }}
+          onMapReady={() => { setIsMapReady(true); mapRef.current?.setNogoZones?.(nogoZones); }}
           onBlockRoadTap={handleBlockRoadTap}
           onNogoZoneClick={handleNogoZoneClick}
           onLassoComplete={(stopIds: string[], polygon: number[][]) => {
@@ -4114,11 +4148,11 @@ export default function RouteScreen() {
                   polygon: polygon || [],
                 }]);
                 // Persist section polygon on map with color + label
-                mapRef.current?.clearLasso();
-                mapRef.current?.addSectionPolygon(sectionNumber, polygon, color, label);
+                mapRef.current?.clearLasso?.();
+                mapRef.current?.addSectionPolygon?.(sectionNumber, polygon, color, label);
                 setIsDrawing(false);
                 setIsActivelyDrawing(false);
-                mapRef.current?.setDrawingMode(false);
+                mapRef.current?.setDrawingMode?.(false);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               }
             }
@@ -4164,6 +4198,11 @@ export default function RouteScreen() {
             return '#f59e0b';                              // amber: tight
           })()}
           zipperRoute={zipperRoute.length > 0 ? zipperRoute : undefined}
+          stopHaloNumber={
+            viewMode === 'navigating' && currentLeg?.to_stop
+              ? (currentLeg.to_stop.sequence_number ?? currentLeg.to_stop.original_sequence ?? (currentLegIndex + 1))
+              : null
+          }
         />
 
         {/* Planning-mode toolbar pill — groups Block Road + Refine Route into a
@@ -4250,7 +4289,6 @@ export default function RouteScreen() {
       {viewMode === 'navigating' && (
         <NavigationPanel
           viewMode={viewMode}
-          shelfState={shelfState}
           currentStep={currentStep}
           currentLeg={currentLeg}
           stops={stops}
@@ -4476,7 +4514,7 @@ export default function RouteScreen() {
             onPress={() => {
               const next = !showParcels;
               setShowParcels(next);
-              mapRef.current?.toggleParcels(next);
+              mapRef.current?.toggleParcels?.(next);
             }}
             activeOpacity={0.8}
             data-testid="parcel-toggle-btn"

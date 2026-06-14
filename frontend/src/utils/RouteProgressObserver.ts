@@ -55,6 +55,8 @@ interface ObserverConfig {
   backendUrl: string;
   /** Mapbox token (for API calls if needed) */
   mapboxToken: string;
+  /** Async getter for auth headers — called per-request so tokens stay fresh */
+  getAuthHeaders?: () => Promise<Record<string, string>>;
 }
 
 const DEFAULT_CONFIG: ObserverConfig = {
@@ -239,8 +241,10 @@ export class RouteProgressObserver {
     const coordinatesQuery = this.buildRouteResetQuery(gpsLocation, remainingWaypoints);
 
     try {
+      const headers = this.config.getAuthHeaders ? await this.config.getAuthHeaders() : {};
       const response = await fetch(
-        `${this.config.backendUrl}/api/directions?coordinates=${coordinatesQuery}`
+        `${this.config.backendUrl}/api/directions?coordinates=${coordinatesQuery}`,
+        { headers }
       );
       if (!response.ok) return null;
 

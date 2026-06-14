@@ -40,7 +40,7 @@ let _onLocationUpdate: ((coords: Location.LocationObject) => void) | null = null
 // ── Task definition (MUST be at global scope) ────────────────────────
 // This is called by the OS even when the app is backgrounded. It must
 // be defined at import time, not inside a component or hook.
-TaskManager.defineTask(TASK_NAME, ({ data, error }: TaskManager.TaskManagerTaskBody<{ locations: Location.LocationObject[] }>) => {
+(TaskManager.defineTask as any)(TASK_NAME, ({ data, error }: any) => {
   if (error) {
     console.error(`[${TASK_NAME}] Task error:`, error.message);
     return;

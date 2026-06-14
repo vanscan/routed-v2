@@ -164,7 +164,7 @@ export default function BenchmarksScreen() {
               ]}
               data-testid={`benchmark-row-${r.id}`}
             >
-              <View style={[styles.tdCell, styles.colSolver]}>
+              <View style={[styles.tdCell, styles.colSolver] as any}>
                 <Text style={[styles.tdName, i === 0 && r.ok ? styles.tdNameWinner : null]}>
                   {i === 0 && r.ok ? '🏆 ' : ''}{r.name}
                 </Text>

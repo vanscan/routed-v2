@@ -809,6 +809,62 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
     const pulseOpacity = useSharedValue(0.6);
     const [pulseScreenXY, setPulseScreenXY] = useState<{ x: number; y: number } | null>(null);
 
+    // ── Stop-number halo overlay (screen-space) ───────────────────────────────
+    const [haloScreenXY, setHaloScreenXY] = useState<{ x: number; y: number } | null>(null);
+    const [haloTickDeg, setHaloTickDeg] = useState(0);
+    const haloRingScale = useSharedValue(1);
+    const haloRingOpacity = useSharedValue(0.7);
+    const stopHaloNumber = props.stopHaloNumber;
+
+    useEffect(() => {
+      if (!stopHaloNumber) return;
+      haloRingScale.value = withRepeat(
+        withTiming(1.18, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true,
+      );
+      haloRingOpacity.value = withRepeat(
+        withTiming(0.3, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true,
+      );
+    }, [stopHaloNumber, haloRingScale, haloRingOpacity]);
+
+    const haloRingAnimStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: haloRingScale.value }],
+      opacity: haloRingOpacity.value,
+    }));
+
+    const updateHaloScreenPos = useCallback(() => {
+      if (!driverLocation || !mapRef.current || !stopHaloNumber) {
+        setHaloScreenXY(null);
+        return;
+      }
+      mapRef.current
+        .project([driverLocation.longitude, driverLocation.latitude])
+        .then((pt) => {
+          if (pt && typeof pt[0] === 'number' && typeof pt[1] === 'number') {
+            setHaloScreenXY({ x: pt[0], y: pt[1] });
+          } else {
+            setHaloScreenXY(null);
+          }
+        })
+        .catch(() => setHaloScreenXY(null));
+    }, [driverLocation, stopHaloNumber]);
+
+    useEffect(() => {
+      updateHaloScreenPos();
+    }, [driverLocation, updateHaloScreenPos]);
+
+    useEffect(() => {
+      if (!driverLocation || !nextStopCoord) return;
+      const geo = bearing(
+        driverLocation.latitude, driverLocation.longitude,
+        nextStopCoord[1], nextStopCoord[0],
+      );
+      setHaloTickDeg(geo - (driverLocation.heading ?? 0));
+    }, [driverLocation, nextStopCoord]);
+
     // Kick off the infinite pulse animation.
     useEffect(() => {
       pulseScale.value = withRepeat(
@@ -1402,8 +1458,9 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               refreshMsBuildings(zz);
             }
           }
-          // Update pulse ring position to track the camera.
+          // Update pulse ring + halo positions to track the camera.
           updatePulseScreenPos();
+          updateHaloScreenPos();
           // Re-project callout so the overlay balloon stays over its pin.
           if (calloutGeoRef.current) projectCallout();
           if (multiPickGeoRef.current) projectMultiPick();
@@ -1411,7 +1468,7 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
           // ignore malformed region events
         }
       },
-      [onCameraIdle, zoom, refreshOverlays, refreshMsBuildings, updatePulseScreenPos, projectCallout, projectMultiPick],
+      [onCameraIdle, zoom, refreshOverlays, refreshMsBuildings, updatePulseScreenPos, updateHaloScreenPos, projectCallout, projectMultiPick],
     );
 
     // Handle a tap on the delivery-clusters source: expand a cluster bubble or
@@ -2138,6 +2195,79 @@ const DeliveryMapNativeInner = forwardRef<DeliveryMapRef, DeliveryMapNativeProps
               pulseAnimatedStyle,
             ]}
           />
+        )}
+
+        {/* ── Stop-number halo overlay (screen-space) ──────────────────────────
+            Pulsing ring + stop number + directional tick rendered at the
+            driver's current screen position. The tick rotates to point toward
+            the next destination, corrected for the map's heading rotation. */}
+        {haloScreenXY && stopHaloNumber != null && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: haloScreenXY.x - 44,
+              top: haloScreenXY.y - 44,
+              width: 88,
+              height: 88,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {/* Pulsing outer ring */}
+            <Animated.View
+              style={[{
+                position: 'absolute',
+                width: 88,
+                height: 88,
+                borderRadius: 44,
+                borderWidth: 2.5,
+                borderColor: '#06b6d4',
+                backgroundColor: 'transparent',
+              }, haloRingAnimStyle]}
+            />
+            {/* Static inner disc */}
+            <View style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: 'rgba(5, 10, 24, 0.82)',
+              borderWidth: 2,
+              borderColor: 'rgba(6,182,212,0.55)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Text style={{
+                fontSize: 23,
+                fontWeight: '900',
+                color: '#fff',
+                lineHeight: 26,
+              }}>
+                {stopHaloNumber}
+              </Text>
+            </View>
+            {/* Directional tick — rotates toward next stop */}
+            <View style={{
+              position: 'absolute',
+              width: 88,
+              height: 88,
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              transform: [{ rotate: `${haloTickDeg}deg` }],
+            }}>
+              <View style={{
+                width: 0,
+                height: 0,
+                borderLeftWidth: 5,
+                borderRightWidth: 5,
+                borderBottomWidth: 10,
+                borderLeftColor: 'transparent',
+                borderRightColor: 'transparent',
+                borderBottomColor: '#06b6d4',
+                marginTop: -2,
+              }} />
+            </View>
+          </View>
         )}
 
         {/* ── Lasso drawing overlay ──────────────────────────────────────────

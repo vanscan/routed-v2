@@ -36,7 +36,7 @@ export interface UseRealtimeOptions<T> {
  * });
  * ```
  */
-export function useRealtime<T = any>(
+export function useRealtime<T extends Record<string, any> = any>(
   options: UseRealtimeOptions<T>
 ): RealtimeSubscription<T> {
   const { user } = useSupabase();
@@ -79,8 +79,8 @@ export function useRealtime<T = any>(
           subscriptionConfig.filter = options.filter;
         }
 
-        const channel = supabase
-          .channel(channelName)
+        const channel = (supabase
+          .channel(channelName) as any)
           .on(
             'postgres_changes',
             subscriptionConfig,
@@ -116,7 +116,7 @@ export function useRealtime<T = any>(
               }
             }
           )
-          .subscribe((status) => {
+          .subscribe((status: string) => {
             console.log('[Realtime] Subscription status:', status);
             if (status === 'SUBSCRIBED') {
               setIsConnected(true);
