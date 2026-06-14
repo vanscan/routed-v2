@@ -8,6 +8,7 @@ import * as Updates from 'expo-updates';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { hydrateFeatureFlags } from '../src/utils/featureFlags';
 import { BACKEND_URL } from '../src/utils/config';
+import { Analytics } from '@vercel/analytics/react';
 
 // Boot-time invariant: every API call in the app reads BACKEND_URL from
 // config.ts (which wraps process.env.EXPO_PUBLIC_BACKEND_URL). If somebody
@@ -163,6 +164,7 @@ export default function RootLayout() {
               <Text style={styles.otaBannerText}>{otaStatus}</Text>
             </View>
           )}
+          {Platform.OS === 'web' && <Analytics />}
         </SupabaseProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
