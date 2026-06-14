@@ -78,7 +78,7 @@ export type ShelfState = 'CRUISE' | 'APPROACH' | 'ARRIVAL';
 
 /** Bottom shelf heights for each proximity state. */
 export const SHELF_HEIGHT_CRUISE = 72;
-export const SHELF_HEIGHT_APPROACH = 208;
+export const SHELF_HEIGHT_APPROACH = 330;
 export const SHELF_HEIGHT_ARRIVAL_MIN = 480;
 
 /** Distance at which shelf transitions CRUISE → APPROACH. */
