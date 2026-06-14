@@ -54,6 +54,7 @@ export interface LastMilePrecisionHUDProps {
 }
 
 const EARTH_RADIUS_M = 6371008.8;
+// NOTE: default topOffset was 12 (old fixed header era). Now 56 to coexist with the TurnPill.
 const toRad = (d: number) => (d * Math.PI) / 180;
 const toDeg = (r: number) => (r * 180) / Math.PI;
 

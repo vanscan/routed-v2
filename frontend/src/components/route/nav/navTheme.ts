@@ -71,3 +71,35 @@ export const NAV_HEADER_CLEARANCE = 132;
  */
 export const CARD_SHOW_RADIUS_M = 30;
 export const CARD_HIDE_RADIUS_M = 50;
+
+// ── Drive Shelf ──────────────────────────────────────────────────────────────
+
+export type ShelfState = 'CRUISE' | 'APPROACH' | 'ARRIVAL';
+
+/** Bottom shelf heights for each proximity state. */
+export const SHELF_HEIGHT_CRUISE = 72;
+export const SHELF_HEIGHT_APPROACH = 208;
+export const SHELF_HEIGHT_ARRIVAL_MIN = 480;
+
+/** Distance at which shelf transitions CRUISE → APPROACH. */
+export const APPROACH_RADIUS_M = 150;
+/** Hysteresis gap on APPROACH → CRUISE exit (+20 m over APPROACH_RADIUS_M). */
+export const APPROACH_HIDE_M = APPROACH_RADIUS_M + 20;
+
+export const SETTINGS_PANEL_WIDTH = 300;
+
+/** Additional color tokens for the shelf UI. */
+export const navShelfColors = {
+  approachAccent: 'rgba(37, 99, 235, 0.15)',
+  approachBorder: 'rgba(96, 165, 250, 0.25)',
+  arrivalAccent: 'rgba(5, 150, 105, 0.10)',
+  chipBg: 'rgba(255, 255, 255, 0.07)',
+  chipBorder: 'rgba(255, 255, 255, 0.12)',
+  chipKeyBg: 'rgba(124, 58, 237, 0.15)',
+  chipKeyBorder: 'rgba(167, 139, 250, 0.30)',
+  chipKeyFg: '#c4b5fd',
+  chipPhoneBg: 'rgba(5, 150, 105, 0.15)',
+  chipPhoneBorder: 'rgba(16, 185, 129, 0.30)',
+  chipPhoneFg: '#6ee7b7',
+  settingsPanelBg: 'rgba(10, 15, 30, 0.98)',
+};
