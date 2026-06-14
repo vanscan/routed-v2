@@ -8,8 +8,16 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Stop } from '../../../store/stopsStore';
 import { stopPinNumber, buildLateFreightLabels } from '../../../utils/stopPinNumber';
-import { navColors, navShelfColors } from './navTheme';
+import { navColors } from './navTheme';
 import { NavSettings } from './useNavSettings';
+import { SpeedCircle } from './SpeedCircle';
+
+const PILL_BG = 'rgba(10, 15, 30, 0.82)';
+const ACTION_H = 52;
+const ACTION_PAD = 8;
+const ADDR_GAP = 10;
+const ADDR_H = 58;
+const SPEED_GAP = 8;
 
 interface NavCardProps {
   settings: NavSettings;
@@ -22,7 +30,6 @@ interface NavCardProps {
   legs?: any[];
   canPreviewNext?: boolean;
   canPreviewPrev?: boolean;
-  onOpenSettings: () => void;
   onMarkDelivered: () => void;
   onMarkFailed: () => void;
   onSkipStop: () => void;
@@ -43,7 +50,6 @@ export const NavCard: React.FC<NavCardProps> = ({
   legs,
   canPreviewNext = true,
   canPreviewPrev = true,
-  onOpenSettings,
   onMarkDelivered,
   onMarkFailed,
   onSkipStop,
@@ -69,24 +75,16 @@ export const NavCard: React.FC<NavCardProps> = ({
     return '?';
   }, [currentStopNumber, currentStop, lateFreightLabels]);
 
-  const isCurrentLateFreight = currentStopNumber == null &&
-    !!((currentStop as any)?.id && lateFreightLabels[(currentStop as any)?.id]);
-
-  const badgeGrad = isCurrentLateFreight
-    ? (['#7c3aed', '#a855f7'] as const)
-    : (navColors.blueGrad as unknown as readonly [string, string]);
-
-  // ── Speed display ──────────────────────────────────────────────────────────
-  const speedDisplay = settings.speedUnits === 'mph'
-    ? `${Math.round(speedKmh * 0.621371)}`
-    : `${speedKmh}`;
-  const speedUnit = settings.speedUnits === 'mph' ? 'mph' : 'km/h';
-
-  // ── Address split ──────────────────────────────────────────────────────────
+  // ── Address ────────────────────────────────────────────────────────────────
   const fullAddress: string = currentStop?.address || '';
   const commaIdx = fullAddress.indexOf(',');
   const streetLine = commaIdx > -1 ? fullAddress.slice(0, commaIdx) : fullAddress;
   const suburbLine = commaIdx > -1 ? fullAddress.slice(commaIdx + 1).trim() : '';
+
+  // ── Vertical positions ─────────────────────────────────────────────────────
+  const actionBottom = insets.bottom + ACTION_PAD;
+  const addrBottom = actionBottom + ACTION_H + ADDR_GAP;
+  const speedBottom = addrBottom + ADDR_H + SPEED_GAP;
 
   // ── Jump-to-stop modal ─────────────────────────────────────────────────────
   const [isJumpOpen, setIsJumpOpen] = useState(false);
@@ -103,7 +101,7 @@ export const NavCard: React.FC<NavCardProps> = ({
     }
   };
 
-  // ── Swipe between stops ───────────────────────────────────────────────────
+  // ── Swipe between stops ────────────────────────────────────────────────────
   const swipeX = useRef(new Animated.Value(0)).current;
   const swipeResponder = useMemo(
     () => PanResponder.create({
@@ -138,62 +136,43 @@ export const NavCard: React.FC<NavCardProps> = ({
   );
 
   return (
-    <View style={[styles.card, { paddingBottom: insets.bottom + 8 }]}>
-      {/* Info row */}
+    // Full-screen transparent container — individual pills handle their own touch
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+
+      {/* Speed circle — bottom-left, above address pill */}
+      <SpeedCircle
+        speedKmh={speedKmh}
+        units={settings.speedUnits}
+        bottom={speedBottom}
+      />
+
+      {/* Address pill — swipeable, tap shows details, long-press jumps to stop */}
       <Animated.View
-        style={[styles.infoRow, { transform: [{ translateX: swipeX }] }]}
+        style={[styles.addrPill, { bottom: addrBottom, transform: [{ translateX: swipeX }] }]}
         {...swipeResponder.panHandlers}
       >
-        {/* Stop badge */}
-        <TouchableOpacity onPress={onShowDetails} onLongPress={openJumpMenu} delayLongPress={400} activeOpacity={0.85}>
-          <LinearGradient colors={badgeGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.badge}>
-            <Text style={styles.badgeNum}>{currentStopLabel}</Text>
-            <Text style={styles.badgeOf}>{totalStops}</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Address */}
-        <View style={styles.addressBlock}>
-          <Text style={styles.street} numberOfLines={1}>{streetLine}</Text>
-          {!!suburbLine && <Text style={styles.suburb} numberOfLines={1}>{suburbLine}</Text>}
-        </View>
-
-        {/* ETA */}
-        <View style={styles.etaPill}>
-          <Text style={styles.etaText}>{etaToNextStop}</Text>
-        </View>
-
-        {/* Speed */}
-        <View style={styles.speedBlock}>
-          <Text style={styles.speedNum}>{speedDisplay}</Text>
-          <Text style={styles.speedUnit}>{speedUnit}</Text>
-        </View>
-
-        {/* Gear */}
-        <TouchableOpacity onPress={onOpenSettings} hitSlop={10} style={styles.gearBtn}>
-          <Ionicons name="settings-outline" size={20} color={navColors.textMuted} />
+        <TouchableOpacity
+          onPress={onShowDetails}
+          onLongPress={openJumpMenu}
+          delayLongPress={400}
+          activeOpacity={0.85}
+          style={styles.addrInner}
+        >
+          <View style={styles.addrTextBlock}>
+            <Text style={styles.street} numberOfLines={1}>{streetLine}</Text>
+            {!!suburbLine && (
+              <Text style={styles.suburb} numberOfLines={1}>{suburbLine}</Text>
+            )}
+          </View>
+          <View style={styles.addrMeta}>
+            <Text style={styles.stopCount}>stop {currentStopLabel}/{totalStops}</Text>
+            <Text style={styles.eta}>{etaToNextStop}</Text>
+          </View>
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Divider */}
-      <View style={styles.divider} />
-
       {/* Action buttons */}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            onMarkDelivered();
-          }}
-          activeOpacity={0.8}
-        >
-          <LinearGradient colors={navColors.greenGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.deliveredGrad}>
-            <Ionicons name="checkmark" size={20} color="#fff" />
-            <Text style={styles.deliveredLabel}>Delivered</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
+      <View style={[styles.actionsRow, { bottom: actionBottom }]}>
         <TouchableOpacity
           style={[styles.actionBtn, styles.failedBtn]}
           onPress={() => {
@@ -207,15 +186,22 @@ export const NavCard: React.FC<NavCardProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, styles.skipBtn]}
+          style={[styles.actionBtn, styles.deliveredBtn]}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onSkipStop();
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onMarkDelivered();
           }}
           activeOpacity={0.8}
         >
-          <Ionicons name="play-skip-forward" size={16} color={navColors.skipFg} />
-          <Text style={[styles.actionLabel, { color: navColors.skipFg }]}>Skip</Text>
+          <LinearGradient
+            colors={navColors.greenGrad}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.deliveredGrad}
+          >
+            <Ionicons name="checkmark" size={20} color="#fff" />
+            <Text style={styles.deliveredLabel}>Delivered</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -256,76 +242,53 @@ export const NavCard: React.FC<NavCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  card: {
+  // Address pill
+  addrPill: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderTopColor: navColors.hairline,
+    left: 16,
+    right: 16,
+    backgroundColor: PILL_BG,
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
   },
-
-  // Info row
-  infoRow: {
+  addrInner: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     gap: 10,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 10,
   },
-  badge: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  badgeNum: { fontSize: 18, fontWeight: '900', color: '#fff', lineHeight: 20 },
-  badgeOf: { fontSize: 9, color: 'rgba(255,255,255,0.70)', fontWeight: '600' },
-
-  addressBlock: { flex: 1, gap: 1 },
-  street: { fontSize: 13, fontWeight: '700', color: '#e2e8f0' },
-  suburb: { fontSize: 11, color: '#64748b' },
-
-  etaPill: {
-    backgroundColor: navColors.etaPillBg,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    flexShrink: 0,
-  },
-  etaText: { fontSize: 12, fontWeight: '800', color: navColors.etaPillText },
-
-  speedBlock: { alignItems: 'center', flexShrink: 0 },
-  speedNum: { fontSize: 16, fontWeight: '900', color: '#34d399', lineHeight: 18 },
-  speedUnit: { fontSize: 8, color: '#6ee7b7', fontWeight: '600' },
-
-  gearBtn: { padding: 4, flexShrink: 0 },
-
-  divider: { height: 1, backgroundColor: navColors.divider, marginHorizontal: 14 },
+  addrTextBlock: { flex: 1 },
+  street: { fontSize: 14, fontWeight: '700', color: '#e2e8f0' },
+  suburb: { fontSize: 11, color: '#64748b', marginTop: 1 },
+  addrMeta: { alignItems: 'flex-end', flexShrink: 0, gap: 2 },
+  stopCount: { fontSize: 11, fontWeight: '700', color: '#94a3b8' },
+  eta: { fontSize: 11, fontWeight: '700', color: navColors.etaPillText },
 
   // Action buttons
   actionsRow: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingTop: 10,
+    gap: 10,
   },
   actionBtn: {
     flex: 1,
-    height: 52,
-    borderRadius: 16,
+    height: ACTION_H,
+    borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     overflow: 'hidden',
   },
+  deliveredBtn: {},
   deliveredGrad: {
     flex: 1,
     width: '100%',
@@ -339,11 +302,6 @@ const styles = StyleSheet.create({
     backgroundColor: navColors.failedBg,
     borderWidth: 1,
     borderColor: navColors.failedBorder,
-  },
-  skipBtn: {
-    backgroundColor: navColors.skipBg,
-    borderWidth: 1,
-    borderColor: navColors.skipBorder,
   },
   actionLabel: { fontSize: 13, fontWeight: '700' },
 

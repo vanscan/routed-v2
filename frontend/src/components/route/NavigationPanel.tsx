@@ -3,7 +3,7 @@ import { Stop } from '../../store/stopsStore';
 import { ViewMode } from '../../types/route';
 import { ShelfState } from './nav/navTheme';
 import { NavSettings } from './nav/useNavSettings';
-import { TurnPill } from './nav/TurnPill';
+import { NavHeader } from './nav/NavHeader';
 import { NavCard } from './nav/NavCard';
 import { SettingsPanel } from './nav/SettingsPanel';
 
@@ -65,9 +65,10 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 
   return (
     <>
-      <TurnPill
+      <NavHeader
         currentStep={currentStep}
-        topOffset={insets.top + 8}
+        insets={insets}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <NavCard
@@ -81,8 +82,6 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         legs={legs}
         canPreviewNext={canPreviewNext}
         canPreviewPrev={canPreviewPrev}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onExpandRequest={onExpandRequest}
         onMarkDelivered={onMarkDelivered}
         onMarkFailed={onMarkFailed}
         onSkipStop={onSkipStop}
