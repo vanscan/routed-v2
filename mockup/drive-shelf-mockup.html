@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>RouteD · Drive Shelf Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0f1e;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    padding: 24px 16px 40px;
+    color: #fff;
+  }
+
+  h1 { font-size: 14px; letter-spacing: 0.12em; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
+  p.sub { font-size: 12px; color: #475569; margin-bottom: 24px; }
+
+  /* ── State controls ── */
+  .controls {
+    display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center;
+  }
+  .ctrl-btn {
+    padding: 8px 18px; border-radius: 999px; border: 1.5px solid #334155;
+    background: #1e293b; color: #94a3b8; font-size: 13px; cursor: pointer;
+    transition: all 0.18s;
+  }
+  .ctrl-btn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
+  .ctrl-btn:hover:not(.active) { border-color: #475569; color: #cbd5e1; }
+
+  /* ── Phone frame ── */
+  .phone {
+    width: 375px;
+    height: 720px;
+    border-radius: 44px;
+    border: 2.5px solid #1e293b;
+    position: relative;
+    overflow: hidden;
+    background: #111827;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px #0f172a;
+  }
+
+  /* Notch */
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 32px;
+    background: #111827;
+    border-radius: 0 0 20px 20px;
+    z-index: 100;
+  }
+
+  /* ── MAP BG ── */
+  .map-bg {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, #1a2744 0%, #162238 40%, #1a3040 100%);
+  }
+
+  /* Road grid */
+  .map-bg::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.12) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Road */
+  .road {
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 60px;
+    background: #1e293b;
+    transform: translateY(-50%);
+    border-top: 2px solid #334155;
+    border-bottom: 2px solid #334155;
+  }
+  .road::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 3px;
+    background: repeating-linear-gradient(90deg, #f59e0b 0 30px, transparent 30px 60px);
+    transform: translateY(-50%);
+  }
+
+  /* Destination pin */
+  .pin {
+    position: absolute;
+    top: 160px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center;
+    transition: opacity 0.3s;
+  }
+  .pin-dot {
+    width: 20px; height: 20px; border-radius: 50% 50% 50% 0;
+    background: #ef4444; transform: rotate(-45deg);
+    box-shadow: 0 2px 8px rgba(239,68,68,0.6);
+  }
+  .pin-label {
+    margin-top: 6px; font-size: 10px; color: #fff;
+    background: rgba(15,23,42,0.9); padding: 2px 8px; border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* Courier arrow */
+  .courier {
+    position: absolute;
+    bottom: 280px; left: 50%; transform: translateX(-50%);
+    width: 28px; height: 28px;
+    background: #2563eb;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 0 16px rgba(37,99,235,0.8);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    transition: bottom 0.6s ease;
+  }
+
+  /* ── TURN PILL (top-center floating) ── */
+  .turn-pill {
+    position: absolute;
+    top: 44px; left: 50%; transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    padding: 10px 20px;
+    display: flex; align-items: center; gap: 10px;
+    white-space: nowrap;
+    z-index: 40;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .turn-pill.hidden {
+    opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(-8px);
+  }
+  .turn-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .turn-text { font-size: 13px; color: #e2e8f0; }
+  .turn-dist { font-size: 13px; font-weight: 700; color: #fff; margin-left: 4px; }
+
+  /* ── LAST MILE HUD ── */
+  .lm-hud {
+    position: absolute;
+    top: 104px; left: 50%; transform: translateX(-50%);
+    background: rgba(245, 158, 11, 0.92);
+    border-radius: 22px;
+    padding: 6px 16px;
+    font-size: 12px; font-weight: 700; color: #fff;
+    white-space: nowrap; z-index: 41;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+    transition: opacity 0.3s;
+  }
+  .lm-hud.hidden { opacity: 0; pointer-events: none; }
+
+  /* ── SHELF ── */
+  .shelf {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(15, 23, 42, 0.95);
+    border-top: 1px solid rgba(255,255,255,0.10);
+    border-radius: 24px 24px 0 0;
+    backdrop-filter: blur(20px);
+    z-index: 30;
+    transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+  }
+
+  /* Drag handle */
+  .shelf-handle {
+    width: 36px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.25);
+    margin: 10px auto 0;
+  }
+
+  /* ──────── CRUISE STATE ──────── */
+  .cruise-bar {
+    display: flex; align-items: center;
+    padding: 12px 20px;
+    gap: 0;
+    height: 58px;
+    transition: opacity 0.2s;
+  }
+  .speed-badge {
+    background: linear-gradient(135deg, #059669, #10b981);
+    border-radius: 12px;
+    padding: 6px 10px;
+    font-size: 18px; font-weight: 800; color: #fff;
+    line-height: 1;
+    flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .speed-badge span { font-size: 8px; font-weight: 500; opacity: 0.8; }
+  .cruise-address {
+    flex: 1; padding: 0 12px;
+    font-size: 13px; font-weight: 600; color: #e2e8f0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cruise-address small { font-size: 11px; font-weight: 400; color: #64748b; display: block; }
+  .eta-pill {
+    background: rgba(5, 150, 105, 0.2);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 999px; padding: 4px 10px;
+    font-size: 12px; font-weight: 700; color: #10b981;
+    flex-shrink: 0; margin-right: 10px;
+  }
+  .gear-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; cursor: pointer; flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .gear-btn:hover { background: rgba(255,255,255,0.12); }
+
+  /* ──────── APPROACH STATE ──────── */
+  .approach-content {
+    padding: 4px 16px 16px;
+    opacity: 0; transition: opacity 0.22s;
+    pointer-events: none;
+  }
+  .approach-content.visible { opacity: 1; pointer-events: all; }
+
+  .turn-card {
+    background: rgba(37, 99, 235, 0.15);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .turn-card-icon {
+    width: 44px; height: 44px; flex-shrink: 0;
+    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .turn-card-text { flex: 1; }
+  .turn-card-instruction { font-size: 14px; font-weight: 700; color: #fff; }
+  .turn-card-dist { font-size: 12px; color: #93c5fd; margin-top: 2px; }
+
+  .prop-strip {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .chip {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 5px 12px;
+    font-size: 12px; color: #cbd5e1; font-weight: 500;
+  }
+  .chip.key {
+    background: rgba(124, 58, 237, 0.15);
+    border-color: rgba(167, 139, 250, 0.3);
+    color: #c4b5fd;
+  }
+  .chip.phone {
+    background: rgba(5, 150, 105, 0.15);
+    border-color: rgba(16,185,129,0.3);
+    color: #6ee7b7;
+  }
+  .stop-counter {
+    margin-left: auto; font-size: 11px; color: #475569; font-weight: 600;
+  }
+
+  /* ──────── ARRIVAL STATE ──────── */
+  .arrival-content {
+    padding: 0 16px 16px;
+    opacity: 0; transition: opacity 0.22s;
+    pointer-events: none;
+  }
+  .arrival-content.visible { opacity: 1; pointer-events: all; }
+
+  .arrival-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 4px 0 10px;
+  }
+  .arrival-address { font-size: 14px; font-weight: 700; color: #fff; }
+  .arrival-suburb { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .stop-badge-arr {
+    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    border-radius: 10px; padding: 4px 10px;
+    font-size: 12px; font-weight: 800; color: #fff;
+    flex-shrink: 0;
+  }
+
+  .chips-row { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+
+  .divider { height: 1px; background: rgba(255,255,255,0.07); margin: 8px 0; }
+
+  .notes-row {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12px; color: #94a3b8; line-height: 1.5;
+    margin-bottom: 10px;
+  }
+
+  .action-row {
+    display: flex; gap: 8px; margin-top: 4px;
+  }
+  .action-btn {
+    flex: 1; padding: 13px 0; border-radius: 16px;
+    font-size: 13px; font-weight: 700; border: none;
+    cursor: pointer; transition: transform 0.1s, opacity 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .action-btn:active { transform: scale(0.97); }
+  .btn-delivered {
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: #fff; flex: 2;
+    box-shadow: 0 4px 16px rgba(5,150,105,0.35);
+  }
+  .btn-failed {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #f87171;
+  }
+  .btn-skip {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245,158,11,0.3);
+    color: #fbbf24;
+  }
+
+  /* ── SETTINGS PANEL ── */
+  .settings-overlay {
+    position: absolute; inset: 0; z-index: 60;
+    background: rgba(0,0,0,0.45);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .settings-overlay.open { opacity: 1; pointer-events: all; }
+
+  .settings-panel {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 280px;
+    background: rgba(15, 23, 42, 0.98);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-top: 56px;
+    overflow-y: auto;
+  }
+  .settings-panel.open { transform: translateX(0); }
+
+  .settings-header {
+    padding: 16px 20px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .settings-title { font-size: 15px; font-weight: 700; color: #fff; }
+  .close-btn {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(255,255,255,0.08); border: none; color: #94a3b8;
+    font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  .setting-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .setting-label { font-size: 13px; color: #cbd5e1; display: flex; align-items: center; gap: 8px; }
+  .setting-label span { font-size: 16px; }
+
+  /* Toggle switch */
+  .toggle {
+    width: 44px; height: 26px; border-radius: 13px;
+    position: relative; cursor: pointer;
+    background: #1e293b; border: 1px solid #334155;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: #2563eb; border-color: #3b82f6; }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+  .toggle.on::after { transform: translateX(18px); }
+
+  /* Segment pill */
+  .seg-pill {
+    display: flex; background: #1e293b; border-radius: 10px; padding: 3px; gap: 2px;
+  }
+  .seg-opt {
+    padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 600;
+    color: #64748b; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .seg-opt.active { background: #2563eb; color: #fff; }
+
+  /* Map style tiles */
+  .style-tiles {
+    display: flex; gap: 6px; padding: 0 20px 14px;
+  }
+  .style-tile {
+    flex: 1; aspect-ratio: 1; border-radius: 10px; border: 2px solid transparent;
+    cursor: pointer; overflow: hidden; position: relative;
+    transition: border-color 0.15s;
+    font-size: 9px; color: rgba(255,255,255,0.8); font-weight: 700;
+    display: flex; align-items: flex-end; padding: 3px;
+  }
+  .style-tile.active { border-color: #3b82f6; }
+  .style-tile.colorful { background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 40%, #2d6a4f 100%); }
+  .style-tile.night { background: linear-gradient(135deg, #0f172a, #1e293b); }
+  .style-tile.satellite { background: linear-gradient(135deg, #064e3b, #065f46, #15803d); }
+  .style-tile.topo { background: linear-gradient(135deg, #78350f, #92400e, #b45309); }
+
+  /* Sensitivity row */
+  .setting-col { padding: 10px 20px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .setting-col .setting-label { margin-bottom: 10px; }
+
+  /* Bottom safe area on phone */
+  .safe-area { height: 20px; }
+</style>
+</head>
+<body>
+
+<h1>RouteD · Drive Shelf</h1>
+<p class="sub">Click a state to preview · Settings via ⚙ gear icon</p>
+
+<div class="controls">
+  <button class="ctrl-btn active" onclick="setState('cruise')">CRUISE &gt; 150m</button>
+  <button class="ctrl-btn" onclick="setState('approach')">APPROACH 30–150m</button>
+  <button class="ctrl-btn" onclick="setState('arrival')">ARRIVAL ≤ 30m</button>
+</div>
+
+<div class="phone" id="phone">
+
+  <!-- MAP -->
+  <div class="map-bg">
+    <div class="road"></div>
+    <div class="pin" id="pin">
+      <div class="pin-dot"></div>
+      <div class="pin-label">14 Bardon St</div>
+    </div>
+    <div class="courier" id="courier">↑</div>
+  </div>
+
+  <!-- TURN PILL (top float) -->
+  <div class="turn-pill" id="turnPill">
+    <div class="turn-icon">↰</div>
+    <span class="turn-text">Turn left onto Bardon St</span>
+    <span class="turn-dist" id="pillDist">380 m</span>
+  </div>
+
+  <!-- LAST MILE HUD -->
+  <div class="lm-hud hidden" id="lmHud">28 m · 2 o'clock</div>
+
+  <!-- SHELF -->
+  <div class="shelf" id="shelf">
+    <div class="shelf-handle"></div>
+
+    <!-- CRUISE BAR (always rendered, opacity-faded in non-cruise) -->
+    <div class="cruise-bar" id="cruiseBar">
+      <div class="speed-badge">52<span>km/h</span></div>
+      <div class="cruise-address">
+        14 Bardon St
+        <small>Paddington · Stop 4 of 9</small>
+      </div>
+      <div class="eta-pill">3:42 PM</div>
+      <div class="gear-btn" onclick="toggleSettings()">⚙</div>
+    </div>
+
+    <!-- APPROACH CONTENT -->
+    <div class="approach-content" id="approachContent">
+      <div class="turn-card">
+        <div class="turn-card-icon">↰</div>
+        <div class="turn-card-text">
+          <div class="turn-card-instruction">Turn left into Bardon Street</div>
+          <div class="turn-card-dist">In 85 metres</div>
+        </div>
+      </div>
+      <div class="prop-strip">
+        <div class="chip">🏠 HOUSE</div>
+        <div class="chip">🚪 Front door</div>
+        <div class="chip key">🔑 No key</div>
+        <div class="stop-counter">4 / 9</div>
+      </div>
+    </div>
+
+    <!-- ARRIVAL CONTENT -->
+    <div class="arrival-content" id="arrivalContent">
+      <div class="arrival-header">
+        <div>
+          <div class="arrival-address">14 Bardon Street</div>
+          <div class="arrival-suburb">Paddington QLD 4064</div>
+        </div>
+        <div class="stop-badge-arr">4 / 9</div>
+      </div>
+
+      <div class="chips-row">
+        <div class="chip">🏠 HOUSE</div>
+        <div class="chip">🚪 Front door</div>
+        <div class="chip key">🔑 No key</div>
+        <div class="chip phone">📞 0412 345 678</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="notes-row">
+        📋&nbsp; Leave at front door if no answer. Ring bell twice.
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="action-row">
+        <button class="action-btn btn-failed">✕ Failed</button>
+        <button class="action-btn btn-delivered">✓ Delivered</button>
+        <button class="action-btn btn-skip">→ Skip</button>
+      </div>
+    </div>
+
+    <div class="safe-area"></div>
+  </div>
+
+  <!-- SETTINGS OVERLAY -->
+  <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()">
+    <div class="settings-panel" id="settingsPanel" onclick="event.stopPropagation()">
+      <div class="settings-header">
+        <div class="settings-title">Nav Settings</div>
+        <button class="close-btn" onclick="closeSettings()">✕</button>
+      </div>
+
+      <!-- Voice nav -->
+      <div class="setting-row">
+        <div class="setting-label"><span>🔊</span> Voice navigation</div>
+        <div class="toggle on" id="voiceToggle" onclick="toggleSetting('voice')"></div>
+      </div>
+
+      <!-- Map style -->
+      <div class="setting-col">
+        <div class="setting-label"><span>🗺</span> Map style</div>
+        <div class="style-tiles">
+          <div class="style-tile colorful active" onclick="setMapStyle('colorful', this)">Map</div>
+          <div class="style-tile night" onclick="setMapStyle('night', this)">Night</div>
+          <div class="style-tile satellite" onclick="setMapStyle('satellite', this)">Sat</div>
+          <div class="style-tile topo" onclick="setMapStyle('topo', this)">Topo</div>
+        </div>
+      </div>
+
+      <!-- Card sensitivity -->
+      <div class="setting-col">
+        <div class="setting-label"><span>🎯</span> Card sensitivity</div>
+        <div class="seg-pill">
+          <div class="seg-opt" onclick="setSensitivity('tight', this)">Tight 20m</div>
+          <div class="seg-opt active" onclick="setSensitivity('normal', this)">Normal 30m</div>
+          <div class="seg-opt" onclick="setSensitivity('wide', this)">Wide 50m</div>
+        </div>
+      </div>
+
+      <!-- Speed units -->
+      <div class="setting-row">
+        <div class="setting-label"><span>💨</span> Speed units</div>
+        <div class="seg-pill">
+          <div class="seg-opt active" onclick="setUnits('kmh', this)">km/h</div>
+          <div class="seg-opt" onclick="setUnits('mph', this)">mph</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const SHELF_HEIGHT = { cruise: 82, approach: 208, arrival: 440 };
+
+  let currentState = 'cruise';
+
+  function setState(s) {
+    currentState = s;
+
+    // Update control buttons
+    document.querySelectorAll('.ctrl-btn').forEach((b, i) => {
+      b.classList.toggle('active', ['cruise','approach','arrival'][i] === s);
+    });
+
+    const shelf = document.getElementById('shelf');
+    const cruiseBar = document.getElementById('cruiseBar');
+    const approachContent = document.getElementById('approachContent');
+    const arrivalContent = document.getElementById('arrivalContent');
+    const turnPill = document.getElementById('turnPill');
+    const lmHud = document.getElementById('lmHud');
+    const courier = document.getElementById('courier');
+    const pillDist = document.getElementById('pillDist');
+
+    // Hide all content first
+    approachContent.classList.remove('visible');
+    arrivalContent.classList.remove('visible');
+
+    // Set shelf height
+    shelf.style.height = SHELF_HEIGHT[s] + 'px';
+
+    if (s === 'cruise') {
+      cruiseBar.style.opacity = '1';
+      turnPill.classList.remove('hidden');
+      lmHud.classList.add('hidden');
+      pillDist.textContent = '380 m';
+      courier.style.bottom = '200px';
+    }
+
+    if (s === 'approach') {
+      cruiseBar.style.opacity = '1';
+      turnPill.classList.add('hidden');
+      lmHud.classList.add('hidden');
+      pillDist.textContent = '85 m';
+      courier.style.bottom = '230px';
+      setTimeout(() => approachContent.classList.add('visible'), 60);
+    }
+
+    if (s === 'arrival') {
+      cruiseBar.style.opacity = '0.4';
+      turnPill.classList.add('hidden');
+      lmHud.classList.remove('hidden');
+      courier.style.bottom = '270px';
+      setTimeout(() => arrivalContent.classList.add('visible'), 60);
+    }
+  }
+
+  function toggleSettings() {
+    document.getElementById('settingsOverlay').classList.add('open');
+    document.getElementById('settingsPanel').classList.add('open');
+  }
+  function closeSettings() {
+    document.getElementById('settingsOverlay').classList.remove('open');
+    document.getElementById('settingsPanel').classList.remove('open');
+  }
+
+  function toggleSetting(key) {
+    const el = document.getElementById(key + 'Toggle');
+    el.classList.toggle('on');
+  }
+
+  function setMapStyle(style, el) {
+    document.querySelectorAll('.style-tile').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function setSensitivity(v, el) {
+    document.querySelectorAll('.setting-col .seg-opt').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function setUnits(v, el) {
+    document.querySelectorAll('.setting-row .seg-opt').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+  }
+</script>
+</body>
+</html>
