@@ -331,6 +331,43 @@ export const DriveShelf: React.FC<DriveShelfProps> = ({
             <ApproachPropStrip notes={currentStop?.notes} />
             <Text style={styles.stopCounter}>{currentStopLabel || '—'} / {totalStops}</Text>
           </View>
+
+          <View style={styles.divider} />
+
+          {/* Action buttons visible in APPROACH so driver can mark without closing to 30m */}
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.failedBtn} onPress={onMarkFailed} testID="nav-approach-failed">
+              <Ionicons name="close" size={22} color={navColors.failedFg} />
+              <Text style={styles.sideBtnLabel}>Failed</Text>
+            </TouchableOpacity>
+            <Pressable
+              key={(currentStop?.id ?? 'no-stop') + '-approach'}
+              style={({ pressed }) => [styles.deliveredBtn, styles.deliveredHardenedHitbox, pressed && styles.deliveredPressed]}
+              onStartShouldSetResponderCapture={() => true}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={() => {
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch {}
+                onMarkDelivered();
+              }}
+              testID="nav-approach-delivered"
+              accessibilityRole="button"
+              accessibilityLabel="Mark stop as delivered"
+            >
+              <LinearGradient
+                colors={navColors.greenGrad}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.deliveredFill}
+              >
+                <Ionicons name="checkmark" size={26} color="#fff" />
+                <Text style={styles.deliveredLabel}>Delivered</Text>
+              </LinearGradient>
+            </Pressable>
+            <TouchableOpacity style={styles.skipBtn} onPress={onSkipStop} testID="nav-approach-skip">
+              <Ionicons name="play-skip-forward" size={22} color={navColors.skipFg} />
+              <Text style={styles.sideBtnLabel}>Skip</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         {/* ── ARRIVAL CONTENT ── */}

@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { navColors, navShelfColors } from './navTheme';
 import { parseStopNotes } from './parseStopNotes';
@@ -35,7 +34,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ stop, colocatedInfo 
     const t = stop?.tracking_number;
     if (!t) return;
     try {
-      await Clipboard.setStringAsync(t);
+      await Share.share({ message: t });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {}
   };
