@@ -159,10 +159,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
-    inset: 0,
+    top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.45)',
     zIndex: 110,
-  } as any,
+  },
   panel: {
     position: 'absolute',
     top: 0, right: 0, bottom: 0,
