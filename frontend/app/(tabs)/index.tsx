@@ -61,8 +61,9 @@ import { useNavigationTTS } from '../../src/hooks/useNavigationTTS';
 import { useNavigationCamera } from '../../src/hooks/useNavigationCamera';
 import { useGeofenceArrival, GeofenceStop } from '../../src/hooks/useGeofenceArrival';
 import { LastMilePrecisionHUD } from '../../src/components/LastMilePrecisionHUD';
-import { NAV_HEADER_CLEARANCE, CARD_SHOW_RADIUS_M, CARD_HIDE_RADIUS_M } from '../../src/components/route/nav/navTheme';
+import { NAV_HEADER_CLEARANCE, CARD_SHOW_RADIUS_M, CARD_HIDE_RADIUS_M, ShelfState, APPROACH_RADIUS_M, APPROACH_HIDE_M } from '../../src/components/route/nav/navTheme';
 import { MapStyleSwitcher, MAP_STYLES, MapStyleKey } from '../../src/components/map/MapStyleSwitcher';
+import { useNavSettings } from '../../src/components/route/nav/useNavSettings';
 import { useLateFreightZipper } from '../../src/hooks/useLateFreightZipper';
 
 import { BACKEND_URL } from '../../src/utils/config';
@@ -174,7 +175,7 @@ export default function RouteScreen() {
   const [currentLegIndex, setCurrentLegIndex] = useState(0);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; heading?: number } | null>(null);
   const [liveRoute, setLiveRoute] = useState<LiveRoute | null>(null);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const { settings: navSettings, updateSettings: updateNavSettings, cardShowRadiusM, cardHideRadiusM } = useNavSettings();
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [isRerouting, setIsRerouting] = useState(false);
@@ -236,8 +237,7 @@ export default function RouteScreen() {
     threshold: number;
     status: 'insufficient' | 'trainable' | 'ready';
   } | null>(null);
-  const [immersiveMode, setImmersiveMode] = useState(true); // Start collapsed; auto-expands at 50m proximity
-  const [mapStyle, setMapStyle] = useState<MapStyleKey>('colorful');
+  const [shelfState, setShelfState] = useState<ShelfState>('CRUISE');
   const [routeLineMode, setRouteLineMode] = useState<'full' | 'leg' | 'remaining'>('full');
   
   // Optimization Hubs State - Sequential waypoints for segmented optimization
@@ -2217,7 +2217,7 @@ export default function RouteScreen() {
         
         // Route data flows to map via routeCoordinates prop — no injection needed
         
-        if (data.steps && data.steps.length > 0 && voiceEnabled) {
+        if (data.steps && data.steps.length > 0 && navSettings.voiceEnabled) {
           const nextStep = data.steps[0];
           const instruction = nextStep.voice_instruction || nextStep.instruction;
           const distance: number = nextStep.distance ?? 0;
@@ -2630,7 +2630,7 @@ export default function RouteScreen() {
   };
 
   const speakInstruction = (text: string) => {
-    if (!voiceEnabled) return;
+    if (!navSettings.voiceEnabled) return;
     Speech.stop();
     Speech.speak(text, {
       language: 'en',
@@ -3169,7 +3169,7 @@ export default function RouteScreen() {
 
   // OpenAI TTS voice announcements for turn instructions
   useNavigationTTS({
-    enabled: voiceEnabled && viewMode === 'navigating',
+    enabled: navSettings.voiceEnabled && viewMode === 'navigating',
     instruction: currentStep?.voice_instruction || currentStep?.instruction || null,
   });
 
@@ -3227,18 +3227,14 @@ export default function RouteScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
 
-  // ── Proximity-driven action-card visibility ──────────────────────────────
-  // The bottom action card is hidden while driving (immersiveMode=true) and
-  // slides up automatically within CARD_SHOW_RADIUS_M of the current stop,
-  // then hides once the driver passes beyond CARD_HIDE_RADIUS_M (or the leg
-  // advances). We act only on zone *crossings* (far→near shows, near→far
-  // hides) so a manual dismiss/summon via the header persists within a zone,
-  // and the 20-in/40-out hysteresis stops GPS wander from flapping the card.
-  const cardZoneRef = useRef<'near' | 'far'>('far');
+  // ── Three-zone proximity state machine ───────────────────────────────────
+  // CRUISE (>150m) → APPROACH (30–150m) → ARRIVAL (≤30m)
+  // Hysteresis on exit: ARRIVAL→APPROACH at cardHideRadiusM, APPROACH→CRUISE at APPROACH_HIDE_M.
+  // Entry thresholds track cardShowRadiusM (from settings sensitivity).
+  const shelfZoneRef = useRef<ShelfState>('CRUISE');
   useEffect(() => {
-    // New stop: reset to far + hidden so the card re-arms for the next approach.
-    cardZoneRef.current = 'far';
-    if (viewMode === 'navigating') setImmersiveMode(true);
+    shelfZoneRef.current = 'CRUISE';
+    if (viewMode === 'navigating') setShelfState('CRUISE');
   }, [currentLegIndex, viewMode]);
   useEffect(() => {
     if (viewMode !== 'navigating' || !currentLocation || !geofenceActiveStop) return;
@@ -3251,14 +3247,21 @@ export default function RouteScreen() {
       Math.cos(toRad(currentLocation.latitude)) * Math.cos(toRad(geofenceActiveStop.latitude)) *
       Math.sin(dLng / 2) ** 2;
     const dist = 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    let zone = cardZoneRef.current;
-    if (dist <= CARD_SHOW_RADIUS_M) zone = 'near';
-    else if (dist > CARD_HIDE_RADIUS_M) zone = 'far';
-    if (zone !== cardZoneRef.current) {
-      cardZoneRef.current = zone;
-      setImmersiveMode(zone === 'far'); // far → hidden(true), near → shown(false)
+    let zone = shelfZoneRef.current;
+    if (zone === 'CRUISE') {
+      if (dist <= cardShowRadiusM) zone = 'ARRIVAL';
+      else if (dist <= APPROACH_RADIUS_M) zone = 'APPROACH';
+    } else if (zone === 'APPROACH') {
+      if (dist <= cardShowRadiusM) zone = 'ARRIVAL';
+      else if (dist > APPROACH_HIDE_M) zone = 'CRUISE';
+    } else if (zone === 'ARRIVAL') {
+      if (dist > cardHideRadiusM) zone = 'APPROACH';
     }
-  }, [currentLocation, geofenceActiveStop, viewMode]);
+    if (zone !== shelfZoneRef.current) {
+      shelfZoneRef.current = zone;
+      setShelfState(zone);
+    }
+  }, [currentLocation, geofenceActiveStop, viewMode, cardShowRadiusM, cardHideRadiusM]);
 
   const sidebarWidth = sidebarAnim.interpolate({
     inputRange: [0, 1],
@@ -4238,7 +4241,7 @@ export default function RouteScreen() {
           driverHeading={currentLocation?.heading}
           targetLat={geofenceActiveStop?.latitude}
           targetLng={geofenceActiveStop?.longitude}
-          topOffset={insets.top + NAV_HEADER_CLEARANCE}
+          topOffset={insets.top + 56}
         />
 
       </View>
@@ -4247,47 +4250,27 @@ export default function RouteScreen() {
       {viewMode === 'navigating' && (
         <NavigationPanel
           viewMode={viewMode}
-          immersiveMode={immersiveMode}
-          setImmersiveMode={setImmersiveMode}
+          shelfState={shelfState}
           currentStep={currentStep}
           currentLeg={currentLeg}
           stops={stops}
           currentLegIndex={currentLegIndex}
-          showNotesPreview={showNotesPreview}
-          setShowNotesPreview={setShowNotesPreview}
-          isVoiceEnabled={voiceEnabled}
-          setIsVoiceEnabled={setVoiceEnabled}
-          currentMapStyle={mapStyle}
-          cycleMapStyle={() => {
-            const styleKeys: MapStyleKey[] = ['colorful', 'eclipse', 'graybeard', 'neutrino'];
-            const idx = styleKeys.indexOf(mapStyle);
-            const nextStyle = styleKeys[(idx + 1) % styleKeys.length];
-            setMapStyle(nextStyle);
-          }}
           speedKmh={currentSpeed}
-          distanceToNextStop={liveRoute ? formatDistance(liveRoute.distance) : '--'}
           etaToNextStop={getETA()}
-          routeStats={routeStats}
           completedCount={completedCount}
           insets={insets}
-          isRerouting={isRerouting}
-          canUndo={undoHistory.length > 0}
           liveRoute={liveRoute}
+          navSettings={navSettings}
+          onSettingsChange={updateNavSettings}
+          canPreviewNext={currentLegIndex < (navigationData?.legs?.length || 0) - 1}
+          canPreviewPrev={currentLegIndex > 0}
+          legs={navigationData?.legs || []}
           onStopNavigation={stopNavigation}
           onMarkDelivered={handleMarkDelivered}
           onMarkFailed={handleMarkFailed}
           onSkipStop={handleSkipStop}
-          onUndoStop={handleUndo}
-          onReroute={handleReroute}
-          onShowRouteOverview={handleShowRouteOverview}
-          onOpenSidebar={() => {
-            setSidebarExpanded(true);
-            Animated.spring(sidebarAnim, { toValue: 1, useNativeDriver: false }).start();
-          }}
           onShareETA={handleShareETA}
           onCallCustomer={handleCallCustomer}
-          getSuburbColor={getSuburbColor}
-          // Swipe-to-preview between stops — purely navigational; no complete/fail side effects.
           onPreviewNextStop={() => {
             const max = (navigationData?.legs?.length || 0) - 1;
             if (currentLegIndex < max) setCurrentLegIndex(currentLegIndex + 1);
@@ -4295,9 +4278,6 @@ export default function RouteScreen() {
           onPreviewPrevStop={() => {
             if (currentLegIndex > 0) setCurrentLegIndex(currentLegIndex - 1);
           }}
-          canPreviewNext={currentLegIndex < (navigationData?.legs?.length || 0) - 1}
-          canPreviewPrev={currentLegIndex > 0}
-          legs={navigationData?.legs || []}
           onJumpToStop={(idx: number) => {
             const max = (navigationData?.legs?.length || 0) - 1;
             const clamped = Math.max(0, Math.min(idx, max));
@@ -4502,8 +4482,8 @@ export default function RouteScreen() {
           </TouchableOpacity>
 
           <MapStyleSwitcher
-            currentStyle={mapStyle}
-            onStyleChange={(key) => { setMapStyle(key); }}
+            currentStyle={navSettings.mapStyle}
+            onStyleChange={(key) => { updateNavSettings({ mapStyle: key }); }}
             compact={false}
           />
         </View>
@@ -4739,8 +4719,8 @@ export default function RouteScreen() {
           style={[
             styles.pausedPill,
             { opacity: pausedPillOpacity },
-            // Clear the taller unified nav header while navigating.
-            viewMode === 'navigating' && { top: insets.top + NAV_HEADER_CLEARANCE },
+            // Clear the turn pill while navigating.
+            viewMode === 'navigating' && { top: insets.top + 72 },
           ]}
           data-testid="paused-indicator-pill"
         >
