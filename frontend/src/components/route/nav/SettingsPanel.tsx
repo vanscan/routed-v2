@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { navColors, navShelfColors, SETTINGS_PANEL_WIDTH } from './navTheme';
+import { navColors, navShelfColors } from './navTheme';
 import { NavSettings } from './useNavSettings';
 import { MAP_STYLES, MapStyleKey } from '../../map/MapStyleSwitcher';
+
+const SHEET_MAX_HEIGHT = 440;
 
 interface SettingsPanelProps {
   visible: boolean;
@@ -20,15 +22,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSettingsChange,
   onStopNavigation,
 }) => {
-  const translateX = useRef(new Animated.Value(SETTINGS_PANEL_WIDTH)).current;
+  const translateY = useRef(new Animated.Value(SHEET_MAX_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(translateX, { toValue: visible ? 0 : SETTINGS_PANEL_WIDTH, duration: 260, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: visible ? 0 : SHEET_MAX_HEIGHT, duration: 260, useNativeDriver: true }),
       Animated.timing(overlayOpacity, { toValue: visible ? 1 : 0, duration: 260, useNativeDriver: true }),
     ]).start();
-  }, [visible, translateX, overlayOpacity]);
+  }, [visible, translateY, overlayOpacity]);
 
   const MAP_STYLE_KEYS: MapStyleKey[] = ['colorful', 'eclipse', 'graybeard', 'neutrino'];
 
@@ -42,8 +44,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
       </Animated.View>
 
-      {/* Panel */}
-      <Animated.View style={[styles.panel, { transform: [{ translateX }] }]}>
+      {/* Panel — bottom sheet */}
+      <Animated.View style={[styles.panel, { transform: [{ translateY }] }]}>
+        {/* Drag handle */}
+        <View style={styles.handle} />
         <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
@@ -165,13 +169,25 @@ const styles = StyleSheet.create({
   },
   panel: {
     position: 'absolute',
-    top: 0, right: 0, bottom: 0,
-    width: SETTINGS_PANEL_WIDTH,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    maxHeight: SHEET_MAX_HEIGHT,
     backgroundColor: navShelfColors.settingsPanelBg,
-    borderLeftWidth: 1,
-    borderLeftColor: navColors.hairline,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: navColors.hairline,
     zIndex: 120,
-    paddingTop: 48,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
   },
   header: {
     flexDirection: 'row',
