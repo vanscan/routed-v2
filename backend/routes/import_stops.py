@@ -117,6 +117,9 @@ def parse_excel_file(file_content: bytes, filename: str) -> pd.DataFrame:
             )
 
         df.columns = df.columns.str.strip()
+        # XLS files with empty header cells produce NaN (float) after str.strip().
+        # Coerce to str so downstream code never sees float column names.
+        df.columns = [c if isinstance(c, str) else '' for c in df.columns]
 
         # Guard against decompressed expansion (zip-bomb / unusually wide sheets).
         if len(df) > MAX_IMPORT_ROWS:
